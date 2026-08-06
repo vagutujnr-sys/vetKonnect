@@ -1,6 +1,6 @@
 import { mockPets } from "@/data/mockPets";
 import type { NewPetInput, Pet } from "@/types";
-import { delay, readLocal, writeLocal } from "./storage";
+import { delay, readPersisted, writePersisted } from "./storage";
 
 const KEY = "vetconnect.pets";
 
@@ -10,7 +10,7 @@ const KEY = "vetconnect.pets";
  */
 export async function getPets(): Promise<Pet[]> {
   await delay();
-  return readLocal<Pet[]>(KEY, mockPets);
+  return readPersisted<Pet[]>(KEY, mockPets);
 }
 
 export async function getPetById(id: string): Promise<Pet | undefined> {
@@ -40,7 +40,7 @@ export async function createPet(input: NewPetInput): Promise<Pet> {
     ],
   };
   const next = [...pets, pet];
-  writeLocal(KEY, next);
+  await writePersisted(KEY, next);
   return pet;
 }
 
@@ -60,5 +60,5 @@ export async function deletePet(id: string): Promise<void> {
 }
 
 export async function savePets(pets: Pet[]): Promise<void> {
-  writeLocal(KEY, pets);
+  await writePersisted(KEY, pets);
 }

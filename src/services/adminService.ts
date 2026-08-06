@@ -1,28 +1,28 @@
 import { mockAdminUsers, mockAdminVets } from "@/data/mockAdmin";
 import type { AdminUser, AdminVet } from "@/types";
-import { delay, readLocal, writeLocal } from "./storage";
+import { delay, readPersisted, writePersisted } from "./storage";
 
 const USERS_KEY = "vetconnect.adminUsers";
 const VETS_KEY = "vetconnect.adminVets";
 
 export async function getAdminUsers(): Promise<AdminUser[]> {
   await delay();
-  return readLocal<AdminUser[]>(USERS_KEY, mockAdminUsers);
+  return readPersisted<AdminUser[]>(USERS_KEY, mockAdminUsers);
 }
 
 export async function saveAdminUsers(users: AdminUser[]): Promise<void> {
   await delay();
-  writeLocal(USERS_KEY, users);
+  await writePersisted(USERS_KEY, users);
 }
 
 export async function getAdminVets(): Promise<AdminVet[]> {
   await delay();
-  return readLocal<AdminVet[]>(VETS_KEY, mockAdminVets);
+  return readPersisted<AdminVet[]>(VETS_KEY, mockAdminVets);
 }
 
 export async function saveAdminVets(vets: AdminVet[]): Promise<void> {
   await delay();
-  writeLocal(VETS_KEY, vets);
+  await writePersisted(VETS_KEY, vets);
 }
 
 export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Promise<AdminUser | undefined> {

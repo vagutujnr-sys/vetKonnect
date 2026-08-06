@@ -1,19 +1,19 @@
 import { mockPosts } from "@/data/mockCommunity";
 import { mockServices } from "@/data/mockServices";
 import type { CommunityPost, ServiceListing } from "@/types";
-import { delay, readLocal, writeLocal } from "./storage";
+import { delay, readPersisted, writePersisted } from "./storage";
 
 const SERVICES_KEY = "vetconnect.services";
 const POSTS_KEY = "vetconnect.posts";
 
 export async function getPosts(): Promise<CommunityPost[]> {
   await delay();
-  return readLocal<CommunityPost[]>(POSTS_KEY, mockPosts);
+  return readPersisted<CommunityPost[]>(POSTS_KEY, mockPosts);
 }
 
 export async function savePosts(posts: CommunityPost[]): Promise<void> {
   await delay();
-  writeLocal(POSTS_KEY, posts);
+  await writePersisted(POSTS_KEY, posts);
 }
 
 export async function updatePost(id: string, patch: Partial<CommunityPost>): Promise<CommunityPost | undefined> {
@@ -33,12 +33,12 @@ export async function deletePost(id: string): Promise<void> {
 
 export async function getServices(): Promise<ServiceListing[]> {
   await delay();
-  return readLocal<ServiceListing[]>(SERVICES_KEY, mockServices);
+  return readPersisted<ServiceListing[]>(SERVICES_KEY, mockServices);
 }
 
 export async function saveServices(services: ServiceListing[]): Promise<void> {
   await delay();
-  writeLocal(SERVICES_KEY, services);
+  await writePersisted(SERVICES_KEY, services);
 }
 
 export async function updateService(id: string, patch: Partial<ServiceListing>): Promise<ServiceListing | undefined> {

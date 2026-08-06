@@ -1,5 +1,5 @@
 import type { UserProfile } from "@/types";
-import { readLocal, writeLocal } from "./storage";
+import { readPersisted, writePersisted } from "./storage";
 
 const KEY = "vetconnect.user";
 
@@ -16,18 +16,18 @@ export const defaultUser: UserProfile = {
 };
 
 export async function getUser(): Promise<UserProfile> {
-  return readLocal<UserProfile>(KEY, defaultUser);
+  return readPersisted<UserProfile>(KEY, defaultUser);
 }
 
 export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfile> {
-  const current = readLocal<UserProfile>(KEY, defaultUser);
+  const current = await readPersisted<UserProfile>(KEY, defaultUser);
   const next = { ...current, ...patch };
-  writeLocal(KEY, next);
+  await writePersisted(KEY, next);
   return next;
 }
 
 export async function resetUser(): Promise<void> {
-  writeLocal(KEY, defaultUser);
+  await writePersisted(KEY, defaultUser);
 }
 
 /** Mock OTP — always the same demo code, always verifies successfully. */
