@@ -114,6 +114,11 @@ function AdminDashboard() {
   const onboardedUsers = users.filter((u) => u.onboarded).length;
   const activeVets = vets.filter((v) => v.status === "Active").length;
 
+  const handleSignOut = () => {
+    signOut();
+    void navigate({ to: "/admin-login" });
+  };
+
   useEffect(() => {
     setPage(1);
   }, [activeSection, search]);
