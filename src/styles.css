@@ -1,0 +1,130 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * VetConnect Pets design system.
+ * Premium veterinary healthcare: white surfaces, veterinary green, by Dr.R.Munzeiwa.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-brand-light: var(--brand-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-surface: var(--surface);
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --shadow-card: 0 2px 8px -2px oklch(0.35 0.06 155 / 0.06), 0 12px 28px -12px oklch(0.35 0.06 155 / 0.14);
+  --shadow-float: 0 -2px 10px -4px oklch(0.3 0.05 155 / 0.08), 0 18px 40px -14px oklch(0.3 0.05 155 / 0.22);
+  --shadow-brand: 0 10px 26px -10px oklch(0.42 0.13 155 / 0.5);
+}
+
+:root {
+  --radius: 1rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.23 0.02 160);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.23 0.02 160);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.23 0.02 160);
+  --primary: oklch(0.44 0.121 155.5);
+  --primary-foreground: oklch(0.99 0.005 150);
+  --primary-soft: oklch(0.955 0.028 155);
+  --brand-light: oklch(0.62 0.17 150);
+  --secondary: oklch(0.97 0.008 150);
+  --secondary-foreground: oklch(0.32 0.03 158);
+  --muted: oklch(0.968 0.006 140);
+  --muted-foreground: oklch(0.53 0.014 155);
+  --accent: oklch(0.955 0.028 155);
+  --accent-foreground: oklch(0.38 0.1 155);
+  --destructive: oklch(0.58 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.72 0.15 70);
+  --border: oklch(0.925 0.008 150);
+  --input: oklch(0.925 0.008 150);
+  --ring: oklch(0.44 0.121 155.5);
+  --surface: oklch(0.985 0.006 150);
+  --sidebar: oklch(0.99 0.004 150);
+  --sidebar-foreground: oklch(0.23 0.02 160);
+  --sidebar-primary: oklch(0.44 0.121 155.5);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.955 0.028 155);
+  --sidebar-accent-foreground: oklch(0.38 0.1 155);
+  --sidebar-border: oklch(0.925 0.008 150);
+  --sidebar-ring: oklch(0.44 0.121 155.5);
+}
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+@utility brand-gradient {
+  background-image: linear-gradient(135deg, var(--primary), var(--brand-light));
+}
+
+@utility soft-gradient {
+  background-image: linear-gradient(160deg, var(--primary-soft), oklch(1 0 0));
+}
+
+@utility card-surface {
+  background-color: var(--card);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-card);
+}
