@@ -11,9 +11,9 @@ function createPetId(): string {
   return `PET-${stamp}-${random}`;
 }
 
-function createVetConnectId(): string {
+function createVetKonnectId(): string {
   const suffix = Math.floor(100000 + Math.random() * 900000).toString();
-  return `VC-ZW-${suffix}`;
+  return `VK-ZW-${suffix}`;
 }
 
 function createQrPayload(pet: Pet): string {
@@ -47,11 +47,11 @@ export async function createPet(input: NewPetInput): Promise<Pet> {
     ...input,
     collarId: input.collarId?.trim() || undefined,
     id: createPetId(),
-    vetConnectId: createVetConnectId(),
+    vetConnectId: createVetKonnectId(),
     qrPayload: createQrPayload({
       ...input,
       id: createPetId(),
-      vetConnectId: createVetConnectId(),
+      vetConnectId: createVetKonnectId(),
       qrPayload: "",
       healthStatus: "Healthy",
       weightKg: 0,
@@ -70,7 +70,7 @@ export async function createPet(input: NewPetInput): Promise<Pet> {
         id: `e-${Date.now()}`,
         date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }),
         title: "Digital pet profile created",
-        detail: "Health passport activated on VetConnect.",
+        detail: "Health passport activated on VetKonnect.",
         type: "checkup",
       },
     ],
