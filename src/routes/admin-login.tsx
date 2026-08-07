@@ -10,9 +10,9 @@ import { ADMIN_PIN } from "@/services/userService";
 export const Route = createFileRoute("/admin-login")({
   head: () => ({
     meta: [
-      { title: "Admin Login — VetConnect" },
-      { name: "description", content: "Super admin login for VetConnect using a secure 4-digit access code." },
-      { property: "og:title", content: "Admin Login — VetConnect" },
+      { title: "Admin Login — VetKonnect" },
+      { name: "description", content: "Super admin login for VetKonnect using a secure 4-digit access code." },
+      { property: "og:title", content: "Admin Login — VetKonnect" },
       { property: "og:description", content: "Enter the 4-digit admin access code to view the dashboard." },
     ],
   }),
@@ -43,7 +43,7 @@ function AdminLogin() {
 
       <h1 className="mt-10 text-center text-3xl font-extrabold text-primary">Admin access</h1>
       <p className="mt-2 text-center text-[15px] text-muted-foreground">
-        Enter your 4-digit admin code to access the VetConnect super admin dashboard.
+        Enter your 4-digit admin code to access the VetKonnect super admin dashboard.
       </p>
 
       <div className="mt-10 rounded-2xl border border-border bg-card p-6 text-center">

@@ -7,9 +7,9 @@ import { useApp } from "@/hooks/useApp";
 export const Route = createFileRoute("/pets/$petId")({
   head: () => ({
     meta: [
-      { title: "Pet health passport — VetConnect Pets" },
+      { title: "Pet health passport — VetKonnect" },
       { name: "description", content: "A premium digital pet passport with health status, ID and full care timeline." },
-      { property: "og:title", content: "Pet health passport — VetConnect Pets" },
+      { property: "og:title", content: "Pet health passport — VetKonnect" },
       { property: "og:description", content: "Health status, VetSure cover, QR ID and care history." },
     ],
   }),
@@ -65,7 +65,7 @@ function PetProfile() {
         <div className="mt-5 card-surface p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetConnect Pet ID</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
               <p className="mt-1 text-lg font-extrabold text-primary">{pet.vetConnectId}</p>
               <p className="mt-2 text-xs text-muted-foreground">
                 {pet.collarId ? `Tag / collar ID ${pet.collarId}` : "No tag or collar ID recorded"}

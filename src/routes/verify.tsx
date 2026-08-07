@@ -11,9 +11,9 @@ import { DEMO_OTP } from "@/services/userService";
 export const Route = createFileRoute("/verify")({
   head: () => ({
     meta: [
-      { title: "Verify your number — VetConnect Pets" },
+      { title: "Verify your number — VetKonnect" },
       { name: "description", content: "Confirm your mobile number and tell us your name to finish signing up." },
-      { property: "og:title", content: "Verify your number — VetConnect Pets" },
+      { property: "og:title", content: "Verify your number — VetKonnect" },
       { property: "og:description", content: "Verification and profile setup in one step." },
     ],
   }),

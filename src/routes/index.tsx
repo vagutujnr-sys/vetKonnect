@@ -8,9 +8,9 @@ import splashBackground from "@/assets/Splashscreen.png";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "VetConnect Pets — Your pet's health, connected." },
+      { title: "VetKonnect — Your pet care hub, connected." },
       { name: "description", content: "A premium digital pet healthcare companion for pet owners." },
-      { property: "og:title", content: "VetConnect Pets — Your pet's health, connected." },
+      { property: "og:title", content: "VetKonnect — Your pet care hub, connected." },
       { property: "og:description", content: "A premium digital pet healthcare companion for pet owners." },
     ],
   }),
@@ -33,7 +33,7 @@ function Splash() {
     <MobileScreen className="relative overflow-hidden">
       <img
         src={splashBackground}
-        alt="VetConnect splash background"
+        alt="VetKonnect splash background"
         className="absolute inset-0 h-full w-full object-cover"
       />
       <div className="relative flex min-h-[100svh] flex-1 flex-col items-center justify-center gap-4 px-8 text-center">

@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/discover")({
   head: () => ({
     meta: [
-      { title: "Discover services — VetConnect Pets" },
+      { title: "Discover services — VetKonnect" },
       { name: "description", content: "Find veterinary clinics, grooming, pet stores and emergency care nearby." },
-      { property: "og:title", content: "Discover services — VetConnect Pets" },
+      { property: "og:title", content: "Discover services — VetKonnect" },
       { property: "og:description", content: "Trusted veterinary and pet services around you." },
     ],
   }),

@@ -18,10 +18,10 @@ import { useApp } from "@/hooks/useApp";
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
-      { title: "Profile — VetConnect Pets" },
+      { title: "Profile — VetKonnect" },
       { name: "description", content: "Manage your account, pets, VetSure membership and app preferences." },
-      { property: "og:title", content: "Profile — VetConnect Pets" },
-      { property: "og:description", content: "Your VetConnect account and settings." },
+      { property: "og:title", content: "Profile — VetKonnect" },
+      { property: "og:description", content: "Your VetKonnect account and settings." },
     ],
   }),
   component: Profile,
@@ -58,7 +58,7 @@ function Profile() {
           {initials}
         </span>
         <div>
-          <p className="text-lg font-bold">{user.fullName || "VetConnect user"}</p>
+          <p className="text-lg font-bold">{user.fullName || "VetKonnect user"}</p>
           <p className="text-sm text-muted-foreground">
             {user.countryCode} {user.phone || "—"}
           </p>

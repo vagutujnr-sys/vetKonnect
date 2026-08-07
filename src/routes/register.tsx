@@ -32,9 +32,9 @@ function FlagZimbabwe({ className }: { className?: string }) {
 export const Route = createFileRoute("/register")({
   head: () => ({
     meta: [
-      { title: "Create your VetConnect account" },
-      { name: "description", content: "Enter your phone number to create your VetConnect Pets account." },
-      { property: "og:title", content: "Create your VetConnect account" },
+      { title: "Create your VetKonnect account" },
+      { name: "description", content: "Enter your phone number to create your VetKonnect account." },
+      { property: "og:title", content: "Create your VetKonnect account" },
       { property: "og:description", content: "Register in seconds with your mobile number." },
     ],
   }),
@@ -59,7 +59,7 @@ function Register() {
 
       <h1 className="mt-10 text-center text-3xl font-extrabold text-primary">Let's get started</h1>
       <p className="mt-2 text-center text-[15px] text-muted-foreground">
-        Enter your phone number to create your VetConnect account.
+        Enter your phone number to create your VetKonnect account.
       </p>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-border">

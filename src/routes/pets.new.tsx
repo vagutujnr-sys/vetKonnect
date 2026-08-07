@@ -12,9 +12,9 @@ import type { Pet, Species } from "@/types";
 export const Route = createFileRoute("/pets/new")({
   head: () => ({
     meta: [
-      { title: "Add a pet — VetConnect Pets" },
-      { name: "description", content: "Create a digital health profile and VetConnect Pet ID for your companion." },
-      { property: "og:title", content: "Add a pet — VetConnect Pets" },
+      { title: "Add a pet — VetKonnect" },
+      { name: "description", content: "Create a digital health profile and VetKonnect Pet ID for your companion." },
+      { property: "og:title", content: "Add a pet — VetKonnect" },
       { property: "og:description", content: "Four quick steps to a full digital pet passport." },
     ],
   }),
@@ -165,7 +165,7 @@ function AddPet() {
           <h1 className="mt-4 text-2xl font-extrabold">{created.name} is registered</h1>
           <p className="mt-1 text-sm text-muted-foreground">The digital health passport is now active.</p>
           <div className="mt-6 card-surface p-6">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetConnect Pet ID</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
             <p className="mt-1 text-xl font-extrabold text-primary">{created.vetConnectId}</p>
             <div className="mx-auto mt-5 flex size-36 items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-accent/40">
               <QrCode className="size-20 text-primary" />

@@ -12,9 +12,9 @@ import type { ModuleId } from "@/types";
 export const Route = createFileRoute("/modules")({
   head: () => ({
     meta: [
-      { title: "Customize your VetConnect" },
-      { name: "description", content: "Choose the VetConnect Pets modules you want to use — pets, community and more." },
-      { property: "og:title", content: "Customize your VetConnect" },
+      { title: "Customize your VetKonnect" },
+      { name: "description", content: "Choose the VetKonnect modules you want to use — pets, community and more." },
+      { property: "og:title", content: "Customize your VetKonnect" },
       { property: "og:description", content: "Personalise the app to how you care for your animals." },
     ],
   }),
@@ -52,9 +52,9 @@ function Modules() {
         <StepIndicator step={3} total={3} />
       </div>
 
-      <h1 className="mt-6 text-center text-[26px] font-extrabold text-primary">Customize your VetConnect</h1>
+      <h1 className="mt-6 text-center text-[26px] font-extrabold text-primary">Customize your VetKonnect</h1>
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        Choose what you'd like to use VetConnect for. You can change these anytime in Settings.
+        Choose what you'd like to use VetKonnect for. You can change these anytime in Settings.
       </p>
 
       <div className="mt-6 space-y-3">
@@ -101,7 +101,7 @@ function Modules() {
         disabled={selected.length === 0}
         className="my-7 w-full justify-between text-[15px] tracking-wide"
       >
-        FINISH & START USING VETCONNECT
+        FINISH & START USING VETKONNECT
         <ArrowRight className="size-5" />
       </Button>
     </MobileScreen>

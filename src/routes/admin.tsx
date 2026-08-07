@@ -20,9 +20,9 @@ import { useApp } from "@/hooks/useApp";
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin Dashboard — VetConnect" },
+      { title: "Admin Dashboard — VetKonnect" },
       { name: "description", content: "Super admin dashboard for managing vets, users, pets, and app statistics." },
-      { property: "og:title", content: "Admin Dashboard — VetConnect" },
+      { property: "og:title", content: "Admin Dashboard — VetKonnect" },
       { property: "og:description", content: "Manage vets, users and pets while tracking app performance." },
     ],
   }),
@@ -390,7 +390,7 @@ function AdminDashboard() {
                       Admin
                     </div>
                     <div>
-                      <h1 className="text-2xl font-semibold tracking-tight text-foreground">VetConnect Control Center</h1>
+                      <h1 className="text-2xl font-semibold tracking-tight text-foreground">VetKonnect Control Center</h1>
                       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
                         A clean admin experience focused on the selected section.
                       </p>
@@ -862,7 +862,7 @@ function AdminDashboard() {
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div>
-                      <p className="text-sm text-muted-foreground">VetConnect ID</p>
+                      <p className="text-sm text-muted-foreground">VetKonnect ID</p>
                       <p className="font-semibold">{pet.vetConnectId}</p>
                     </div>
                     <div>
