@@ -6,12 +6,14 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppProvider } from "../hooks/useApp";
+import { getUser } from "../services/userService";
 
 
 function NotFoundComponent() {
@@ -74,22 +76,37 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+const publicRoutes = new Set(["/", "/welcome", "/register", "/verify", "/modules", "/admin-login", "/admin"]);
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async ({ location }) => {
+    const pathname = location.pathname;
+    if (publicRoutes.has(pathname)) {
+      return;
+    }
+
+    const user = await getUser();
+    const isReadyUser = Boolean(user.onboarded && user.phone && user.fullName && user.modules.length);
+
+    if (!isReadyUser) {
+      throw redirect({ to: "/welcome" });
+    }
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "VetConnect Pets — Your pet's health, connected." },
+      { title: "VetKonnect — Your pet care hub, connected." },
       {
         name: "description",
         content:
           "A premium digital pet healthcare companion for pet owners.",
       },
-      { property: "og:title", content: "VetConnect Pets — Your pet's health, connected." },
+      { property: "og:title", content: "VetKonnect — Your pet care hub, connected." },
       { property: "og:description", content: "A premium digital pet healthcare companion for pet owners." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "VetConnect Pets — Your pet's health, connected." },
+      { name: "twitter:title", content: "VetKonnect — Your pet care hub, connected." },
       { name: "twitter:description", content: "A premium digital pet healthcare companion for pet owners." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/254fe19e-9ce4-4be4-8843-a3a8a83c62a3/id-preview-b1147cd3--88d87143-c8b5-4ba8-ad3b-1f5ac1ce3b7c.lovable.app-1785251248175.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/254fe19e-9ce4-4be4-8843-a3a8a83c62a3/id-preview-b1147cd3--88d87143-c8b5-4ba8-ad3b-1f5ac1ce3b7c.lovable.app-1785251248175.png" },
