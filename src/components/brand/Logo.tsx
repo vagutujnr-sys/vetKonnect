@@ -1,8 +1,7 @@
-import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
 export function LogoMark({ className }: { className?: string }) {
-  return <img src={logo} alt="VetConnect logo" className={cn("object-contain", className)} />;
+  return null;
 }
 
 export function Logo({
@@ -21,10 +20,10 @@ export function Logo({
   return (
     <div className={cn("flex items-center gap-3", stacked && "flex-col gap-2", className)}>
       <LogoMark className={marks} />
-      <div className={cn(stacked && "text-center")}> 
-        <p className={cn("font-display font-extrabold leading-none text-primary", text)}>VetConnect</p>
+      <div className={cn(stacked && "text-center")}>
+        <p className={cn("font-display font-extrabold leading-none text-primary", text)}>VetKonnect</p>
         {!hideSubtitle ? (
-          <p className="mt-1 text-[0.65em] font-semibold uppercase tracking-[0.35em] text-brand-light">Pets</p>
+          <p className="mt-1 text-[0.65em] font-semibold uppercase tracking-[0.35em] text-brand-light">Care</p>
         ) : null}
       </div>
     </div>

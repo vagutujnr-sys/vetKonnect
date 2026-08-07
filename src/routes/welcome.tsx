@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ClipboardPlus, Heart } from "lucide-react";
+import { ClipboardPlus } from "lucide-react";
 import hero from "@/assets/welcome-hero.png";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
@@ -35,11 +35,7 @@ function Welcome() {
       </div>
 
       <div className="flex flex-1 flex-col px-6 pb-10">
-        <h1 className="text-center text-3xl font-extrabold leading-tight">
-          Welcome to <span className="block text-primary">VetKonnect</span>
-        </h1>
-        <Heart className="mx-auto mt-3 size-5 fill-brand-light text-brand-light" />
-        <p className="mt-3 text-center text-[15px] text-muted-foreground">
+        <p className="mt-2 text-center text-[15px] leading-relaxed text-muted-foreground">
           Your complete pet healthcare companion. Supporting healthier, happier pets through connected care.
         </p>
 
