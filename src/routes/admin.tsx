@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, Users, User, MessageSquare, Megaphone, CreditCard, Wallet, Layers, Pencil, Trash2 } from "lucide-react";
+import { BarChart3, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, Users, User, MessageSquare, Megaphone, CreditCard, Wallet, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,8 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { getAdminUsers, getAdminVets, updateAdminUser, deleteAdminUser, updateAdminVet, deleteAdminVet } from "@/services/adminService";
 import { getPets, updatePet, deletePet } from "@/services/petService";
 import { getServices, updateService, deleteService } from "@/services/contentService";
-import type { AdminUser, AdminVet, Pet, ServiceListing } from "@/types";
+import { generateHerdTags, listHerdTags } from "@/services/herdTagService";
+import type { AdminUser, AdminVet, HerdTag, Pet, ServiceListing } from "@/types";
 import { useApp } from "@/hooks/useApp";
 
 export const Route = createFileRoute("/admin")({
@@ -34,7 +35,7 @@ const sections = [
   { id: "vets", label: "Vets", icon: User },
   { id: "pets", label: "Pets", icon: PawPrint },
   { id: "services", label: "Services", icon: ClipboardList },
-  { id: "herd", label: "Herd Management", icon: Layers },
+  { id: "herd", label: "Tag Inventory", icon: Layers },
   { id: "community", label: "Community Posts", icon: MessageSquare },
   { id: "notice", label: "Notice Board", icon: Megaphone },
   { id: "billing", label: "Billing", icon: CreditCard },
@@ -59,13 +60,20 @@ function AdminDashboard() {
   const [vets, setVets] = useState<AdminVet[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
   const [services, setServices] = useState<ServiceListing[]>([]);
+  const [herdTags, setHerdTags] = useState<HerdTag[]>([]);
   const [search, setSearch] = useState("");
+  const [tagType, setTagType] = useState<HerdTag["type"]>("Collar ID");
+  const [tagPrefix, setTagPrefix] = useState("VC");
+  const [tagQuantity, setTagQuantity] = useState(3);
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
   const [page, setPage] = useState(1);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<EditableRow | null>(null);
+  const [viewingRow, setViewingRow] = useState<EditableRow | null>(null);
   const [deletingRow, setDeletingRow] = useState<EditableRow | null>(null);
-  const [formValues, setFormValues] = useState<Record<string, string | number | boolean>>({});
+  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [isSaving, setIsSaving] = useState(false);
   const pageSize = 5;
 
@@ -87,11 +95,12 @@ function AdminDashboard() {
     let cancelled = false;
 
     async function loadData() {
-      const [usersData, vetsData, petsData, servicesData] = await Promise.all([
+      const [usersData, vetsData, petsData, servicesData, herdTagsData] = await Promise.all([
         getAdminUsers(),
         getAdminVets(),
         getPets(),
         getServices(),
+        listHerdTags(),
       ]);
 
       if (cancelled) return;
@@ -99,6 +108,7 @@ function AdminDashboard() {
       setVets(vetsData);
       setPets(petsData);
       setServices(servicesData);
+      setHerdTags(herdTagsData);
     }
 
     void loadData();
@@ -182,10 +192,25 @@ function AdminDashboard() {
     }
   }, [page, pageCount]);
 
-  const pagedItems = useMemo(() => {
+  const pagedUsers = useMemo(() => {
     const start = (page - 1) * pageSize;
-    return sectionItems.slice(start, start + pageSize);
-  }, [sectionItems, page]);
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, page]);
+
+  const pagedVets = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredVets.slice(start, start + pageSize);
+  }, [filteredVets, page]);
+
+  const pagedPets = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredPets.slice(start, start + pageSize);
+  }, [filteredPets, page]);
+
+  const pagedServices = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredServices.slice(start, start + pageSize);
+  }, [filteredServices, page]);
 
   const startEdit = (row: EditableRow) => {
     setEditingRow(row);
@@ -196,6 +221,11 @@ function AdminDashboard() {
   const startDelete = (row: EditableRow) => {
     setDeletingRow(row);
     setDeleteDialogOpen(true);
+  };
+
+  const startView = (row: EditableRow) => {
+    setViewingRow(row);
+    setViewDialogOpen(true);
   };
 
   const handleFormChange = (key: string, value: string | number | boolean) => {
@@ -252,6 +282,8 @@ function AdminDashboard() {
           category: String(formValues.category ?? editingRow.item.category) as ServiceListing["category"],
           rating: Number(formValues.rating ?? editingRow.item.rating),
           address: String(formValues.address ?? editingRow.item.address),
+          latitude: Number(formValues.latitude ?? editingRow.item.latitude),
+          longitude: Number(formValues.longitude ?? editingRow.item.longitude),
           open: Boolean(formValues.open ?? editingRow.item.open),
         });
         if (updated) {
@@ -290,6 +322,22 @@ function AdminDashboard() {
       setIsSaving(false);
       setDeleteDialogOpen(false);
       setDeletingRow(null);
+    }
+  };
+
+  const handleGenerateTags = async () => {
+    setIsGeneratingTags(true);
+
+    try {
+      const generated = await generateHerdTags({
+        type: tagType,
+        prefix: tagPrefix,
+        quantity: tagQuantity,
+      });
+
+      setHerdTags((prev) => [...generated, ...prev].slice(0, 200));
+    } finally {
+      setIsGeneratingTags(false);
     }
   };
 
@@ -428,7 +476,80 @@ function AdminDashboard() {
             </Card>
           )}
 
-          {activeSection !== "overview" && (
+          {activeSection === "herd" ? (
+            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground">Generate inventory</p>
+                  <h3 className="text-xl font-bold text-foreground">Create collar IDs and pet tags</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Issue pre-generated identification codes with QR payloads for dogs, cats, and other pets. These codes are reusable and can be assigned to multiple pets.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 text-sm">
+                    <span>Type</span>
+                    <select
+                      value={tagType}
+                      onChange={(event) => setTagType(event.target.value as HerdTag["type"])}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="Collar ID">Collar ID</option>
+                      <option value="Pet Tag">Pet Tag</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-sm">
+                    <span>Prefix</span>
+                    <Input value={tagPrefix} onChange={(event) => setTagPrefix(event.target.value)} placeholder="VC" />
+                  </label>
+                  <label className="grid gap-2 text-sm">
+                    <span>Quantity</span>
+                    <Input type="number" min="1" max="50" value={tagQuantity} onChange={(event) => setTagQuantity(Number(event.target.value))} />
+                  </label>
+                  <div className="flex items-end">
+                    <Button className="w-full" onClick={handleGenerateTags} disabled={isGeneratingTags}>
+                      {isGeneratingTags ? "Generating..." : "Generate tags"}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-muted-foreground">Inventory</p>
+                    <h3 className="text-xl font-bold text-foreground">Latest generated codes</h3>
+                  </div>
+                  <Badge>{herdTags.length} tags</Badge>
+                </div>
+
+                <div className="space-y-3">
+                  {herdTags.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-muted-foreground">
+                      No inventory yet. Generate your first batch to populate this panel.
+                    </div>
+                  ) : (
+                    herdTags.slice(0, 6).map((tag) => (
+                      <div key={tag.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-semibold">{tag.code}</p>
+                          <p className="text-sm text-muted-foreground">{tag.type} · {tag.prefix}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <img src={tag.qrDataUrl} alt={tag.code} className="h-16 w-16 rounded-lg border border-slate-200 bg-white p-1" />
+                          <div className="text-xs text-muted-foreground">
+                            <p>{new Date(tag.createdAt).toLocaleDateString()}</p>
+                            <p>{new Date(tag.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+            </div>
+          ) : activeSection !== "overview" && (
             <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex-1">
@@ -440,7 +561,7 @@ function AdminDashboard() {
                   />
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Showing {pagedItems.length} of {sectionItems.length} {activeSection}
+                  Showing {activeSection === "users" ? pagedUsers.length : activeSection === "vets" ? pagedVets.length : activeSection === "pets" ? pagedPets.length : pagedServices.length} of {sectionItems.length} {activeSection}
                 </div>
               </div>
 
@@ -488,7 +609,7 @@ function AdminDashboard() {
                 </TableHeader>
                 <TableBody>
                   {activeSection === "users" &&
-                    pagedItems.map((item) => (
+                    pagedUsers.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.fullName}</TableCell>
                         <TableCell>{item.phone}</TableCell>
@@ -500,6 +621,9 @@ function AdminDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="flex flex-wrap gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "users", item })}>
+                            <Eye className="h-4 w-4" /> View
+                          </Button>
                           <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "users", item })}>
                             <Pencil className="h-4 w-4" /> Edit
                           </Button>
@@ -510,7 +634,7 @@ function AdminDashboard() {
                       </TableRow>
                     ))}
                   {activeSection === "vets" &&
-                    pagedItems.map((item) => (
+                    pagedVets.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.name}</TableCell>
                         <TableCell>{item.surgery}</TableCell>
@@ -522,6 +646,9 @@ function AdminDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="flex flex-wrap gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "vets", item })}>
+                            <Eye className="h-4 w-4" /> View
+                          </Button>
                           <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "vets", item })}>
                             <Pencil className="h-4 w-4" /> Edit
                           </Button>
@@ -532,7 +659,7 @@ function AdminDashboard() {
                       </TableRow>
                     ))}
                   {activeSection === "pets" &&
-                    pagedItems.map((item) => (
+                    pagedPets.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.name}</TableCell>
                         <TableCell>{item.breed}</TableCell>
@@ -540,6 +667,9 @@ function AdminDashboard() {
                         <TableCell>{item.healthStatus}</TableCell>
                         <TableCell>{item.vetSure ? "Yes" : "No"}</TableCell>
                         <TableCell className="flex flex-wrap gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "pets", item })}>
+                            <Eye className="h-4 w-4" /> View
+                          </Button>
                           <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "pets", item })}>
                             <Pencil className="h-4 w-4" /> Edit
                           </Button>
@@ -550,7 +680,7 @@ function AdminDashboard() {
                       </TableRow>
                     ))}
                   {activeSection === "services" &&
-                    pagedItems.map((item) => (
+                    pagedServices.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.name}</TableCell>
                         <TableCell>{item.category}</TableCell>
@@ -562,6 +692,9 @@ function AdminDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="flex flex-wrap gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "services", item })}>
+                            <Eye className="h-4 w-4" /> View
+                          </Button>
                           <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "services", item })}>
                             <Pencil className="h-4 w-4" /> Edit
                           </Button>
@@ -598,6 +731,208 @@ function AdminDashboard() {
           )}
         </div>
       </main>
+
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {viewingRow?.section === "users" && "User profile"}
+              {viewingRow?.section === "vets" && "Vet profile"}
+              {viewingRow?.section === "pets" && "Pet profile"}
+              {viewingRow?.section === "services" && "Service profile"}
+            </DialogTitle>
+            <DialogDescription>View the complete record details and related information.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            {viewingRow?.section === "users" && (() => {
+              const user = viewingRow.item as AdminUser;
+              const linkedPets = pets.filter((pet) => user.petIds?.includes(pet.id));
+              return (
+                <>
+                  <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Name</p>
+                      <p className="font-semibold">{user.fullName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Phone</p>
+                      <p className="font-semibold">{user.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Country</p>
+                      <p className="font-semibold">{user.country}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Member since</p>
+                      <p className="font-semibold">{user.memberSince ?? "—"}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="mb-2 text-sm font-semibold">Subscriptions</p>
+                    {user.subscriptions?.length ? (
+                      <div className="space-y-2">
+                        {user.subscriptions.map((subscription) => (
+                          <div key={`${subscription.plan}-${subscription.status}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                            <span>{subscription.plan}</span>
+                            <span className="text-muted-foreground">{subscription.status} · {subscription.renews}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No subscriptions recorded.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="mb-2 text-sm font-semibold">Pets under this account</p>
+                    {linkedPets.length ? (
+                      <div className="space-y-3">
+                        {linkedPets.map((pet) => (
+                          <div key={pet.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-semibold">{pet.name}</p>
+                                <p className="text-sm text-muted-foreground">{pet.species} · {pet.breed}</p>
+                              </div>
+                              <Badge variant="secondary">{pet.healthStatus}</Badge>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              {pet.timeline.slice(0, 3).map((event) => (
+                                <div key={event.id} className="rounded-md bg-white px-2 py-2 text-sm">
+                                  <p className="font-medium">{event.title}</p>
+                                  <p className="text-muted-foreground">{event.date} · {event.detail}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No linked pets yet.</p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+
+            {viewingRow?.section === "vets" && (() => {
+              const vet = viewingRow.item as AdminVet;
+              return (
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name</p>
+                    <p className="font-semibold">{vet.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Surgery</p>
+                    <p className="font-semibold">{vet.surgery}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Location</p>
+                    <p className="font-semibold">{vet.location}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Phone</p>
+                    <p className="font-semibold">{vet.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <p className="font-semibold">{vet.status}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Rating</p>
+                    <p className="font-semibold">{vet.rating.toFixed(1)}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {viewingRow?.section === "pets" && (() => {
+              const pet = viewingRow.item as Pet;
+              return (
+                <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold">{pet.name}</p>
+                      <p className="text-sm text-muted-foreground">{pet.species} · {pet.breed}</p>
+                    </div>
+                    <Badge>{pet.healthStatus}</Badge>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">VetConnect ID</p>
+                      <p className="font-semibold">{pet.vetConnectId}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Collar / Tag ID</p>
+                      <p className="font-semibold">{pet.collarId ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Next vaccine</p>
+                      <p className="font-semibold">{pet.nextVaccine}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Medication</p>
+                      <p className="font-semibold">{pet.medicationToday}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">Pet history</p>
+                    <div className="space-y-2">
+                      {pet.timeline.map((event) => (
+                        <div key={event.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                          <p className="font-medium">{event.title}</p>
+                          <p className="text-muted-foreground">{event.date} · {event.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {viewingRow?.section === "services" && (() => {
+              const service = viewingRow.item as ServiceListing;
+              return (
+                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name</p>
+                    <p className="font-semibold">{service.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Category</p>
+                    <p className="font-semibold">{service.category}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Address</p>
+                    <p className="font-semibold">{service.address}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Coordinates</p>
+                    <p className="font-semibold">{service.latitude.toFixed(4)}, {service.longitude.toFixed(4)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Rating</p>
+                    <p className="font-semibold">{service.rating.toFixed(1)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current status</p>
+                    <p className="font-semibold">{service.open ? "Open now" : "Closed"}</p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setViewDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
@@ -716,6 +1051,14 @@ function AdminDashboard() {
                 <label className="grid gap-2 text-sm">
                   <span>Address</span>
                   <Input value={String(formValues.address ?? "")} onChange={(event) => handleFormChange("address", event.target.value)} />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Latitude</span>
+                  <Input type="number" step="0.0001" value={Number(formValues.latitude ?? 0)} onChange={(event) => handleFormChange("latitude", Number(event.target.value))} />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Longitude</span>
+                  <Input type="number" step="0.0001" value={Number(formValues.longitude ?? 0)} onChange={(event) => handleFormChange("longitude", Number(event.target.value))} />
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   <input

@@ -7,8 +7,8 @@ async function readFromSupabase<T>(key: string, fallback: T): Promise<T> {
     const { data, error } = await supabase.from("app_storage").select("value").eq("key", `${STORAGE_PREFIX}:${key}`).maybeSingle();
 
     if (error) {
-      console.warn("Supabase read failed, falling back to localStorage", error.message);
-      return readLocal<T>(key, fallback);
+      console.error("Supabase read failed", error.message);
+      return fallback;
     }
 
     if (!data?.value) {
@@ -17,8 +17,8 @@ async function readFromSupabase<T>(key: string, fallback: T): Promise<T> {
 
     return data.value as T;
   } catch (error) {
-    console.warn("Supabase unavailable, falling back to localStorage", error);
-    return readLocal<T>(key, fallback);
+    console.error("Supabase unavailable", error);
+    return fallback;
   }
 }
 
@@ -27,35 +27,12 @@ async function writeToSupabase<T>(key: string, value: T): Promise<void> {
     const payload = { key: `${STORAGE_PREFIX}:${key}`, value };
     const { error } = await supabase.from("app_storage").upsert(payload, { onConflict: "key" });
     if (error) {
-      console.warn("Supabase write failed, using localStorage", error.message);
-      writeLocal(key, value);
+      console.error("Supabase write failed", error.message);
+      throw error;
     }
   } catch (error) {
-    console.warn("Supabase unavailable, using localStorage", error);
-    writeLocal(key, value);
-  }
-}
-
-export async function readLocal<T>(key: string, fallback: T): Promise<T> {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (raw) {
-      return JSON.parse(raw) as T;
-    }
-  } catch {
-    // ignore
-  }
-
-  return fallback;
-}
-
-export async function writeLocal<T>(key: string, value: T): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
+    console.error("Supabase unavailable", error);
+    throw error;
   }
 }
 

@@ -5,6 +5,7 @@ export type ModuleId = "pets" | "community" | "marketplace" | "rescue" | "tips" 
 export interface Pet {
   id: string;
   vetConnectId: string;
+  qrPayload?: string;
   name: string;
   species: Species;
   breed: string;
@@ -12,6 +13,7 @@ export interface Pet {
   ageYears: number;
   colour: string;
   microchip?: string;
+  collarId?: string;
   photoUrl: string;
   healthStatus: HealthStatus;
   weightKg: number;
@@ -46,6 +48,10 @@ export interface AdminUser {
   country: string;
   onboarded: boolean;
   pets: number;
+  subscriptions?: Array<{ plan: string; status: string; renews: string }>;
+  petIds?: string[];
+  memberSince?: string;
+  vetSureMember?: boolean;
 }
 
 export interface AdminVet {
@@ -78,8 +84,19 @@ export interface ServiceListing {
   distanceKm: number;
   rating: number;
   address: string;
+  latitude: number;
+  longitude: number;
   open: boolean;
   imageUrl: string;
+}
+
+export interface HerdTag {
+  id: string;
+  type: "Collar ID" | "Pet Tag";
+  prefix: string;
+  code: string;
+  qrDataUrl: string;
+  createdAt: string;
 }
 
 export type NewPetInput = Omit<

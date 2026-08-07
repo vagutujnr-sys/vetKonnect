@@ -77,6 +77,9 @@ function Discover() {
               <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
                 <MapPin className="size-4" /> {s.address} · {s.distanceKm} km
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Map-ready coordinates: {s.latitude.toFixed(4)}, {s.longitude.toFixed(4)}
+              </p>
               <p className={cn("mt-2 text-xs font-semibold", s.open ? "text-primary" : "text-muted-foreground")}>
                 {s.open ? "Open now" : "Closed"}
               </p>

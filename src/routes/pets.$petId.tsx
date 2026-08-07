@@ -68,6 +68,9 @@ function PetProfile() {
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetConnect Pet ID</p>
               <p className="mt-1 text-lg font-extrabold text-primary">{pet.vetConnectId}</p>
               <p className="mt-2 text-xs text-muted-foreground">
+                {pet.collarId ? `Tag / collar ID ${pet.collarId}` : "No tag or collar ID recorded"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {pet.microchip ? `Microchip ${pet.microchip}` : "No microchip recorded"}
               </p>
             </div>

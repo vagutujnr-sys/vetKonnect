@@ -8,6 +8,13 @@ export const mockAdminUsers: AdminUser[] = [
     country: "Zimbabwe",
     onboarded: true,
     pets: 2,
+    subscriptions: [
+      { plan: "VetSure Premium", status: "Active", renews: "12 Sep 2026" },
+      { plan: "Emergency Cover", status: "Active", renews: "28 Aug 2026" },
+    ],
+    petIds: ["pet-1", "pet-2"],
+    memberSince: "March 2024",
+    vetSureMember: true,
   },
   {
     id: "user-2",
@@ -16,6 +23,10 @@ export const mockAdminUsers: AdminUser[] = [
     country: "Zimbabwe",
     onboarded: true,
     pets: 1,
+    subscriptions: [{ plan: "Basic Care", status: "Active", renews: "05 Oct 2026" }],
+    petIds: ["pet-1"],
+    memberSince: "January 2025",
+    vetSureMember: false,
   },
   {
     id: "user-3",
@@ -24,6 +35,10 @@ export const mockAdminUsers: AdminUser[] = [
     country: "Zimbabwe",
     onboarded: false,
     pets: 0,
+    subscriptions: [{ plan: "No active plan", status: "Paused", renews: "—" }],
+    petIds: [],
+    memberSince: "New member",
+    vetSureMember: false,
   },
   {
     id: "user-4",
@@ -32,6 +47,10 @@ export const mockAdminUsers: AdminUser[] = [
     country: "Zimbabwe",
     onboarded: true,
     pets: 3,
+    subscriptions: [{ plan: "VetSure Family", status: "Active", renews: "19 Nov 2026" }],
+    petIds: ["pet-2"],
+    memberSince: "August 2023",
+    vetSureMember: true,
   },
 ];
 

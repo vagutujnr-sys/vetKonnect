@@ -41,6 +41,7 @@ function AddPet() {
     ageYears: "1",
     colour: "",
     microchip: "",
+    collarId: "",
   });
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
@@ -54,6 +55,7 @@ function AddPet() {
       ageYears: Number(form.ageYears) || 0,
       colour: form.colour.trim() || "Not specified",
       microchip: form.microchip.trim() || undefined,
+      collarId: form.collarId.trim() || undefined,
       photoUrl: buddy,
     });
     setCreated(pet);
@@ -145,6 +147,12 @@ function AddPet() {
             value={form.microchip}
             onChange={(v) => set({ microchip: v })}
             placeholder="985141002374561"
+          />
+          <Field
+            label="Tag ID / Collar ID (optional)"
+            value={form.collarId}
+            onChange={(v) => set({ collarId: v })}
+            placeholder="VC-20260806-001"
           />
         </div>
       )}
