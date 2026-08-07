@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ClipboardPlus, Heart } from "lucide-react";
-import hero from "@/assets/welcome-hero.jpg";
+import hero from "@/assets/welcome-hero.png";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/welcome")({
   head: () => ({
     meta: [
-      { title: "Welcome to VetConnect Pets" },
+      { title: "Welcome to VetKonnect" },
       { name: "description", content: "Your complete pet healthcare companion — records, reminders and vet services." },
-      { property: "og:title", content: "Welcome to VetConnect Pets" },
+      { property: "og:title", content: "Welcome to VetKonnect" },
       { property: "og:description", content: "Your complete pet healthcare companion." },
     ],
   }),
@@ -24,20 +24,19 @@ function Welcome() {
         <Logo size="md" />
       </div>
 
-      <div className="relative mt-6 overflow-hidden">
+      <div className="mt-6 overflow-hidden">
         <img
           src={hero}
           alt="Pet owner with a golden retriever and a cat at a veterinary clinic"
           width={1024}
           height={768}
-          className="h-64 w-full object-cover"
+          className="h-64 w-full rounded-none object-cover"
         />
-        <div className="absolute inset-x-0 -bottom-1 h-16 rounded-t-[50%] bg-background" />
       </div>
 
       <div className="flex flex-1 flex-col px-6 pb-10">
         <h1 className="text-center text-3xl font-extrabold leading-tight">
-          Welcome to <span className="block text-primary">VetConnect</span>
+          Welcome to <span className="block text-primary">VetKonnect</span>
         </h1>
         <Heart className="mx-auto mt-3 size-5 fill-brand-light text-brand-light" />
         <p className="mt-3 text-center text-[15px] text-muted-foreground">
