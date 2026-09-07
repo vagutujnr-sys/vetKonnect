@@ -44,6 +44,7 @@ export interface UserProfile {
   isAdmin?: boolean;
   notificationsEnabled?: boolean;
   boundDeviceId?: string | null;
+  avatarUrl?: string;
 }
 
 export interface AdminUser {

@@ -179,13 +179,14 @@ export async function createPost(input: {
   if (!accountId) throw new Error("Log in to post.");
 
   const mediaType = input.mediaType ?? (input.mediaUrl ? "image" : "none");
+  const { data: account } = await supabase.from("accounts").select("avatar_url").eq("id", accountId).maybeSingle();
   const row = {
     id: crypto.randomUUID(),
     author_id: accountId,
     author: input.authorName,
     location: input.location ?? "Zimbabwe",
     time_ago: "Just now",
-    avatar_url: "",
+    avatar_url: String(account?.avatar_url ?? ""),
     image_url: mediaType === "image" ? input.mediaUrl ?? "" : "",
     video_url: mediaType === "video" ? input.mediaUrl ?? "" : "",
     media_type: mediaType,

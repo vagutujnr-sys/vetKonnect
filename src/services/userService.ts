@@ -19,6 +19,7 @@ export const defaultUser: UserProfile = {
   isAdmin: false,
   notificationsEnabled: true,
   boundDeviceId: null,
+  avatarUrl: "",
 };
 
 function normalizePhone(phone: string) {
@@ -41,6 +42,7 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     isAdmin: Boolean(row.is_admin),
     notificationsEnabled: row.notifications_enabled !== false,
     boundDeviceId: row.bound_device_id ? String(row.bound_device_id) : null,
+    avatarUrl: String(row.avatar_url ?? ""),
   };
 }
 
@@ -167,6 +169,7 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
       vet_sure_member: next.vetSureMember,
       is_admin: Boolean(next.isAdmin),
       notifications_enabled: next.notificationsEnabled !== false,
+      avatar_url: next.avatarUrl ?? "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", current.id);
@@ -174,6 +177,32 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
   if (error) throw error;
   cacheSessionProfile(next);
   return next;
+}
+
+export async function uploadProfilePhoto(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Please choose an image file.");
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("Photo must be under 8MB.");
+  }
+
+  const accountId = getSessionAccountId();
+  if (!accountId) throw new Error("You must be logged in to update your photo.");
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const safeExt = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"].includes(ext) ? ext : "jpg";
+  const path = `${accountId}/avatar-${Date.now()}.${safeExt}`;
+
+  const { error } = await supabase.storage.from("profile-photos").upload(path, file, {
+    cacheControl: "3600",
+    upsert: true,
+    contentType: file.type || "image/jpeg",
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export async function resetUser(): Promise<void> {
