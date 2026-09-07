@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   redirect,
@@ -13,8 +14,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppProvider } from "../hooks/useApp";
-import { getUser } from "../services/userService";
-
+import { getUser, hasActiveSession } from "../services/userService";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -27,10 +28,10 @@ function NotFoundComponent() {
         </p>
         <div className="mt-6">
           <Link
-            to="/"
+            to="/register"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            Go to login
           </Link>
         </div>
       </div>
@@ -48,9 +49,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">This page didn't load</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
@@ -65,10 +64,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Try again
           </button>
           <a
-            href="/"
+            href="/register"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            Go to login
           </a>
         </div>
       </div>
@@ -76,20 +75,30 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-const publicRoutes = new Set(["/", "/welcome", "/register", "/verify", "/modules", "/admin-login", "/admin"]);
+const publicRoutes = new Set(["/", "/register", "/verify", "/modules", "/admin-login", "/admin", "/welcome"]);
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({ location }) => {
     const pathname = location.pathname;
+
+    if (pathname === "/" || pathname === "/welcome") {
+      const session = await hasActiveSession();
+      if (session) {
+        const user = await getUser();
+        throw redirect({ to: user.onboarded && user.modules.length ? "/home" : "/modules" });
+      }
+      throw redirect({ to: "/register" });
+    }
+
     if (publicRoutes.has(pathname)) {
       return;
     }
 
     const user = await getUser();
-    const isReadyUser = Boolean(user.onboarded && user.phone && user.fullName && user.modules.length);
+    const isReadyUser = Boolean(user.id && user.boundDeviceId && user.onboarded && user.phone && user.fullName && user.modules.length);
 
     if (!isReadyUser) {
-      throw redirect({ to: "/welcome" });
+      throw redirect({ to: "/register" });
     }
   },
   head: () => ({
@@ -99,8 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "VetKonnect — Your pet care hub, connected." },
       {
         name: "description",
-        content:
-          "A premium digital pet healthcare companion for pet owners.",
+        content: "A premium digital pet healthcare companion for pet owners.",
       },
       { property: "og:title", content: "VetKonnect — Your pet care hub, connected." },
       { property: "og:description", content: "A premium digital pet healthcare companion for pet owners." },
@@ -108,8 +116,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "VetKonnect — Your pet care hub, connected." },
       { name: "twitter:description", content: "A premium digital pet healthcare companion for pet owners." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/254fe19e-9ce4-4be4-8843-a3a8a83c62a3/id-preview-b1147cd3--88d87143-c8b5-4ba8-ad3b-1f5ac1ce3b7c.lovable.app-1785251248175.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/254fe19e-9ce4-4be4-8843-a3a8a83c62a3/id-preview-b1147cd3--88d87143-c8b5-4ba8-ad3b-1f5ac1ce3b7c.lovable.app-1785251248175.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -141,16 +147,26 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function PageTransition({ children }: { children: ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <div key={pathname} className="page-enter min-h-dvh">
+      {children}
+    </div>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
+        <PageTransition>
+          <Outlet />
+        </PageTransition>
+        <Toaster position="top-right" richColors closeButton />
       </AppProvider>
     </QueryClientProvider>
   );
 }
-

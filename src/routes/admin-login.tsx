@@ -5,7 +5,7 @@ import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
-import { ADMIN_PIN } from "@/services/userService";
+import { ADMIN_PIN, setAdminSession } from "@/services/userService";
 
 export const Route = createFileRoute("/admin-login")({
   head: () => ({
@@ -21,13 +21,14 @@ export const Route = createFileRoute("/admin-login")({
 
 function AdminLogin() {
   const navigate = useNavigate();
-  const { updateUser } = useApp();
+  const { refreshSession } = useApp();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
 
-  const submit = () => {
+  const submit = async () => {
     if (code === ADMIN_PIN) {
-      updateUser({ isAdmin: true, onboarded: true, modules: ["pets", "community", "marketplace", "rescue", "tips", "farm"] });
+      setAdminSession(true);
+      await refreshSession();
       void navigate({ to: "/admin" });
       return;
     }
@@ -58,6 +59,9 @@ function AdminLogin() {
             placeholder="Enter 4-digit access code"
             className="mt-4 w-full rounded-2xl border border-border bg-background px-4 py-4 text-center text-2xl font-semibold outline-none"
           />
+          <div className="mt-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Key className="size-4" /> Secure admin gate
+          </div>
           {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
         </div>
       </div>
@@ -66,10 +70,10 @@ function AdminLogin() {
         variant="hero"
         size="lg"
         disabled={code.length !== 4}
-        onClick={submit}
+        onClick={() => void submit()}
         className="mt-8 w-full justify-between text-base tracking-wide"
       >
-        ENTER ADMIN CODE
+        ENTER DASHBOARD
         <ArrowRight className="size-5" />
       </Button>
     </MobileScreen>

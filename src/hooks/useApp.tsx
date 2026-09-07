@@ -9,10 +9,12 @@ interface AppState {
   pets: Pet[];
   activePetId: string | null;
   setActivePet: (id: string) => void;
-  updateUser: (patch: Partial<UserProfile>) => void;
+  refreshSession: () => Promise<void>;
+  updateUser: (patch: Partial<UserProfile>) => Promise<void>;
   addPet: (input: NewPetInput) => Promise<Pet>;
   joinVetSure: () => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
+  unbindDevice: () => Promise<void>;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -23,27 +25,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePetId, setActivePetId] = useState<string | null>(null);
 
+  const refreshSession = useCallback(async () => {
+    const u = await userService.getUser();
+    setUser(u);
+    if (u.id) {
+      const p = await petService.getPets(u.id);
+      setPets(p);
+      setActivePetId((prev) => (prev && p.some((pet) => pet.id === prev) ? prev : p[0]?.id ?? null));
+    } else {
+      setPets([]);
+      setActivePetId(null);
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [u, p] = await Promise.all([userService.getUser(), petService.getPets()]);
-      if (!alive) return;
-      setUser(u);
-      setPets(p);
-      setActivePetId(p[0]?.id ?? null);
-      setReady(true);
+      await refreshSession();
+      if (alive) setReady(true);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshSession]);
 
-  const updateUser = useCallback((patch: Partial<UserProfile>) => {
-    setUser((prev) => {
-      const next = { ...prev, ...patch };
-      void userService.updateUser(patch);
-      return next;
-    });
+  const updateUser = useCallback(async (patch: Partial<UserProfile>) => {
+    setUser((prev) => ({ ...prev, ...patch }));
+    const next = await userService.updateUser(patch);
+    setUser(next);
   }, []);
 
   const addPet = useCallback(async (input: NewPetInput) => {
@@ -54,7 +63,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const joinVetSure = useCallback(() => {
-    updateUser({ vetSureMember: true });
+    void updateUser({ vetSureMember: true });
     setPets((prev) => {
       const next = prev.map((p) => ({ ...p, vetSure: true }));
       void petService.savePets(next);
@@ -62,14 +71,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [updateUser]);
 
-  const signOut = useCallback(() => {
-    void userService.resetUser();
+  const signOut = useCallback(async () => {
+    await userService.resetUser();
     setUser(userService.defaultUser);
+    setPets([]);
+    setActivePetId(null);
+  }, []);
+
+  const unbindDevice = useCallback(async () => {
+    await userService.unbindDevice();
+    setUser(userService.defaultUser);
+    setPets([]);
+    setActivePetId(null);
   }, []);
 
   const value = useMemo(
-    () => ({ ready, user, pets, activePetId, setActivePet: setActivePetId, updateUser, addPet, joinVetSure, signOut }),
-    [ready, user, pets, activePetId, updateUser, addPet, joinVetSure, signOut],
+    () => ({
+      ready,
+      user,
+      pets,
+      activePetId,
+      setActivePet: setActivePetId,
+      refreshSession,
+      updateUser,
+      addPet,
+      joinVetSure,
+      signOut,
+      unbindDevice,
+    }),
+    [ready, user, pets, activePetId, refreshSession, updateUser, addPet, joinVetSure, signOut, unbindDevice],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

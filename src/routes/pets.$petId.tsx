@@ -26,20 +26,34 @@ export const Route = createFileRoute("/pets/$petId")({
   ),
 });
 
+function displayValue(value: string | number | null | undefined, fallback = "0.0") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
 function PetProfile() {
   const { petId } = Route.useParams();
   const { pets, ready, user } = useApp();
   const pet = pets.find((p) => p.id === petId);
 
   if (!pet) {
-    if (!ready) return <AppShell><div className="px-5 pt-16 text-sm text-muted-foreground">Loading…</div></AppShell>;
+    if (!ready)
+      return (
+        <AppShell>
+          <div className="px-5 pt-16 text-sm text-muted-foreground">Loading…</div>
+        </AppShell>
+      );
     throw notFound();
   }
 
   return (
     <AppShell>
       <div className="relative mb-[20px] overflow-hidden">
-        <img src={pet.photoUrl} alt={pet.name} className="h-64 w-full object-cover" />
+        {pet.photoUrl ? (
+          <img src={pet.photoUrl} alt={pet.name} className="h-64 w-full object-cover" />
+        ) : (
+          <div className="flex h-64 items-center justify-center bg-accent text-primary">No photo</div>
+        )}
         <Link
           to="/pets"
           className="absolute left-5 top-5 flex size-10 items-center justify-center rounded-full bg-background/90 backdrop-blur"
@@ -52,13 +66,13 @@ function PetProfile() {
       <div className="-mt-8 rounded-t-3xl bg-background px-5 pt-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold">{pet.name}</h1>
+            <h1 className="text-3xl font-extrabold">{displayValue(pet.name, "Pet")}</h1>
             <p className="text-sm text-muted-foreground">
-              {pet.breed} · {pet.sex} · {pet.ageYears} years
+              {displayValue(pet.breed)} · {displayValue(pet.sex)} · {displayValue(pet.ageYears)} years
             </p>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
-            <HeartPulse className="size-4" /> {pet.healthStatus}
+            <HeartPulse className="size-4" /> {displayValue(pet.healthStatus)}
           </span>
         </div>
 
@@ -66,13 +80,11 @@ function PetProfile() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
-              <p className="mt-1 text-lg font-extrabold text-primary">{pet.vetConnectId}</p>
+              <p className="mt-1 text-lg font-extrabold text-primary">{displayValue(pet.vetConnectId)}</p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {pet.collarId ? `Tag / collar ID ${pet.collarId}` : "No tag or collar ID recorded"}
+                Tag / collar ID {displayValue(pet.collarId)}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {pet.microchip ? `Microchip ${pet.microchip}` : "No microchip recorded"}
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Microchip {displayValue(pet.microchip)}</p>
             </div>
             <div className="flex size-24 items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-accent/40">
               <QrCode className="size-14 text-primary" />
@@ -81,9 +93,9 @@ function PetProfile() {
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-3">
-          <Tile label="Weight" value={pet.weightKg ? `${pet.weightKg} kg` : "—"} />
-          <Tile label="Colour" value={pet.colour} />
-          <Tile label="Next vaccine" value={pet.nextVaccine} />
+          <Tile label="Weight" value={`${Number(pet.weightKg || 0).toFixed(1)} kg`} />
+          <Tile label="Colour" value={displayValue(pet.colour)} />
+          <Tile label="Next vaccine" value={displayValue(pet.nextVaccine)} />
         </div>
 
         <div className="mt-4 flex items-center gap-3 rounded-2xl border border-accent bg-accent/40 p-4">
@@ -100,23 +112,26 @@ function PetProfile() {
           </div>
           {!(user.vetSureMember || pet.vetSure) && (
             <Button asChild variant="hero" size="sm">
-              <Link to="/home">Join</Link>
+              <Link to="/profile">Join</Link>
             </Button>
           )}
         </div>
 
         <h2 className="mt-7 text-lg font-bold">Health timeline</h2>
         <ol className="mt-3 space-y-4 border-l border-border pl-5">
-          {pet.timeline.map((e) => (
+          {(pet.timeline?.length ? pet.timeline : []).map((e) => (
             <li key={e.id} className="relative">
               <span className="absolute -left-[27px] top-1 flex size-4 items-center justify-center rounded-full bg-primary">
                 <Syringe className="size-2.5 text-primary-foreground" />
               </span>
-              <p className="text-xs text-muted-foreground">{e.date}</p>
-              <p className="font-semibold">{e.title}</p>
-              <p className="text-sm text-muted-foreground">{e.detail}</p>
+              <p className="text-xs text-muted-foreground">{displayValue(e.date)}</p>
+              <p className="font-semibold">{displayValue(e.title)}</p>
+              <p className="text-sm text-muted-foreground">{displayValue(e.detail)}</p>
             </li>
           ))}
+          {!pet.timeline?.length ? (
+            <li className="text-sm text-muted-foreground">No timeline events yet · 0.0</li>
+          ) : null}
         </ol>
       </div>
     </AppShell>

@@ -38,8 +38,8 @@ function Modules() {
   const toggle = (id: ModuleId) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
 
-  const finish = () => {
-    updateUser({ modules: selected, onboarded: true });
+  const finish = async () => {
+    await updateUser({ modules: selected, onboarded: true });
     void navigate({ to: "/home" });
   };
 
@@ -97,7 +97,7 @@ function Modules() {
       <Button
         variant="hero"
         size="lg"
-        onClick={finish}
+        onClick={() => void finish()}
         disabled={selected.length === 0}
         className="my-7 w-full justify-between text-[15px] tracking-wide"
       >

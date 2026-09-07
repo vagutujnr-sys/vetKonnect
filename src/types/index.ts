@@ -1,9 +1,11 @@
 export type Species = "Dog" | "Cat" | "Bird" | "Other";
 export type HealthStatus = "Healthy" | "Attention" | "Under Care";
 export type ModuleId = "pets" | "community" | "marketplace" | "rescue" | "tips" | "farm";
+export type MediaType = "none" | "image" | "video";
 
 export interface Pet {
   id: string;
+  ownerId?: string;
   vetConnectId: string;
   qrPayload?: string;
   name: string;
@@ -32,6 +34,7 @@ export interface HealthEvent {
 }
 
 export interface UserProfile {
+  id?: string;
   fullName: string;
   phone: string;
   countryCode: string;
@@ -39,6 +42,8 @@ export interface UserProfile {
   vetSureMember: boolean;
   onboarded: boolean;
   isAdmin?: boolean;
+  notificationsEnabled?: boolean;
+  boundDeviceId?: string | null;
 }
 
 export interface AdminUser {
@@ -46,12 +51,18 @@ export interface AdminUser {
   fullName: string;
   phone: string;
   country: string;
+  countryCode?: string;
   onboarded: boolean;
   pets: number;
   subscriptions?: Array<{ plan: string; status: string; renews: string }>;
   petIds?: string[];
   memberSince?: string;
   vetSureMember?: boolean;
+  modules?: ModuleId[];
+  notificationsEnabled?: boolean;
+  boundDeviceId?: string | null;
+  deviceBoundAt?: string | null;
+  isAdmin?: boolean;
 }
 
 export interface AdminVet {
@@ -66,15 +77,40 @@ export interface AdminVet {
 
 export interface CommunityPost {
   id: string;
+  authorId?: string;
   author: string;
   location: string;
   timeAgo: string;
   avatarUrl: string;
   imageUrl: string;
+  videoUrl?: string;
+  mediaType?: MediaType;
   body: string;
   likes: number;
   comments: number;
-  tag: "Story" | "Education" | "Rescue";
+  views: number;
+  tag: "Story" | "Education" | "Rescue" | "Breeding";
+  likedByMe?: boolean;
+  createdAt?: string;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  accountId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface AppNotification {
+  id: string;
+  accountId: string;
+  title: string;
+  body: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
 }
 
 export interface ServiceListing {
@@ -101,5 +137,5 @@ export interface HerdTag {
 
 export type NewPetInput = Omit<
   Pet,
-  "id" | "vetConnectId" | "healthStatus" | "timeline" | "vetSure" | "weightKg" | "nextVaccine" | "medicationToday"
+  "id" | "vetConnectId" | "healthStatus" | "timeline" | "vetSure" | "weightKg" | "nextVaccine" | "medicationToday" | "ownerId"
 >;

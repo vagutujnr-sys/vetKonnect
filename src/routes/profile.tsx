@@ -10,10 +10,13 @@ import {
   ShieldPlus,
   SlidersHorizontal,
   Lock,
+  Unplug,
 } from "lucide-react";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import { VetSureCard } from "@/components/vetsure/VetSureCard";
 import { useApp } from "@/hooks/useApp";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -28,7 +31,7 @@ export const Route = createFileRoute("/profile")({
 });
 
 function Profile() {
-  const { user, pets, joinVetSure, signOut } = useApp();
+  const { user, pets, signOut, unbindDevice } = useApp();
   const navigate = useNavigate();
   const initials = (user.fullName || "VC")
     .split(" ")
@@ -40,13 +43,8 @@ function Profile() {
   const rows = [
     { icon: PawPrint, label: "My pets", value: `${pets.length}`, to: "/pets" as const },
     { icon: SlidersHorizontal, label: "Customize modules", value: `${user.modules.length} active`, to: "/modules" as const },
-  ];
-
-  const settings = [
-    { icon: Bell, label: "Notifications" },
-    { icon: Lock, label: "Privacy" },
-    { icon: HelpCircle, label: "Help and support" },
-    { icon: Settings, label: "Settings" },
+    { icon: Bell, label: "Notifications", value: user.notificationsEnabled === false ? "Off" : "On", to: "/notifications" as const },
+    { icon: Settings, label: "Settings", value: "", to: "/settings" as const },
   ];
 
   return (
@@ -62,23 +60,25 @@ function Profile() {
           <p className="text-sm text-muted-foreground">
             {user.countryCode} {user.phone || "—"}
           </p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-primary">
+            <Lock className="size-3.5" /> Device-bound account
+          </p>
         </div>
       </section>
+
+      <div className="mx-5 mt-4">
+        <VetSureCard />
+      </div>
 
       <section className="mx-5 mt-4 rounded-2xl border border-accent bg-accent/40 p-5">
         <div className="flex items-center gap-3">
           {user.vetSureMember ? <ShieldCheck className="size-6 text-primary" /> : <ShieldPlus className="size-6 text-primary" />}
           <div className="flex-1">
-            <p className="font-bold text-primary">VetSure membership</p>
+            <p className="font-bold text-primary">Membership overview</p>
             <p className="text-sm text-muted-foreground">
-              {user.vetSureMember ? "Active · all pets covered" : "Not a member yet"}
+              {user.vetSureMember ? "Active · all pets covered" : "Join VetSure from the card above"}
             </p>
           </div>
-          {!user.vetSureMember && (
-            <Button variant="hero" size="sm" onClick={joinVetSure}>
-              Join
-            </Button>
-          )}
         </div>
       </section>
 
@@ -87,29 +87,39 @@ function Profile() {
           <Link key={label} to={to} className="flex items-center gap-3 px-4 py-4">
             <Icon className="size-5 text-primary" />
             <span className="flex-1 font-medium">{label}</span>
-            <span className="text-sm text-muted-foreground">{value}</span>
+            {value ? <span className="text-sm text-muted-foreground">{value}</span> : null}
             <ChevronRight className="size-4 text-muted-foreground" />
           </Link>
         ))}
-      </div>
-
-      <div className="mx-5 mt-4 card-surface divide-y divide-border">
-        {settings.map(({ icon: Icon, label }) => (
-          <button key={label} className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left">
-            <Icon className="size-5 text-primary" />
-            <span className="flex-1 font-medium">{label}</span>
-            <ChevronRight className="size-4 text-muted-foreground" />
-          </button>
-        ))}
+        <button className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left">
+          <HelpCircle className="size-5 text-primary" />
+          <span className="flex-1 font-medium">Help and support</span>
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </button>
       </div>
 
       <Button
         variant="outline"
         size="lg"
-        className="mx-5 my-6 gap-2 text-destructive"
-        onClick={() => {
-          signOut();
-          void navigate({ to: "/welcome" });
+        className="mx-5 mt-6 gap-2"
+        onClick={async () => {
+          await unbindDevice();
+          toast.success("Device unbound", {
+            description: "This account can now be signed in on another device.",
+          });
+          void navigate({ to: "/register" });
+        }}
+      >
+        <Unplug className="size-4" /> Unbind this device
+      </Button>
+
+      <Button
+        variant="outline"
+        size="lg"
+        className="mx-5 my-4 gap-2 text-destructive"
+        onClick={async () => {
+          await signOut();
+          void navigate({ to: "/register" });
         }}
       >
         <LogOut className="size-4" /> Sign out

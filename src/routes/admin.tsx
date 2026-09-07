@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, Users, User, MessageSquare, Megaphone, CreditCard, Wallet, Layers, Pencil, Trash2, Eye } from "lucide-react";
+import { toast } from "sonner";
+import { BarChart3, Bell, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +11,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
-import { getAdminUsers, getAdminVets, updateAdminUser, deleteAdminUser, updateAdminVet, deleteAdminVet } from "@/services/adminService";
-import { getPets, updatePet, deletePet } from "@/services/petService";
+import {
+  getAdminUsers,
+  getAdminVets,
+  updateAdminUser,
+  deleteAdminUser,
+  updateAdminVet,
+  deleteAdminVet,
+  unbindAdminAccount,
+  getAdminPosts,
+  updateAdminPost,
+  deleteAdminPost,
+  getAdminComments,
+  deleteAdminComment,
+  getAdminNotifications,
+  broadcastNotification,
+  deleteAdminNotification,
+} from "@/services/adminService";
+import { getAllPets, updatePet, deletePet } from "@/services/petService";
 import { getServices, updateService, deleteService } from "@/services/contentService";
 import { generateHerdTags, listHerdTags } from "@/services/herdTagService";
-import type { AdminUser, AdminVet, HerdTag, Pet, ServiceListing } from "@/types";
+import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, HerdTag, Pet, ServiceListing } from "@/types";
 import { useApp } from "@/hooks/useApp";
 
 export const Route = createFileRoute("/admin")({
@@ -31,7 +48,7 @@ export const Route = createFileRoute("/admin")({
 
 const sections = [
   { id: "overview", label: "Overview", icon: Globe2 },
-  { id: "users", label: "Users", icon: Users },
+  { id: "users", label: "App Accounts", icon: Users },
   { id: "vets", label: "Vets", icon: User },
   { id: "pets", label: "Pets", icon: PawPrint },
   { id: "services", label: "Services", icon: ClipboardList },
@@ -39,18 +56,17 @@ const sections = [
   { id: "community", label: "Community Posts", icon: MessageSquare },
   { id: "notice", label: "Notice Board", icon: Megaphone },
   { id: "billing", label: "Billing", icon: CreditCard },
-  { id: "accounts", label: "Accounts", icon: Wallet },
+  { id: "accounts", label: "Device Security", icon: Unplug },
 ] as const;
 
 type AdminSection = (typeof sections)[number]["id"];
-
-type EditableSection = "users" | "vets" | "pets" | "services";
 
 type EditableRow =
   | { section: "users"; item: AdminUser }
   | { section: "vets"; item: AdminVet }
   | { section: "pets"; item: Pet }
-  | { section: "services"; item: ServiceListing };
+  | { section: "services"; item: ServiceListing }
+  | { section: "community"; item: CommunityPost };
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -61,11 +77,17 @@ function AdminDashboard() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [services, setServices] = useState<ServiceListing[]>([]);
   const [herdTags, setHerdTags] = useState<HerdTag[]>([]);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [postComments, setPostComments] = useState<CommunityComment[]>([]);
   const [search, setSearch] = useState("");
   const [tagType, setTagType] = useState<HerdTag["type"]>("Collar ID");
   const [tagPrefix, setTagPrefix] = useState("VC");
   const [tagQuantity, setTagQuantity] = useState(3);
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+  const [noticeTitle, setNoticeTitle] = useState("");
+  const [noticeBody, setNoticeBody] = useState("");
+  const [noticeBusy, setNoticeBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -95,20 +117,29 @@ function AdminDashboard() {
     let cancelled = false;
 
     async function loadData() {
-      const [usersData, vetsData, petsData, servicesData, herdTagsData] = await Promise.all([
-        getAdminUsers(),
-        getAdminVets(),
-        getPets(),
-        getServices(),
-        listHerdTags(),
-      ]);
+      try {
+        const [usersData, vetsData, petsData, servicesData, herdTagsData, postsData, notificationsData] = await Promise.all([
+          getAdminUsers(),
+          getAdminVets(),
+          getAllPets(),
+          getServices(),
+          listHerdTags(),
+          getAdminPosts(),
+          getAdminNotifications(),
+        ]);
 
-      if (cancelled) return;
-      setUsers(usersData);
-      setVets(vetsData);
-      setPets(petsData);
-      setServices(servicesData);
-      setHerdTags(herdTagsData);
+        if (cancelled) return;
+        setUsers(usersData);
+        setVets(vetsData);
+        setPets(petsData);
+        setServices(servicesData);
+        setHerdTags(herdTagsData);
+        setPosts(postsData);
+        setNotifications(notificationsData);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to load admin data");
+      }
     }
 
     void loadData();
@@ -121,11 +152,13 @@ function AdminDashboard() {
   const totalVets = vets.length;
   const totalPets = pets.length;
   const totalServices = services.length;
+  const totalPosts = posts.length;
   const onboardedUsers = users.filter((u) => u.onboarded).length;
+  const boundAccounts = users.filter((u) => Boolean(u.boundDeviceId)).length;
   const activeVets = vets.filter((v) => v.status === "Active").length;
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     void navigate({ to: "/admin-login" });
   };
 
@@ -137,7 +170,9 @@ function AdminDashboard() {
     const query = search.trim().toLowerCase();
     return query
       ? users.filter((item) =>
-          [item.fullName, item.phone, item.country].some((value) => value.toLowerCase().includes(query)),
+          [item.fullName, item.phone, item.country, item.boundDeviceId ?? ""].some((value) =>
+            value.toLowerCase().includes(query),
+          ),
         )
       : users;
   }, [search, users]);
@@ -155,7 +190,9 @@ function AdminDashboard() {
     const query = search.trim().toLowerCase();
     return query
       ? pets.filter((item) =>
-          [item.name, item.species, item.breed, item.vetConnectId].some((value) => value.toLowerCase().includes(query)),
+          [item.name, item.species, item.breed, item.vetConnectId, item.ownerId ?? ""].some((value) =>
+            value.toLowerCase().includes(query),
+          ),
         )
       : pets;
   }, [search, pets]);
@@ -169,9 +206,19 @@ function AdminDashboard() {
       : services;
   }, [search, services]);
 
+  const filteredPosts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query
+      ? posts.filter((item) =>
+          [item.author, item.body, item.tag, item.location].some((value) => value.toLowerCase().includes(query)),
+        )
+      : posts;
+  }, [search, posts]);
+
   const sectionItems = useMemo(() => {
     switch (activeSection) {
       case "users":
+      case "accounts":
         return filteredUsers;
       case "vets":
         return filteredVets;
@@ -179,10 +226,12 @@ function AdminDashboard() {
         return filteredPets;
       case "services":
         return filteredServices;
+      case "community":
+        return filteredPosts;
       default:
         return [];
     }
-  }, [activeSection, filteredUsers, filteredVets, filteredPets, filteredServices]);
+  }, [activeSection, filteredUsers, filteredVets, filteredPets, filteredServices, filteredPosts]);
 
   const pageCount = Math.max(1, Math.ceil(sectionItems.length / pageSize));
 
@@ -212,6 +261,11 @@ function AdminDashboard() {
     return filteredServices.slice(start, start + pageSize);
   }, [filteredServices, page]);
 
+  const pagedPosts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredPosts.slice(start, start + pageSize);
+  }, [filteredPosts, page]);
+
   const startEdit = (row: EditableRow) => {
     setEditingRow(row);
     setFormValues({ ...row.item });
@@ -223,9 +277,19 @@ function AdminDashboard() {
     setDeleteDialogOpen(true);
   };
 
-  const startView = (row: EditableRow) => {
+  const startView = async (row: EditableRow) => {
     setViewingRow(row);
     setViewDialogOpen(true);
+    if (row.section === "community") {
+      try {
+        setPostComments(await getAdminComments(row.item.id));
+      } catch (error) {
+        console.error(error);
+        setPostComments([]);
+      }
+    } else {
+      setPostComments([]);
+    }
   };
 
   const handleFormChange = (key: string, value: string | number | boolean) => {
@@ -242,11 +306,14 @@ function AdminDashboard() {
           fullName: String(formValues.fullName ?? editingRow.item.fullName),
           phone: String(formValues.phone ?? editingRow.item.phone),
           country: String(formValues.country ?? editingRow.item.country),
-          pets: Number(formValues.pets ?? editingRow.item.pets),
           onboarded: Boolean(formValues.onboarded ?? editingRow.item.onboarded),
+          vetSureMember: Boolean(formValues.vetSureMember ?? editingRow.item.vetSureMember),
+          notificationsEnabled: Boolean(formValues.notificationsEnabled ?? editingRow.item.notificationsEnabled !== false),
+          isAdmin: Boolean(formValues.isAdmin ?? editingRow.item.isAdmin),
+          pets: editingRow.item.pets,
         });
         if (updated) {
-          setUsers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+          setUsers((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated, pets: item.pets, petIds: item.petIds } : item)));
         }
       }
 
@@ -290,6 +357,22 @@ function AdminDashboard() {
           setServices((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         }
       }
+
+      if (editingRow.section === "community") {
+        const updated = await updateAdminPost(editingRow.item.id, {
+          author: String(formValues.author ?? editingRow.item.author),
+          body: String(formValues.body ?? editingRow.item.body),
+          location: String(formValues.location ?? editingRow.item.location),
+          tag: String(formValues.tag ?? editingRow.item.tag) as CommunityPost["tag"],
+        });
+        if (updated) {
+          setPosts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        }
+      }
+
+      toast.success("Changes saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save changes");
     } finally {
       setIsSaving(false);
       setEditDialogOpen(false);
@@ -318,10 +401,56 @@ function AdminDashboard() {
         await deleteService(deletingRow.item.id);
         setServices((prev) => prev.filter((item) => item.id !== deletingRow.item.id));
       }
+      if (deletingRow.section === "community") {
+        await deleteAdminPost(deletingRow.item.id);
+        setPosts((prev) => prev.filter((item) => item.id !== deletingRow.item.id));
+      }
+      toast.success("Record deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete record");
     } finally {
       setIsSaving(false);
       setDeleteDialogOpen(false);
       setDeletingRow(null);
+    }
+  };
+
+  const handleUnbind = async (account: AdminUser) => {
+    try {
+      const updated = await unbindAdminAccount(account.id);
+      if (updated) {
+        setUsers((prev) =>
+          prev.map((item) =>
+            item.id === account.id ? { ...item, boundDeviceId: null, deviceBoundAt: null } : item,
+          ),
+        );
+        toast.success(`Unbound ${account.fullName || account.phone}`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not unbind device");
+    }
+  };
+
+  const handleBroadcast = async () => {
+    if (!noticeTitle.trim() || !noticeBody.trim()) {
+      toast.error("Add a title and message");
+      return;
+    }
+    setNoticeBusy(true);
+    try {
+      const count = await broadcastNotification({
+        title: noticeTitle.trim(),
+        body: noticeBody.trim(),
+        type: "notice",
+      });
+      setNotifications(await getAdminNotifications());
+      setNoticeTitle("");
+      setNoticeBody("");
+      toast.success(`Notice sent to ${count} accounts`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not send notice");
+    } finally {
+      setNoticeBusy(false);
     }
   };
 
@@ -336,6 +465,7 @@ function AdminDashboard() {
       });
 
       setHerdTags((prev) => [...generated, ...prev].slice(0, 200));
+      toast.success(`Generated ${generated.length} tags`);
     } finally {
       setIsGeneratingTags(false);
     }
@@ -352,7 +482,7 @@ function AdminDashboard() {
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">Control Center</p>
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Admin tools</h2>
-              <p className="text-sm leading-5 text-muted-foreground">Manage users, vets, pets and services.</p>
+              <p className="text-sm leading-5 text-muted-foreground">Manage accounts, community, devices and services.</p>
             </div>
           </div>
 
@@ -403,21 +533,24 @@ function AdminDashboard() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <StatCard icon={Users} label="Total Users" value={totalUsers} />
-                <StatCard icon={User} label="Onboarded Users" value={onboardedUsers} />
+                <StatCard icon={Users} label="App Accounts" value={totalUsers} />
+                <StatCard icon={User} label="Onboarded" value={onboardedUsers} />
+                <StatCard icon={Unplug} label="Device Bound" value={boundAccounts} />
                 <StatCard icon={ShieldCheck} label="Active Vets" value={activeVets} />
                 <StatCard icon={PawPrint} label="Total Pets" value={totalPets} />
+                <StatCard icon={MessageSquare} label="Community Posts" value={totalPosts} />
                 <StatCard icon={Globe2} label="Services Listed" value={totalServices} />
-                <StatCard icon={BarChart3} label="Pending Tasks" value={4} />
+                <StatCard icon={Bell} label="Notifications" value={notifications.length} />
+                <StatCard icon={BarChart3} label="Tags Issued" value={herdTags.length} />
               </div>
 
               <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-muted-foreground">Overview</p>
-                    <h2 className="text-xl font-bold">Recent activity</h2>
+                    <h2 className="text-xl font-bold">Recent accounts</h2>
                   </div>
-                  <Button variant="secondary" className="h-10">
+                  <Button variant="secondary" className="h-10" onClick={() => setActiveSection("users")}>
                     View all
                   </Button>
                 </div>
@@ -425,19 +558,24 @@ function AdminDashboard() {
                   {users.slice(0, 3).map((adminUser) => (
                     <div key={adminUser.id} className="flex items-center justify-between rounded-2xl bg-card p-3">
                       <div>
-                        <p className="font-semibold">{adminUser.fullName}</p>
+                        <p className="font-semibold">{adminUser.fullName || "Unnamed account"}</p>
                         <p className="text-sm text-muted-foreground">{adminUser.phone} · {adminUser.country}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">{adminUser.pets} pets</p>
-                        <p className="text-xs text-muted-foreground">{adminUser.onboarded ? "Onboarded" : "Pending"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {adminUser.boundDeviceId ? "Device bound" : "Unbound"} · {adminUser.onboarded ? "Onboarded" : "Pending"}
+                        </p>
                       </div>
                     </div>
                   ))}
+                  {users.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No app accounts yet. New logins will appear here.</p>
+                  ) : null}
                 </div>
               </Card>
             </>
-          ) : (
+          ) : activeSection !== "herd" && activeSection !== "notice" && activeSection !== "billing" ? (
             <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -447,12 +585,12 @@ function AdminDashboard() {
                   </h2>
                 </div>
                 <div className="flex flex-col gap-2 sm:items-end">
-                  <p className="text-sm text-muted-foreground">{sectionItems.length} total {activeSection}</p>
+                  <p className="text-sm text-muted-foreground">{sectionItems.length} total</p>
                   <div className="flex flex-wrap items-center gap-2">
-                    {activeSection === "users" ? (
+                    {activeSection === "users" || activeSection === "accounts" ? (
                       <>
                         <Badge variant="secondary">{onboardedUsers} onboarded</Badge>
-                        <Badge>{totalUsers - onboardedUsers} pending</Badge>
+                        <Badge>{boundAccounts} bound</Badge>
                       </>
                     ) : activeSection === "vets" ? (
                       <>
@@ -464,6 +602,11 @@ function AdminDashboard() {
                         <Badge>{pets.filter((pet) => pet.healthStatus === "Healthy").length} healthy</Badge>
                         <Badge variant="secondary">{pets.filter((pet) => pet.healthStatus === "Attention").length} attention</Badge>
                       </>
+                    ) : activeSection === "community" ? (
+                      <>
+                        <Badge>{posts.reduce((sum, post) => sum + post.likes, 0)} likes</Badge>
+                        <Badge variant="secondary">{posts.reduce((sum, post) => sum + post.comments, 0)} comments</Badge>
+                      </>
                     ) : (
                       <>
                         <Badge>{services.filter((svc) => svc.open).length} open</Badge>
@@ -474,8 +617,7 @@ function AdminDashboard() {
                 </div>
               </div>
             </Card>
-          )}
-
+          ) : null}
           {activeSection === "herd" ? (
             <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -483,18 +625,13 @@ function AdminDashboard() {
                   <p className="text-sm font-semibold text-muted-foreground">Generate inventory</p>
                   <h3 className="text-xl font-bold text-foreground">Create collar IDs and pet tags</h3>
                   <p className="text-sm text-muted-foreground">
-                    Issue pre-generated identification codes with QR payloads for dogs, cats, and other pets. These codes are reusable and can be assigned to multiple pets.
+                    Issue pre-generated identification codes with QR payloads for dogs, cats, and other pets.
                   </p>
                 </div>
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="grid gap-2 text-sm">
                     <span>Type</span>
-                    <select
-                      value={tagType}
-                      onChange={(event) => setTagType(event.target.value as HerdTag["type"])}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
+                    <select value={tagType} onChange={(event) => setTagType(event.target.value as HerdTag["type"])} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                       <option value="Collar ID">Collar ID</option>
                       <option value="Pet Tag">Pet Tag</option>
                     </select>
@@ -508,13 +645,12 @@ function AdminDashboard() {
                     <Input type="number" min="1" max="50" value={tagQuantity} onChange={(event) => setTagQuantity(Number(event.target.value))} />
                   </label>
                   <div className="flex items-end">
-                    <Button className="w-full" onClick={handleGenerateTags} disabled={isGeneratingTags}>
+                    <Button className="w-full" onClick={() => void handleGenerateTags()} disabled={isGeneratingTags}>
                       {isGeneratingTags ? "Generating..." : "Generate tags"}
                     </Button>
                   </div>
                 </div>
               </Card>
-
               <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -523,7 +659,6 @@ function AdminDashboard() {
                   </div>
                   <Badge>{herdTags.length} tags</Badge>
                 </div>
-
                 <div className="space-y-3">
                   {herdTags.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-muted-foreground">
@@ -538,10 +673,6 @@ function AdminDashboard() {
                         </div>
                         <div className="flex items-center gap-3">
                           <img src={tag.qrDataUrl} alt={tag.code} className="h-16 w-16 rounded-lg border border-slate-200 bg-white p-1" />
-                          <div className="text-xs text-muted-foreground">
-                            <p>{new Date(tag.createdAt).toLocaleDateString()}</p>
-                            <p>{new Date(tag.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                          </div>
                         </div>
                       </div>
                     ))
@@ -549,186 +680,163 @@ function AdminDashboard() {
                 </div>
               </Card>
             </div>
-          ) : activeSection !== "overview" && (
+          ) : null}
+
+          {activeSection === "notice" ? (
+            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">Broadcast</p>
+                  <h3 className="text-xl font-bold">Send a notice to all accounts</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Creates in-app notifications for every VetKonnect account.</p>
+                </div>
+                <Input placeholder="Notice title" value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} />
+                <textarea value={noticeBody} onChange={(e) => setNoticeBody(e.target.value)} placeholder="Write the notice message…" className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <Button onClick={() => void handleBroadcast()} disabled={noticeBusy}>{noticeBusy ? "Sending…" : "Send to all accounts"}</Button>
+              </Card>
+              <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold">Recent notifications</h3>
+                  <Badge>{notifications.length}</Badge>
+                </div>
+                <div className="max-h-[420px] space-y-3 overflow-y-auto">
+                  {notifications.slice(0, 30).map((note) => (
+                    <div key={note.id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div>
+                        <p className="font-semibold">{note.title}</p>
+                        <p className="text-sm text-muted-foreground">{note.body}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleString()}</p>
+                      </div>
+                      <Button variant="destructive" size="sm" onClick={async () => { await deleteAdminNotification(note.id); setNotifications((prev) => prev.filter((item) => item.id !== note.id)); }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {notifications.length === 0 ? <p className="text-sm text-muted-foreground">No notifications yet.</p> : null}
+                </div>
+              </Card>
+            </div>
+          ) : null}
+
+          {activeSection === "billing" ? (
+            <Card className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <h3 className="text-xl font-bold">Billing</h3>
+              <p className="mt-2 text-sm text-muted-foreground">Live membership status is managed on each app account. VetSure counts are shown below.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <Metric label="VetSure members" value={users.filter((u) => u.vetSureMember).length} />
+                <Metric label="Onboarded accounts" value={onboardedUsers} />
+                <Metric label="Total accounts" value={totalUsers} />
+              </div>
+            </Card>
+          ) : null}
+
+          {activeSection === "users" || activeSection === "accounts" || activeSection === "vets" || activeSection === "pets" || activeSection === "services" || activeSection === "community" ? (
             <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-muted-foreground">Search</p>
-                  <Input
-                    placeholder="Filter by name, category, location or ID"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
+                  <Input placeholder="Filter by name, phone, device, category or ID" value={search} onChange={(event) => setSearch(event.target.value)} />
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Showing {activeSection === "users" ? pagedUsers.length : activeSection === "vets" ? pagedVets.length : activeSection === "pets" ? pagedPets.length : pagedServices.length} of {sectionItems.length} {activeSection}
+                  Showing {activeSection === "users" || activeSection === "accounts" ? pagedUsers.length : activeSection === "vets" ? pagedVets.length : activeSection === "pets" ? pagedPets.length : activeSection === "community" ? pagedPosts.length : pagedServices.length} of {sectionItems.length}
                 </div>
               </div>
-
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {activeSection === "users" && (
-                      <>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>Pets</TableHead>
-                        <TableHead>Status</TableHead>
-                      </>
-                    )}
-                    {activeSection === "vets" && (
-                      <>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Surgery</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Status</TableHead>
-                      </>
-                    )}
-                    {activeSection === "pets" && (
-                      <>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Breed</TableHead>
-                        <TableHead>Species</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>VetSure</TableHead>
-                      </>
-                    )}
-                    {activeSection === "services" && (
-                      <>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Rating</TableHead>
-                        <TableHead>Distance</TableHead>
-                        <TableHead>Open</TableHead>
-                      </>
-                    )}
+                    {(activeSection === "users" || activeSection === "accounts") && (<><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Pets</TableHead><TableHead>Device</TableHead><TableHead>Status</TableHead></>)}
+                    {activeSection === "vets" && (<><TableHead>Name</TableHead><TableHead>Surgery</TableHead><TableHead>Location</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead></>)}
+                    {activeSection === "pets" && (<><TableHead>Name</TableHead><TableHead>Breed</TableHead><TableHead>Owner</TableHead><TableHead>Status</TableHead><TableHead>VetSure</TableHead></>)}
+                    {activeSection === "services" && (<><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Rating</TableHead><TableHead>Distance</TableHead><TableHead>Open</TableHead></>)}
+                    {activeSection === "community" && (<><TableHead>Author</TableHead><TableHead>Tag</TableHead><TableHead>Body</TableHead><TableHead>Likes</TableHead><TableHead>Comments</TableHead></>)}
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {activeSection === "users" &&
-                    pagedUsers.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.fullName}</TableCell>
-                        <TableCell>{item.phone}</TableCell>
-                        <TableCell>{item.country}</TableCell>
-                        <TableCell>{item.pets}</TableCell>
-                        <TableCell>
-                          <Badge variant={item.onboarded ? "default" : "secondary"}>
-                            {item.onboarded ? "Onboarded" : "Pending"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="flex flex-wrap gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "users", item })}>
-                            <Eye className="h-4 w-4" /> View
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "users", item })}>
-                            <Pencil className="h-4 w-4" /> Edit
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "users", item })}>
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  {activeSection === "vets" &&
-                    pagedVets.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>{item.surgery}</TableCell>
-                        <TableCell>{item.location}</TableCell>
-                        <TableCell>{item.phone}</TableCell>
-                        <TableCell>
-                          <Badge variant={item.status === "Active" ? "default" : "secondary"}>
-                            {item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="flex flex-wrap gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "vets", item })}>
-                            <Eye className="h-4 w-4" /> View
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "vets", item })}>
-                            <Pencil className="h-4 w-4" /> Edit
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "vets", item })}>
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  {activeSection === "pets" &&
-                    pagedPets.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>{item.breed}</TableCell>
-                        <TableCell>{item.species}</TableCell>
-                        <TableCell>{item.healthStatus}</TableCell>
-                        <TableCell>{item.vetSure ? "Yes" : "No"}</TableCell>
-                        <TableCell className="flex flex-wrap gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "pets", item })}>
-                            <Eye className="h-4 w-4" /> View
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "pets", item })}>
-                            <Pencil className="h-4 w-4" /> Edit
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "pets", item })}>
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  {activeSection === "services" &&
-                    pagedServices.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{item.name}</TableCell>
-                        <TableCell>{item.category}</TableCell>
-                        <TableCell>{item.rating.toFixed(1)}</TableCell>
-                        <TableCell>{item.distanceKm} km</TableCell>
-                        <TableCell>
-                          <Badge variant={item.open ? "default" : "secondary"}>
-                            {item.open ? "Open" : "Closed"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="flex flex-wrap gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => startView({ section: "services", item })}>
-                            <Eye className="h-4 w-4" /> View
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "services", item })}>
-                            <Pencil className="h-4 w-4" /> Edit
-                          </Button>
-                          <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "services", item })}>
-                            <Trash2 className="h-4 w-4" /> Delete
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                  {(activeSection === "users" || activeSection === "accounts") && pagedUsers.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.fullName || "—"}</TableCell>
+                      <TableCell>{item.phone}</TableCell>
+                      <TableCell>{item.pets}</TableCell>
+                      <TableCell><Badge variant={item.boundDeviceId ? "default" : "secondary"}>{item.boundDeviceId ? "Bound" : "Unbound"}</Badge></TableCell>
+                      <TableCell><Badge variant={item.onboarded ? "default" : "secondary"}>{item.onboarded ? "Onboarded" : "Pending"}</Badge></TableCell>
+                      <TableCell className="flex flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "users", item })}><Eye className="h-4 w-4" /> View</Button>
+                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "users", item })}><Pencil className="h-4 w-4" /> Edit</Button>
+                        {item.boundDeviceId ? <Button variant="outline" size="sm" onClick={() => void handleUnbind(item)}><Unplug className="h-4 w-4" /> Unbind</Button> : null}
+                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "users", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {activeSection === "vets" && pagedVets.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.surgery}</TableCell>
+                      <TableCell>{item.location}</TableCell>
+                      <TableCell>{item.phone}</TableCell>
+                      <TableCell><Badge variant={item.status === "Active" ? "default" : "secondary"}>{item.status}</Badge></TableCell>
+                      <TableCell className="flex flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "vets", item })}><Eye className="h-4 w-4" /> View</Button>
+                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "vets", item })}><Pencil className="h-4 w-4" /> Edit</Button>
+                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "vets", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {activeSection === "pets" && pagedPets.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.breed}</TableCell>
+                      <TableCell className="max-w-[140px] truncate">{item.ownerId ?? "—"}</TableCell>
+                      <TableCell>{item.healthStatus}</TableCell>
+                      <TableCell>{item.vetSure ? "Yes" : "No"}</TableCell>
+                      <TableCell className="flex flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "pets", item })}><Eye className="h-4 w-4" /> View</Button>
+                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "pets", item })}><Pencil className="h-4 w-4" /> Edit</Button>
+                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "pets", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {activeSection === "services" && pagedServices.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.category}</TableCell>
+                      <TableCell>{item.rating.toFixed(1)}</TableCell>
+                      <TableCell>{item.distanceKm} km</TableCell>
+                      <TableCell><Badge variant={item.open ? "default" : "secondary"}>{item.open ? "Open" : "Closed"}</Badge></TableCell>
+                      <TableCell className="flex flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "services", item })}><Eye className="h-4 w-4" /> View</Button>
+                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "services", item })}><Pencil className="h-4 w-4" /> Edit</Button>
+                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "services", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {activeSection === "community" && pagedPosts.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{item.author}</TableCell>
+                      <TableCell><Badge variant="secondary">{item.tag}</Badge></TableCell>
+                      <TableCell className="max-w-[240px] truncate">{item.body}</TableCell>
+                      <TableCell>{item.likes}</TableCell>
+                      <TableCell>{item.comments}</TableCell>
+                      <TableCell className="flex flex-wrap gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "community", item })}><Eye className="h-4 w-4" /> View</Button>
+                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "community", item })}><Pencil className="h-4 w-4" /> Edit</Button>
+                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "community", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
-
               <Pagination className="mt-4">
                 <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious onClick={() => setPage((prev) => Math.max(prev - 1, 1))} />
-                  </PaginationItem>
+                  <PaginationItem><PaginationPrevious onClick={() => setPage((prev) => Math.max(prev - 1, 1))} /></PaginationItem>
                   {Array.from({ length: pageCount }, (_, index) => (
-                    <PaginationItem key={index}>
-                      <PaginationLink
-                        onClick={() => setPage(index + 1)}
-                        isActive={page === index + 1}
-                      >
-                        {index + 1}
-                      </PaginationLink>
-                    </PaginationItem>
+                    <PaginationItem key={index}><PaginationLink onClick={() => setPage(index + 1)} isActive={page === index + 1}>{index + 1}</PaginationLink></PaginationItem>
                   ))}
-                  <PaginationItem>
-                    <PaginationNext onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))} />
-                  </PaginationItem>
+                  <PaginationItem><PaginationNext onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))} /></PaginationItem>
                 </PaginationContent>
               </Pagination>
             </Card>
-          )}
+          ) : null}
         </div>
       </main>
 
@@ -736,54 +844,68 @@ function AdminDashboard() {
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {viewingRow?.section === "users" && "User profile"}
+              {viewingRow?.section === "users" && "App account"}
               {viewingRow?.section === "vets" && "Vet profile"}
               {viewingRow?.section === "pets" && "Pet profile"}
               {viewingRow?.section === "services" && "Service profile"}
+              {viewingRow?.section === "community" && "Community post"}
             </DialogTitle>
             <DialogDescription>View the complete record details and related information.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5">
             {viewingRow?.section === "users" && (() => {
-              const user = viewingRow.item as AdminUser;
-              const linkedPets = pets.filter((pet) => user.petIds?.includes(pet.id));
+              const account = viewingRow.item as AdminUser;
+              const linkedPets = pets.filter((pet) => pet.ownerId === account.id || account.petIds?.includes(pet.id));
               return (
                 <>
                   <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
                     <div>
                       <p className="text-sm text-muted-foreground">Name</p>
-                      <p className="font-semibold">{user.fullName}</p>
+                      <p className="font-semibold">{account.fullName || "—"}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Phone</p>
-                      <p className="font-semibold">{user.phone}</p>
+                      <p className="font-semibold">{account.phone}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Country</p>
-                      <p className="font-semibold">{user.country}</p>
+                      <p className="text-sm text-muted-foreground">Country code</p>
+                      <p className="font-semibold">{account.country}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Member since</p>
-                      <p className="font-semibold">{user.memberSince ?? "—"}</p>
+                      <p className="font-semibold">{account.memberSince ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Device binding</p>
+                      <p className="font-semibold">{account.boundDeviceId ? "Bound" : "Unbound"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Notifications</p>
+                      <p className="font-semibold">{account.notificationsEnabled === false ? "Off" : "On"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">VetSure</p>
+                      <p className="font-semibold">{account.vetSureMember ? "Member" : "Not enrolled"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Modules</p>
+                      <p className="font-semibold">{account.modules?.length ? account.modules.join(", ") : "None"}</p>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="mb-2 text-sm font-semibold">Subscriptions</p>
-                    {user.subscriptions?.length ? (
-                      <div className="space-y-2">
-                        {user.subscriptions.map((subscription) => (
-                          <div key={`${subscription.plan}-${subscription.status}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                            <span>{subscription.plan}</span>
-                            <span className="text-muted-foreground">{subscription.status} · {subscription.renews}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No subscriptions recorded.</p>
-                    )}
-                  </div>
+                  {account.boundDeviceId ? (
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <p className="mb-2 text-sm font-semibold">Bound device ID</p>
+                      <p className="break-all text-sm text-muted-foreground">{account.boundDeviceId}</p>
+                      {account.deviceBoundAt ? (
+                        <p className="mt-2 text-xs text-muted-foreground">Bound at {new Date(account.deviceBoundAt).toLocaleString()}</p>
+                      ) : null}
+                      <Button className="mt-3" variant="outline" size="sm" onClick={() => void handleUnbind(account)}>
+                        <Unplug className="mr-2 h-4 w-4" /> Force unbind
+                      </Button>
+                    </div>
+                  ) : null}
 
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="mb-2 text-sm font-semibold">Pets under this account</p>
@@ -797,14 +919,6 @@ function AdminDashboard() {
                                 <p className="text-sm text-muted-foreground">{pet.species} · {pet.breed}</p>
                               </div>
                               <Badge variant="secondary">{pet.healthStatus}</Badge>
-                            </div>
-                            <div className="mt-3 space-y-2">
-                              {pet.timeline.slice(0, 3).map((event) => (
-                                <div key={event.id} className="rounded-md bg-white px-2 py-2 text-sm">
-                                  <p className="font-medium">{event.title}</p>
-                                  <p className="text-muted-foreground">{event.date} · {event.detail}</p>
-                                </div>
-                              ))}
                             </div>
                           </div>
                         ))}
@@ -924,8 +1038,59 @@ function AdminDashboard() {
                 </div>
               );
             })()}
-          </div>
 
+            {viewingRow?.section === "community" && (() => {
+              const post = viewingRow.item as CommunityPost;
+              return (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{post.author}</p>
+                        <p className="text-sm text-muted-foreground">{post.location} · {post.timeAgo || post.createdAt}</p>
+                      </div>
+                      <Badge>{post.tag}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-relaxed">{post.body}</p>
+                    <div className="mt-3 flex gap-4 text-sm text-muted-foreground">
+                      <span>{post.likes} likes</span>
+                      <span>{post.comments} comments</span>
+                      <span>{post.mediaType || "none"}</span>
+                    </div>
+                    {post.imageUrl ? <img src={post.imageUrl} alt="" className="mt-3 max-h-56 w-full rounded-xl object-cover" /> : null}
+                    {post.videoUrl ? <video src={post.videoUrl} controls className="mt-3 max-h-56 w-full rounded-xl bg-black" /> : null}
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="mb-3 text-sm font-semibold">Comments</p>
+                    <div className="space-y-2">
+                      {postComments.map((comment) => (
+                        <div key={comment.id} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                          <div>
+                            <p className="text-sm font-semibold">{comment.authorName}</p>
+                            <p className="text-sm text-muted-foreground">{comment.body}</p>
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              await deleteAdminComment(comment.id, post.id);
+                              setPostComments((prev) => prev.filter((c) => c.id !== comment.id));
+                              setPosts((prev) =>
+                                prev.map((p) => (p.id === post.id ? { ...p, comments: Math.max(0, p.comments - 1) } : p)),
+                              );
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {postComments.length === 0 ? <p className="text-sm text-muted-foreground">No comments yet.</p> : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setViewDialogOpen(false)}>
               Close
@@ -953,21 +1118,24 @@ function AdminDashboard() {
                   <Input value={String(formValues.phone ?? "")} onChange={(event) => handleFormChange("phone", event.target.value)} />
                 </label>
                 <label className="grid gap-2 text-sm">
-                  <span>Country</span>
+                  <span>Country code</span>
                   <Input value={String(formValues.country ?? "")} onChange={(event) => handleFormChange("country", event.target.value)} />
                 </label>
-                <label className="grid gap-2 text-sm">
-                  <span>Pets</span>
-                  <Input type="number" value={Number(formValues.pets ?? 0)} onChange={(event) => handleFormChange("pets", Number(event.target.value))} />
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={Boolean(formValues.onboarded)} onChange={(event) => handleFormChange("onboarded", event.target.checked)} className="h-4 w-4 rounded border border-input" />
+                  Onboarded
                 </label>
                 <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(formValues.onboarded)}
-                    onChange={(event) => handleFormChange("onboarded", event.target.checked)}
-                    className="h-4 w-4 rounded border border-input bg-background text-primary focus:ring-ring"
-                  />
-                  Onboarded
+                  <input type="checkbox" checked={Boolean(formValues.vetSureMember)} onChange={(event) => handleFormChange("vetSureMember", event.target.checked)} className="h-4 w-4 rounded border border-input" />
+                  VetSure member
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={formValues.notificationsEnabled !== false} onChange={(event) => handleFormChange("notificationsEnabled", event.target.checked)} className="h-4 w-4 rounded border border-input" />
+                  Notifications enabled
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={Boolean(formValues.isAdmin)} onChange={(event) => handleFormChange("isAdmin", event.target.checked)} className="h-4 w-4 rounded border border-input" />
+                  Admin flag
                 </label>
               </>
             )}
@@ -1071,8 +1239,41 @@ function AdminDashboard() {
                 </label>
               </>
             )}
-          </div>
 
+            {editingRow?.section === "community" && (
+              <>
+                <label className="grid gap-2 text-sm">
+                  <span>Author</span>
+                  <Input value={String(formValues.author ?? "")} onChange={(event) => handleFormChange("author", event.target.value)} />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Location</span>
+                  <Input value={String(formValues.location ?? "")} onChange={(event) => handleFormChange("location", event.target.value)} />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Tag</span>
+                  <select
+                    value={String(formValues.tag ?? "Story")}
+                    onChange={(event) => handleFormChange("tag", event.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="Story">Story</option>
+                    <option value="Education">Education</option>
+                    <option value="Rescue">Rescue</option>
+                    <option value="Breeding">Breeding</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Body</span>
+                  <textarea
+                    value={String(formValues.body ?? "")}
+                    onChange={(event) => handleFormChange("body", event.target.value)}
+                    className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </label>
+              </>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setEditDialogOpen(false)} disabled={isSaving}>
               Cancel

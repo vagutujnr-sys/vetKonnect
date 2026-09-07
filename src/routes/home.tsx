@@ -18,12 +18,13 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { VetSureCard } from "@/components/vetsure/VetSureCard";
 import { Button } from "@/components/ui/button";
-import { mockPosts } from "@/data/mockCommunity";
-import { mockServices } from "@/data/mockServices";
+import { getPosts, getServices } from "@/services/contentService";
+import { getNotifications } from "@/services/notificationService";
+import type { CommunityPost, ServiceListing } from "@/types";
 import { useApp } from "@/hooks/useApp";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/home")({
   head: () => ({
@@ -46,6 +47,20 @@ const quickActions = [
 
 function HomeScreen() {
   const { user, pets, activePetId } = useApp();
+  const [services, setServices] = useState<ServiceListing[]>([]);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    void Promise.all([getServices(), getPosts(), getNotifications()])
+      .then(([servicesData, postsData, notes]) => {
+        setServices(servicesData);
+        setPosts(postsData);
+        setUnread(notes.filter((n) => !n.read).length);
+      })
+      .catch((error) => console.error("Failed to load home content", error));
+  }, []);
+
   const pet = pets.find((p) => p.id === activePetId) ?? pets[0];
   const firstName = user.fullName?.split(" ")[0] || "there";
 
@@ -58,37 +73,42 @@ function HomeScreen() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <span className="relative">
+          <Link to="/notifications" className="relative" aria-label="Notifications">
             <Bell className="size-6 text-foreground" />
-            <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-              3
-            </span>
-          </span>
-          <span className="flex size-10 items-center justify-center rounded-full bg-accent font-bold text-primary">
+            {unread > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            ) : null}
+          </Link>
+          <Link
+            to="/profile"
+            className="flex size-10 items-center justify-center rounded-full bg-accent font-bold text-primary"
+          >
             {firstName.charAt(0).toUpperCase()}
-          </span>
+          </Link>
         </div>
       </header>
 
       {pet ? (
-        <section className="mx-5 mt-5 card-surface p-4">
+        <section className="mx-5 mt-5 card-surface p-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
           <div className="flex gap-4">
             <img
-              src={pet.photoUrl}
+              src={pet.photoUrl || undefined}
               alt={pet.name}
               loading="lazy"
-              className="mt-[-4px] size-24 rounded-full border-2 border-primary object-cover p-1"
+              className="mt-[-4px] size-24 rounded-full border-2 border-primary object-cover p-1 bg-accent"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-start gap-2">
                 <div className="flex-1 pt-1">
                   <h2 className="truncate text-2xl font-extrabold">{pet.name}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">{pet.breed}</p>
-                  <p className="text-sm text-muted-foreground">Age: {pet.ageYears} Years</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{pet.breed || "0.0"}</p>
+                  <p className="text-sm text-muted-foreground">Age: {pet.ageYears || "0.0"} Years</p>
                 </div>
                 <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                   <HeartPulse className="size-4" />
-                  {pet.healthStatus}
+                  {pet.healthStatus || "0.0"}
                 </span>
               </div>
             </div>
@@ -97,9 +117,9 @@ function HomeScreen() {
           <hr className="my-4 border-border" />
           <p className="text-sm font-semibold text-primary">Today's Health Summary</p>
           <div className="mt-3 grid grid-cols-3 divide-x divide-border text-center">
-            <Stat icon={CalendarDays} label="Next Vaccine" value={pet.nextVaccine} />
-            <Stat icon={Weight} label="Weight" value={pet.weightKg ? `${pet.weightKg} kg` : "—"} />
-            <Stat icon={Pill} label="Medication" value={pet.medicationToday} />
+            <Stat icon={CalendarDays} label="Next Vaccine" value={pet.nextVaccine || "0.0"} />
+            <Stat icon={Weight} label="Weight" value={`${Number(pet.weightKg || 0).toFixed(1)} kg`} />
+            <Stat icon={Pill} label="Medication" value={pet.medicationToday || "0.0"} />
           </div>
 
           <Link
@@ -111,19 +131,19 @@ function HomeScreen() {
           </Link>
         </section>
       ) : (
-        <section className="mx-5 mt-5 card-surface p-6 text-center">
-          <PawPrint className="mx-auto size-8 text-primary" />
-          <p className="mt-3 font-bold">No pets yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Create a digital health profile for your companion.</p>
-          <Button asChild variant="hero" className="mt-4 w-full">
-            <Link to="/pets/new">Add My Pet</Link>
+        <section className="mx-5 mt-5 overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-accent/80 to-card p-6 text-center shadow-[var(--shadow-card)] animate-in fade-in zoom-in-95 duration-500">
+          <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-brand)]">
+            <PawPrint className="size-8" />
+          </span>
+          <p className="mt-4 text-xl font-extrabold text-primary">Add your first pet</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Create a digital health passport so VetKonnect can track vaccines, weight and care reminders.
+          </p>
+          <Button asChild variant="hero" className="mt-5 w-full">
+            <Link to="/pets/new">Register a pet</Link>
           </Button>
         </section>
       )}
-
-      <div className="mx-5 mt-5">
-        <VetSureCard />
-      </div>
 
       <section className="mt-6">
         <h3 className="px-5 text-lg font-bold">Quick Actions</h3>
@@ -134,7 +154,7 @@ function HomeScreen() {
               <Link
                 key={label}
                 to={to}
-                className="flex w-[124px] shrink-0 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center shadow-[var(--shadow-card)]"
+                className="flex w-[124px] shrink-0 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center shadow-[var(--shadow-card)] transition-transform duration-300 hover:-translate-y-0.5"
               >
                 <Icon className={cn("text-primary", isQr ? "size-10" : "size-6")} />
                 {!isQr ? <span className="text-sm font-semibold leading-tight">{label}</span> : null}
@@ -150,8 +170,10 @@ function HomeScreen() {
         </span>
         <div className="flex-1">
           <p className="text-xs font-semibold text-primary">Upcoming</p>
-          <p className="text-lg font-bold leading-tight">Vaccination</p>
-          <p className="text-sm text-muted-foreground">12 August · 2:00 PM · Dr Munzeiwa</p>
+          <p className="text-lg font-bold leading-tight">{pet ? "Vaccination" : "No reminders yet"}</p>
+          <p className="text-sm text-muted-foreground">
+            {pet ? `${pet.nextVaccine || "0.0"} · Add clinic details anytime` : "Register a pet to unlock reminders"}
+          </p>
         </div>
         <span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <ChevronRight className="size-5" />
@@ -166,13 +188,19 @@ function HomeScreen() {
           </Link>
         </div>
         <div className="mt-3 flex gap-3 overflow-x-auto px-5 pb-2">
-          {mockServices.map((s) => (
+          {services.map((s) => (
             <Link
               key={s.id}
               to="/discover"
               className="w-[160px] shrink-0 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]"
             >
-              <img src={s.imageUrl} alt={s.name} loading="lazy" className="h-24 w-full object-cover" />
+              {s.imageUrl ? (
+                <img src={s.imageUrl} alt={s.name} loading="lazy" className="h-24 w-full object-cover" />
+              ) : (
+                <div className="flex h-24 items-center justify-center bg-accent text-primary">
+                  <MapPin className="size-6" />
+                </div>
+              )}
               <div className="p-3">
                 <p className="truncate text-sm font-semibold">{s.category}</p>
                 <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -192,9 +220,15 @@ function HomeScreen() {
           </Link>
         </div>
         <div className="mx-5 mt-3 space-y-3">
-          {mockPosts.slice(0, 2).map((post) => (
+          {posts.slice(0, 2).map((post) => (
             <article key={post.id} className="flex gap-3 card-surface p-3">
-              <img src={post.imageUrl} alt="" loading="lazy" className="size-20 rounded-xl object-cover" />
+              {post.imageUrl ? (
+                <img src={post.imageUrl} alt="" loading="lazy" className="size-20 rounded-xl object-cover" />
+              ) : (
+                <div className="flex size-20 items-center justify-center rounded-xl bg-accent text-primary">
+                  <MessageCircle className="size-6" />
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">
                   {post.author} <span className="font-normal text-muted-foreground">· {post.timeAgo}</span>

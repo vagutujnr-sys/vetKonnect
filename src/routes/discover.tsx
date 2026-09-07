@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Search, Siren, Star } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
-import { mockServices } from "@/data/mockServices";
+import { getServices } from "@/services/contentService";
+import type { ServiceListing } from "@/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/discover")({
@@ -22,8 +23,13 @@ const categories = ["All", "Veterinary Clinic", "Grooming", "Pet Store", "Emerge
 function Discover() {
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
   const [query, setQuery] = useState("");
+  const [servicesData, setServicesData] = useState<ServiceListing[]>([]);
 
-  const services = mockServices.filter(
+  useEffect(() => {
+    void getServices().then(setServicesData).catch((error) => console.error("Failed to load services", error));
+  }, []);
+
+  const services = servicesData.filter(
     (s) =>
       (category === "All" || s.category === category) &&
       s.name.toLowerCase().includes(query.trim().toLowerCase()),
