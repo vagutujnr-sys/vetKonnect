@@ -1,6 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, BellRing, CheckCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  Bell,
+  BellRing,
+  CheckCheck,
+  Eye,
+  Heart,
+  MessageCircle,
+  Megaphone,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { useEffect, useState, type ComponentType } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -18,6 +29,30 @@ export const Route = createFileRoute("/notifications")({
   }),
   component: NotificationsPage,
 });
+
+type NoteVisual = {
+  icon: ComponentType<{ className?: string }>;
+  accent: string;
+};
+
+function noteVisual(type: string): NoteVisual {
+  switch (type) {
+    case "like":
+      return { icon: Heart, accent: "oklch(0.58 0.2 25)" };
+    case "comment":
+      return { icon: MessageCircle, accent: "oklch(0.52 0.14 250)" };
+    case "view":
+      return { icon: Eye, accent: "oklch(0.55 0.08 200)" };
+    case "community":
+      return { icon: Users, accent: "oklch(0.44 0.121 155.5)" };
+    case "security":
+      return { icon: ShieldCheck, accent: "oklch(0.48 0.12 155)" };
+    case "notice":
+      return { icon: Megaphone, accent: "oklch(0.65 0.15 70)" };
+    default:
+      return { icon: Bell, accent: "oklch(0.44 0.121 155.5)" };
+  }
+}
 
 function NotificationsPage() {
   const { user } = useApp();
@@ -72,36 +107,52 @@ function NotificationsPage() {
       <div className="space-y-3 px-5 pb-8">
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
         {!loading && items.length === 0 ? (
-          <div className="card-surface p-8 text-center">
+          <div className="rounded-2xl border border-border bg-white p-8 text-center shadow-[var(--shadow-card)]">
             <BellRing className="mx-auto size-8 text-primary" />
             <p className="mt-3 font-bold">You're all caught up</p>
             <p className="mt-1 text-sm text-muted-foreground">New likes, comments and security alerts will appear here.</p>
           </div>
         ) : null}
-        {items.map((note) => (
-          <button
-            key={note.id}
-            onClick={async () => {
-              if (!note.read) {
-                await markNotificationRead(note.id);
-                setItems((prev) => prev.map((n) => (n.id === note.id ? { ...n, read: true } : n)));
-              }
-            }}
-            className={cn(
-              "w-full rounded-2xl border p-4 text-left transition-all",
-              note.read ? "border-border bg-card" : "border-primary/20 bg-accent/40 shadow-[var(--shadow-card)]",
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">{note.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>
+        {items.map((note) => {
+          const visual = noteVisual(note.type);
+          const Icon = visual.icon;
+          return (
+            <button
+              key={note.id}
+              type="button"
+              onClick={async () => {
+                if (!note.read) {
+                  await markNotificationRead(note.id);
+                  setItems((prev) => prev.map((n) => (n.id === note.id ? { ...n, read: true } : n)));
+                }
+              }}
+              className={cn(
+                "w-full rounded-2xl bg-white p-4 text-left shadow-[var(--shadow-card)] transition-opacity",
+                note.read && "opacity-75",
+              )}
+              style={{ borderLeft: `4px solid ${visual.accent}` }}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full"
+                  style={{ color: visual.accent, backgroundColor: `color-mix(in oklab, ${visual.accent} 12%, white)` }}
+                >
+                  <Icon className="size-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-semibold text-foreground">{note.title}</p>
+                    {!note.read ? (
+                      <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: visual.accent }} />
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleString()}</p>
+                </div>
               </div>
-              {!note.read ? <span className="mt-1 size-2 rounded-full bg-primary" /> : null}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleString()}</p>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
     </AppShell>
   );

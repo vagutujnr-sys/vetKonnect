@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { Button } from "@/components/ui/button";
+import { useApp } from "@/hooks/useApp";
 import { getUser, hasActiveSession, requestAccessCode } from "@/services/userService";
 
 function FlagZimbabwe({ className }: { className?: string }) {
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/register")({
 
 function Register() {
   const navigate = useNavigate();
+  const { refreshSession } = useApp();
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -57,6 +59,18 @@ function Register() {
     setLoading(true);
     try {
       const result = await requestAccessCode(phone, "+263");
+
+      if (result.skipVerify && result.user) {
+        await refreshSession();
+        toast.success("Welcome back", {
+          description: "Signed in on this trusted device.",
+        });
+        void navigate({
+          to: result.user.onboarded && result.user.modules.length ? "/home" : "/modules",
+        });
+        return;
+      }
+
       sessionStorage.setItem(
         "vetkonnect:pending_auth",
         JSON.stringify({
@@ -104,8 +118,9 @@ function Register() {
             value={phone}
             onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
             inputMode="tel"
+            autoComplete="tel"
             placeholder="Enter mobile number"
-            className="w-full bg-transparent text-lg outline-none placeholder:text-muted-foreground/70"
+            className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/70"
           />
         </div>
       </div>
@@ -125,7 +140,7 @@ function Register() {
         onClick={() => void submit()}
         className="mt-8 w-full justify-between text-base tracking-wide"
       >
-        {loading ? "Preparing code…" : "CONTINUE"}
+        {loading ? "Checking…" : "CONTINUE"}
         <ArrowRight className="size-5" />
       </Button>
 

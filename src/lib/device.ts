@@ -7,16 +7,34 @@ function randomId() {
   return `dev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function readStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Private mode / storage blocked — device binding may not persist.
+  }
+}
+
 /** Stable per-browser/device identifier used for account binding. */
 export function getDeviceId(): string {
-  if (typeof window === "undefined" || !window.localStorage) {
+  if (typeof window === "undefined") {
     return "server";
   }
 
-  const existing = window.localStorage.getItem(DEVICE_KEY);
+  const existing = readStorage(DEVICE_KEY);
   if (existing) return existing;
 
   const created = randomId();
-  window.localStorage.setItem(DEVICE_KEY, created);
+  writeStorage(DEVICE_KEY, created);
   return created;
 }

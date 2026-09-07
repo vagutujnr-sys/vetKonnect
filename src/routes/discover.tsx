@@ -46,7 +46,7 @@ function Discover() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search clinics, grooming, stores"
-            className="w-full bg-transparent text-sm outline-none"
+            className="w-full bg-transparent text-base outline-none"
           />
         </div>
       </div>

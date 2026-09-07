@@ -57,6 +57,8 @@ function Verify() {
     return `${pending.countryCode} ${pending.phone}`;
   }, [pending]);
 
+  const canSubmit = code.length === 6 && (!pending?.isNew || name.trim().length >= 2);
+
   const submit = async () => {
     if (!pending) return;
     setLoading(true);
@@ -64,7 +66,7 @@ function Verify() {
       const user = await verifyAccessCode({
         accountId: pending.accountId,
         code,
-        fullName: name,
+        fullName: name.trim() || undefined,
       });
       sessionStorage.removeItem("vetkonnect:pending_auth");
       await refreshSession();
@@ -128,6 +130,7 @@ function Verify() {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric"
+          autoComplete="one-time-code"
           placeholder="Enter 6-digit code"
           className="w-full rounded-2xl border border-border bg-card px-4 py-4 text-center text-2xl font-semibold tracking-[0.3em] outline-none"
         />
@@ -141,36 +144,42 @@ function Verify() {
       ) : null}
 
       <button
+        type="button"
         onClick={() => navigate({ to: "/register" })}
         className="mx-auto mt-3 block cursor-pointer text-sm font-medium text-primary underline"
       >
         Change number
       </button>
 
-      <hr className="my-6 border-border" />
+      {pending.isNew ? (
+        <>
+          <hr className="my-6 border-border" />
 
-      <div className="flex items-center gap-3">
-        <span className="flex size-11 items-center justify-center rounded-full bg-accent">
-          <CircleUserRound className="size-5 text-primary" />
-        </span>
-        <p className="font-bold">What's your name?</p>
-      </div>
+          <div className="flex items-center gap-3">
+            <span className="flex size-11 items-center justify-center rounded-full bg-accent">
+              <CircleUserRound className="size-5 text-primary" />
+            </span>
+            <p className="font-bold">What's your name?</p>
+          </div>
 
-      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border px-4 py-4">
-        <CircleUserRound className="size-5 text-muted-foreground" />
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Full name"
-          className="w-full bg-transparent text-lg outline-none placeholder:text-muted-foreground/70"
-        />
-        {name.trim().length > 2 && <BadgeCheck className="size-6 text-primary" />}
-      </div>
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border px-4 py-4">
+            <CircleUserRound className="size-5 text-muted-foreground" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              placeholder="Full name"
+              className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/70"
+            />
+            {name.trim().length > 2 && <BadgeCheck className="size-6 text-primary" />}
+          </div>
+        </>
+      ) : null}
 
       <Button
         variant="hero"
         size="lg"
-        disabled={code.length !== 6 || name.trim().length < 2 || loading}
+        disabled={!canSubmit || loading}
         onClick={() => void submit()}
         className="my-8 w-full justify-between text-base tracking-wide"
       >

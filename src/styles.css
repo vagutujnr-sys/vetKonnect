@@ -106,6 +106,13 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* 16px prevents iOS Safari auto-zoom on focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
   h1,
   h2,
   h3,
@@ -150,8 +157,30 @@
 }
 
 [data-sonner-toast] {
-  border-radius: 18px !important;
-  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent) !important;
+  background: #fff !important;
+  border-radius: 16px !important;
+  border: none !important;
+  border-left: 4px solid var(--primary) !important;
   box-shadow: var(--shadow-float) !important;
-  backdrop-filter: blur(10px);
+  color: var(--foreground) !important;
+}
+
+[data-sonner-toast][data-type="success"],
+.premium-toast-success {
+  border-left-color: oklch(0.48 0.12 155) !important;
+}
+
+[data-sonner-toast][data-type="error"],
+.premium-toast-error {
+  border-left-color: oklch(0.58 0.2 25) !important;
+}
+
+[data-sonner-toast][data-type="warning"],
+.premium-toast-warning {
+  border-left-color: oklch(0.65 0.15 70) !important;
+}
+
+[data-sonner-toast][data-type="info"],
+.premium-toast-info {
+  border-left-color: oklch(0.52 0.14 250) !important;
 }

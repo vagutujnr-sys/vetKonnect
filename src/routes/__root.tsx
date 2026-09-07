@@ -170,7 +170,7 @@ function RootComponent() {
         <PageTransition>
           <Outlet />
         </PageTransition>
-        <Toaster position="top-right" richColors closeButton />
+        <Toaster position="top-right" closeButton />
       </AppProvider>
     </QueryClientProvider>
   );

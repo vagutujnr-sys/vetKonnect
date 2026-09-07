@@ -355,7 +355,7 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-primary"
+        className="w-full rounded-xl border border-border bg-card px-4 py-3 text-base outline-none focus:border-primary"
       />
     </label>
   );

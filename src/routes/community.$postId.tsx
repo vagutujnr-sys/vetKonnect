@@ -178,7 +178,7 @@ function PostDetailPage() {
               value={commentDraft}
               onChange={(e) => setCommentDraft(e.target.value)}
               placeholder="Write a comment…"
-              className="flex-1 rounded-full border border-border bg-card px-4 py-3 text-sm outline-none"
+              className="flex-1 rounded-full border border-border bg-card px-4 py-3 text-base outline-none"
             />
             <Button
               variant="hero"

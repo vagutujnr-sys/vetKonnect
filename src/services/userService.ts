@@ -3,6 +3,7 @@ import { getDeviceId } from "@/lib/device";
 import { supabase } from "./supabaseClient";
 
 const SESSION_KEY = "vetkonnect:session_account_id";
+const SESSION_PROFILE_KEY = "vetkonnect:session_profile";
 const ADMIN_SESSION_KEY = "vetkonnect:admin_session";
 
 export const ADMIN_PIN = "2026";
@@ -43,6 +44,28 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
   };
 }
 
+function cacheSessionProfile(user: UserProfile) {
+  if (typeof window === "undefined" || !window.localStorage || !user.id) return;
+  window.localStorage.setItem(SESSION_PROFILE_KEY, JSON.stringify(user));
+}
+
+function getCachedSessionProfile(accountId: string): UserProfile | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(SESSION_PROFILE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as UserProfile;
+    return parsed.id === accountId ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSessionProfileCache() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.removeItem(SESSION_PROFILE_KEY);
+}
+
 export function getSessionAccountId(): string | null {
   if (typeof window === "undefined" || !window.localStorage) return null;
   return window.localStorage.getItem(SESSION_KEY);
@@ -52,6 +75,7 @@ function setSessionAccountId(id: string | null) {
   if (typeof window === "undefined" || !window.localStorage) return;
   if (!id) {
     window.localStorage.removeItem(SESSION_KEY);
+    clearSessionProfileCache();
     return;
   }
   window.localStorage.setItem(SESSION_KEY, id);
@@ -87,7 +111,21 @@ export async function getUser(): Promise<UserProfile> {
   }
 
   const { data, error } = await supabase.from("accounts").select("*").eq("id", sessionId).maybeSingle();
-  if (error || !data) {
+
+  // Never wipe a valid local session on transient network / API failures.
+  if (error) {
+    console.error("Failed to refresh account session", error);
+    const cached = getCachedSessionProfile(sessionId);
+    if (cached) return { ...cached, isAdmin: cached.isAdmin || isAdminSession() };
+    return {
+      ...defaultUser,
+      id: sessionId,
+      boundDeviceId: getDeviceId(),
+      onboarded: true,
+    };
+  }
+
+  if (!data) {
     setSessionAccountId(null);
     return defaultUser;
   }
@@ -106,7 +144,9 @@ export async function getUser(): Promise<UserProfile> {
     return defaultUser;
   }
 
-  return { ...account, isAdmin: account.isAdmin || isAdminSession() };
+  const next = { ...account, isAdmin: account.isAdmin || isAdminSession() };
+  cacheSessionProfile(next);
+  return next;
 }
 
 export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfile> {
@@ -132,6 +172,7 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
     .eq("id", current.id);
 
   if (error) throw error;
+  cacheSessionProfile(next);
   return next;
 }
 
@@ -140,8 +181,20 @@ export async function resetUser(): Promise<void> {
   setAdminSession(false);
 }
 
+export type AccessCodeResult = {
+  accountId: string;
+  otp: string;
+  expiresAt: string;
+  isNew: boolean;
+  phone: string;
+  countryCode: string;
+  /** Same device already bound — restore session and skip OTP. */
+  skipVerify?: boolean;
+  user?: UserProfile;
+};
+
 /** Request a unique one-time access code for this phone (no SMS — returned to the client). */
-export async function requestAccessCode(phone: string, countryCode = "+263") {
+export async function requestAccessCode(phone: string, countryCode = "+263"): Promise<AccessCodeResult> {
   const cleanPhone = normalizePhone(phone);
   if (cleanPhone.length < 6) {
     throw new Error("Enter a valid mobile number.");
@@ -160,6 +213,32 @@ export async function requestAccessCode(phone: string, countryCode = "+263") {
     throw new Error(
       "This account is bound to another device. Open Settings on that device and unbind it before logging in here.",
     );
+  }
+
+  // Returning user on the same bound device — restore session and skip OTP/onboarding.
+  if (existing?.bound_device_id && String(existing.bound_device_id) === deviceId) {
+    const user = mapAccount(existing as Record<string, unknown>);
+    setSessionAccountId(String(existing.id));
+    cacheSessionProfile(user);
+    await supabase
+      .from("accounts")
+      .update({
+        otp_code: null,
+        otp_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+
+    return {
+      accountId: String(existing.id),
+      otp: "",
+      expiresAt: "",
+      isNew: false,
+      phone: cleanPhone,
+      countryCode,
+      skipVerify: true,
+      user,
+    };
   }
 
   const otp = generateOtp();
@@ -238,11 +317,12 @@ export async function verifyAccessCode(input: {
     throw new Error("Access code expired. Request a new one.");
   }
 
-  const fullName = (input.fullName ?? String(data.full_name ?? "")).trim();
+  const existingName = String(data.full_name ?? "").trim();
+  const fullName = (input.fullName ?? existingName).trim() || existingName;
   const { data: updated, error: updateError } = await supabase
     .from("accounts")
     .update({
-      full_name: fullName || String(data.full_name ?? ""),
+      full_name: fullName,
       otp_code: null,
       otp_expires_at: null,
       bound_device_id: deviceId,
@@ -255,8 +335,10 @@ export async function verifyAccessCode(input: {
 
   if (updateError) throw updateError;
 
+  const user = mapAccount(updated as Record<string, unknown>);
   setSessionAccountId(String(updated.id));
-  return mapAccount(updated as Record<string, unknown>);
+  cacheSessionProfile(user);
+  return user;
 }
 
 /** Security feature: release this account from the current device. */
