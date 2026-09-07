@@ -44,7 +44,13 @@ function PetsScreen() {
             )}
           >
             <button onClick={() => setActivePet(pet.id)} className="flex w-full cursor-pointer gap-4 p-4 text-left">
-              <img src={pet.photoUrl} alt={pet.name} loading="lazy" className="size-20 rounded-2xl object-cover" />
+              {pet.photoUrl ? (
+                <img src={pet.photoUrl} alt={pet.name} loading="lazy" className="size-20 rounded-2xl object-cover" />
+              ) : (
+                <span className="flex size-20 items-center justify-center rounded-2xl bg-accent text-primary">
+                  <PawPrint className="size-8" />
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h2 className="truncate text-lg font-bold">{pet.name}</h2>

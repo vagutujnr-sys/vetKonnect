@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Bird, Camera, Cat, Check, Dog, PawPrint, QrCode } from "lucide-react";
-import { useState } from "react";
-import buddy from "@/assets/pet-buddy.jpg";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { cn } from "@/lib/utils";
+import { uploadPetPhoto } from "@/services/petService";
 import type { Pet, Species } from "@/types";
 
 export const Route = createFileRoute("/pets/new")({
@@ -31,8 +32,12 @@ const speciesOptions: { value: Species; icon: typeof Dog }[] = [
 function AddPet() {
   const navigate = useNavigate();
   const { addPet } = useApp();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState<Pet | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     species: "Dog" as Species,
@@ -46,20 +51,49 @@ function AddPet() {
 
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
+  const onPickPhoto = (file: File | null) => {
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
+    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
   const submit = async () => {
-    const pet = await addPet({
-      name: form.name.trim(),
-      species: form.species,
-      breed: form.breed.trim() || form.species,
-      sex: form.sex,
-      ageYears: Number(form.ageYears) || 0,
-      colour: form.colour.trim() || "Not specified",
-      microchip: form.microchip.trim() || undefined,
-      collarId: form.collarId.trim() || undefined,
-      photoUrl: buddy,
-    });
-    setCreated(pet);
-    setStep(4);
+    setSaving(true);
+    try {
+      let photoUrl = "";
+      if (photoFile) {
+        photoUrl = await uploadPetPhoto(photoFile);
+      }
+
+      const pet = await addPet({
+        name: form.name.trim(),
+        species: form.species,
+        breed: form.breed.trim() || form.species,
+        sex: form.sex,
+        ageYears: Number(form.ageYears) || 0,
+        colour: form.colour.trim() || "Not specified",
+        microchip: form.microchip.trim() || undefined,
+        collarId: form.collarId.trim() || undefined,
+        photoUrl,
+      });
+      setCreated(pet);
+      setStep(4);
+      toast.success(`${pet.name} registered`, {
+        description: photoUrl ? "Photo saved to their health passport." : "You can add a photo later from the passport.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not create pet profile.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const canContinue =
@@ -88,10 +122,42 @@ function AddPet() {
             Let's add your <span className="text-primary">pet</span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">Create a digital health profile for your companion.</p>
-          <button className="mx-auto mt-8 flex size-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-full border-2 border-dashed border-primary/40 bg-accent/40 text-primary">
-            <Camera className="size-7" />
-            <span className="text-xs font-semibold">Add photo</span>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => onPickPhoto(e.target.files?.[0] ?? null)}
+          />
+
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="mx-auto mt-8 flex size-32 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-full border-2 border-dashed border-primary/40 bg-accent/40 text-primary"
+          >
+            {photoPreview ? (
+              <img src={photoPreview} alt="Pet preview" className="size-full object-cover" />
+            ) : (
+              <>
+                <Camera className="size-7" />
+                <span className="text-xs font-semibold">Add photo</span>
+              </>
+            )}
           </button>
+          {photoPreview ? (
+            <button
+              type="button"
+              onClick={() => onPickPhoto(null)}
+              className="mx-auto mt-2 block text-sm font-medium text-primary"
+            >
+              Remove photo
+            </button>
+          ) : (
+            <p className="mt-2 text-center text-xs text-muted-foreground">Optional — you can change this later</p>
+          )}
+
           <Field label="Pet name" value={form.name} onChange={(v) => set({ name: v })} placeholder="e.g. Buddy" />
         </div>
       )}
@@ -164,6 +230,13 @@ function AddPet() {
           </span>
           <h1 className="mt-4 text-2xl font-extrabold">{created.name} is registered</h1>
           <p className="mt-1 text-sm text-muted-foreground">The digital health passport is now active.</p>
+          {created.photoUrl ? (
+            <img
+              src={created.photoUrl}
+              alt={created.name}
+              className="mx-auto mt-5 size-28 rounded-full border-2 border-primary object-cover"
+            />
+          ) : null}
           <div className="mt-6 card-surface p-6">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
             <p className="mt-1 text-xl font-extrabold text-primary">{created.vetConnectId}</p>
@@ -182,8 +255,8 @@ function AddPet() {
           </Button>
         )}
         {step === 3 && (
-          <Button variant="hero" size="lg" className="w-full justify-between" disabled={!canContinue} onClick={submit}>
-            Create pet profile <ArrowRight className="size-5" />
+          <Button variant="hero" size="lg" className="w-full justify-between" disabled={!canContinue || saving} onClick={() => void submit()}>
+            {saving ? "Saving…" : "Create pet profile"} <ArrowRight className="size-5" />
           </Button>
         )}
         {step === 4 && created && (

@@ -12,6 +12,7 @@ interface AppState {
   refreshSession: () => Promise<void>;
   updateUser: (patch: Partial<UserProfile>) => Promise<void>;
   addPet: (input: NewPetInput) => Promise<Pet>;
+  updatePet: (id: string, patch: Partial<Pet>) => Promise<Pet | undefined>;
   joinVetSure: () => void;
   signOut: () => Promise<void>;
   unbindDevice: () => Promise<void>;
@@ -62,6 +63,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return pet;
   }, []);
 
+  const updatePet = useCallback(async (id: string, patch: Partial<Pet>) => {
+    const updated = await petService.updatePet(id, patch);
+    if (updated) {
+      setPets((prev) => prev.map((pet) => (pet.id === id ? updated : pet)));
+    }
+    return updated;
+  }, []);
+
   const joinVetSure = useCallback(() => {
     void updateUser({ vetSureMember: true });
     setPets((prev) => {
@@ -95,11 +104,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshSession,
       updateUser,
       addPet,
+      updatePet,
       joinVetSure,
       signOut,
       unbindDevice,
     }),
-    [ready, user, pets, activePetId, refreshSession, updateUser, addPet, joinVetSure, signOut, unbindDevice],
+    [ready, user, pets, activePetId, refreshSession, updateUser, addPet, updatePet, joinVetSure, signOut, unbindDevice],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

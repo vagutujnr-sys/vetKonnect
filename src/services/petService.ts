@@ -18,6 +18,30 @@ function createQrPayload(pet: Pet): string {
   });
 }
 
+export async function uploadPetPhoto(file: File, petId?: string): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Please choose an image file.");
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("Photo must be under 8MB.");
+  }
+
+  const accountId = getSessionAccountId() ?? "guest";
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const safeExt = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"].includes(ext) ? ext : "jpg";
+  const path = `${accountId}/${petId ?? "new"}-${Date.now()}.${safeExt}`;
+
+  const { error } = await supabase.storage.from("pet-photos").upload(path, file, {
+    cacheControl: "3600",
+    upsert: true,
+    contentType: file.type || "image/jpeg",
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from("pet-photos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export async function getPets(ownerId?: string): Promise<Pet[]> {
   const accountId = ownerId ?? getSessionAccountId();
   let query = supabase.from("pets").select("*").order("created_at", { ascending: true });

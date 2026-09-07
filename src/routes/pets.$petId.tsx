@@ -1,8 +1,11 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, HeartPulse, QrCode, ShieldCheck, ShieldPlus, Syringe } from "lucide-react";
+import { ArrowLeft, Camera, HeartPulse, QrCode, ShieldCheck, ShieldPlus, Syringe } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
+import { uploadPetPhoto } from "@/services/petService";
 
 export const Route = createFileRoute("/pets/$petId")({
   head: () => ({
@@ -33,7 +36,9 @@ function displayValue(value: string | number | null | undefined, fallback = "0.0
 
 function PetProfile() {
   const { petId } = Route.useParams();
-  const { pets, ready, user } = useApp();
+  const { pets, ready, user, updatePet } = useApp();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const pet = pets.find((p) => p.id === petId);
 
   if (!pet) {
@@ -45,6 +50,26 @@ function PetProfile() {
       );
     throw notFound();
   }
+
+  const changePhoto = async (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const photoUrl = await uploadPetPhoto(file, pet.id);
+      await updatePet(pet.id, { photoUrl });
+      toast.success("Pet photo updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update photo.");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   return (
     <AppShell>
@@ -61,6 +86,24 @@ function PetProfile() {
         >
           <ArrowLeft className="size-5" />
         </Link>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => void changePhoto(e.target.files?.[0] ?? null)}
+        />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="absolute bottom-6 right-5 flex items-center gap-2 rounded-full bg-background/95 px-4 py-2 text-sm font-semibold text-primary shadow-[var(--shadow-card)] backdrop-blur"
+        >
+          <Camera className="size-4" />
+          {uploading ? "Uploading…" : pet.photoUrl ? "Change photo" : "Add photo"}
+        </button>
       </div>
 
       <div className="-mt-8 rounded-t-3xl bg-background px-5 pt-6">
@@ -81,9 +124,7 @@ function PetProfile() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
               <p className="mt-1 text-lg font-extrabold text-primary">{displayValue(pet.vetConnectId)}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Tag / collar ID {displayValue(pet.collarId)}
-              </p>
+              <p className="mt-2 text-xs text-muted-foreground">Tag / collar ID {displayValue(pet.collarId)}</p>
               <p className="mt-1 text-xs text-muted-foreground">Microchip {displayValue(pet.microchip)}</p>
             </div>
             <div className="flex size-24 items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-accent/40">
