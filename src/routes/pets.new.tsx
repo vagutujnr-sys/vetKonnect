@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Bird, Camera, Cat, Check, Dog, PawPrint, QrCode } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bird, Camera, Cat, Check, Dog, ImagePlus, PawPrint, QrCode } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { MobileScreen } from "@/components/layout/MobileScreen";
+import { AppShell } from "@/components/layout/AppShell";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
@@ -32,7 +32,8 @@ const speciesOptions: { value: Species; icon: typeof Dog }[] = [
 function AddPet() {
   const navigate = useNavigate();
   const { addPet } = useApp();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState<Pet | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -54,6 +55,7 @@ function AddPet() {
   const onPickPhoto = (file: File | null) => {
     if (!file) {
       setPhotoFile(null);
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
       setPhotoPreview(null);
       return;
     }
@@ -61,8 +63,25 @@ function AddPet() {
       toast.error("Please choose an image file.");
       return;
     }
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const leaveFlow = () => {
+    void navigate({ to: "/pets" });
+  };
+
+  const handleBack = () => {
+    if (created) {
+      void navigate({ to: "/pets" });
+      return;
+    }
+    if (step > 1) {
+      setStep((s) => s - 1);
+      return;
+    }
+    leaveFlow();
   };
 
   const submit = async () => {
@@ -100,62 +119,102 @@ function AddPet() {
     (step === 1 && form.name.trim().length > 1) || step === 2 || (step === 3 && form.breed.trim().length > 0);
 
   return (
-    <MobileScreen className="px-5">
-      <div className="flex items-center gap-3 pt-8">
+    <AppShell>
+      <div className="flex items-center gap-3 px-5 pt-8">
         <button
-          onClick={() => (step === 1 || created ? navigate({ to: "/pets" }) : setStep((s) => s - 1))}
-          className="flex size-10 cursor-pointer items-center justify-center rounded-full border border-border"
+          type="button"
+          onClick={handleBack}
+          className="relative z-10 flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-background"
           aria-label="Back"
         >
           <ArrowLeft className="size-5" />
         </button>
         <p className="font-bold">Add a pet</p>
+        {!created ? (
+          <button type="button" onClick={leaveFlow} className="ml-auto text-sm font-semibold text-primary">
+            Cancel
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 px-5">
         <StepIndicator step={step} total={4} />
       </div>
 
       {step === 1 && (
-        <div className="mt-8">
+        <div className="mt-8 px-5">
           <h1 className="text-2xl font-extrabold">
             Let's add your <span className="text-primary">pet</span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">Create a digital health profile for your companion.</p>
 
           <input
-            ref={fileRef}
+            ref={galleryRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              onPickPhoto(e.target.files?.[0] ?? null);
+              e.target.value = "";
+            }}
+          />
+          <input
+            ref={cameraRef}
             type="file"
             accept="image/*"
             capture="environment"
             className="hidden"
-            onChange={(e) => onPickPhoto(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              onPickPhoto(e.target.files?.[0] ?? null);
+              e.target.value = "";
+            }}
           />
 
           <button
             type="button"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => galleryRef.current?.click()}
             className="mx-auto mt-8 flex size-32 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-full border-2 border-dashed border-primary/40 bg-accent/40 text-primary"
           >
             {photoPreview ? (
               <img src={photoPreview} alt="Pet preview" className="size-full object-cover" />
             ) : (
               <>
-                <Camera className="size-7" />
+                <ImagePlus className="size-7" />
                 <span className="text-xs font-semibold">Add photo</span>
               </>
             )}
           </button>
+
+          <div className="mt-3 flex items-center justify-center gap-4">
+            <button
+              type="button"
+              onClick={() => galleryRef.current?.click()}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
+            >
+              <ImagePlus className="size-4" />
+              Gallery
+            </button>
+            <span className="text-muted-foreground">·</span>
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary"
+            >
+              <Camera className="size-4" />
+              Camera
+            </button>
+          </div>
+
           {photoPreview ? (
             <button
               type="button"
               onClick={() => onPickPhoto(null)}
-              className="mx-auto mt-2 block text-sm font-medium text-primary"
+              className="mx-auto mt-2 block text-sm font-medium text-muted-foreground"
             >
               Remove photo
             </button>
           ) : (
-            <p className="mt-2 text-center text-xs text-muted-foreground">Optional — you can change this later</p>
+            <p className="mt-2 text-center text-xs text-muted-foreground">Optional — pick from gallery or take a photo</p>
           )}
 
           <Field label="Pet name" value={form.name} onChange={(v) => set({ name: v })} placeholder="e.g. Buddy" />
@@ -163,13 +222,14 @@ function AddPet() {
       )}
 
       {step === 2 && (
-        <div className="mt-8">
+        <div className="mt-8 px-5">
           <h1 className="text-2xl font-extrabold">What kind of animal?</h1>
           <p className="mt-1 text-sm text-muted-foreground">Select the species for {form.name || "your pet"}.</p>
           <div className="mt-6 grid grid-cols-2 gap-3">
             {speciesOptions.map(({ value, icon: Icon }) => (
               <button
                 key={value}
+                type="button"
                 onClick={() => set({ species: value })}
                 className={cn(
                   "flex cursor-pointer flex-col items-center gap-2 rounded-2xl border p-6 transition-all",
@@ -185,7 +245,7 @@ function AddPet() {
       )}
 
       {step === 3 && (
-        <div className="mt-8">
+        <div className="mt-8 px-5">
           <h1 className="text-2xl font-extrabold">Pet details</h1>
           <p className="mt-1 text-sm text-muted-foreground">These details appear on the health passport.</p>
           <Field label="Breed" value={form.breed} onChange={(v) => set({ breed: v })} placeholder="e.g. Golden Retriever" />
@@ -195,6 +255,7 @@ function AddPet() {
               {(["Male", "Female"] as const).map((s) => (
                 <button
                   key={s}
+                  type="button"
                   onClick={() => set({ sex: s })}
                   className={cn(
                     "flex-1 cursor-pointer rounded-xl border py-3 font-medium",
@@ -224,7 +285,7 @@ function AddPet() {
       )}
 
       {step === 4 && created && (
-        <div className="mt-8 text-center">
+        <div className="mt-8 px-5 text-center">
           <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Check className="size-8" />
           </span>
@@ -248,14 +309,14 @@ function AddPet() {
         </div>
       )}
 
-      <div className="mt-auto space-y-3 py-8">
+      <div className="mt-auto space-y-3 px-5 py-8">
         {step < 3 && (
-          <Button variant="hero" size="lg" className="w-full justify-between" disabled={!canContinue} onClick={() => setStep((s) => s + 1)}>
+          <Button type="button" variant="hero" size="lg" className="w-full justify-between" disabled={!canContinue} onClick={() => setStep((s) => s + 1)}>
             Continue <ArrowRight className="size-5" />
           </Button>
         )}
         {step === 3 && (
-          <Button variant="hero" size="lg" className="w-full justify-between" disabled={!canContinue || saving} onClick={() => void submit()}>
+          <Button type="button" variant="hero" size="lg" className="w-full justify-between" disabled={!canContinue || saving} onClick={() => void submit()}>
             {saving ? "Saving…" : "Create pet profile"} <ArrowRight className="size-5" />
           </Button>
         )}
@@ -272,7 +333,7 @@ function AddPet() {
           </>
         )}
       </div>
-    </MobileScreen>
+    </AppShell>
   );
 }
 

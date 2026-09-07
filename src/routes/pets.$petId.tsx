@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Camera, HeartPulse, QrCode, ShieldCheck, ShieldPlus, Syringe } from "lucide-react";
+import { ArrowLeft, Camera, HeartPulse, ImagePlus, QrCode, ShieldCheck, ShieldPlus, Syringe } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
@@ -37,8 +37,10 @@ function displayValue(value: string | number | null | undefined, fallback = "0.0
 function PetProfile() {
   const { petId } = Route.useParams();
   const { pets, ready, user, updatePet } = useApp();
-  const fileRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const pet = pets.find((p) => p.id === petId);
 
   if (!pet) {
@@ -58,6 +60,7 @@ function PetProfile() {
       return;
     }
 
+    setPickerOpen(false);
     setUploading(true);
     try {
       const photoUrl = await uploadPetPhoto(file, pet.id);
@@ -67,7 +70,8 @@ function PetProfile() {
       toast.error(error instanceof Error ? error.message : "Could not update photo.");
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
+      if (cameraRef.current) cameraRef.current.value = "";
     }
   };
 
@@ -81,29 +85,61 @@ function PetProfile() {
         )}
         <Link
           to="/pets"
-          className="absolute left-5 top-5 flex size-10 items-center justify-center rounded-full bg-background/90 backdrop-blur"
+          className="absolute left-5 top-5 z-10 flex size-10 items-center justify-center rounded-full bg-background/90 backdrop-blur"
           aria-label="Back"
         >
           <ArrowLeft className="size-5" />
         </Link>
 
         <input
-          ref={fileRef}
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void changePhoto(e.target.files?.[0] ?? null)}
+        />
+        <input
+          ref={cameraRef}
           type="file"
           accept="image/*"
           capture="environment"
           className="hidden"
           onChange={(e) => void changePhoto(e.target.files?.[0] ?? null)}
         />
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="absolute bottom-6 right-5 flex items-center gap-2 rounded-full bg-background/95 px-4 py-2 text-sm font-semibold text-primary shadow-[var(--shadow-card)] backdrop-blur"
-        >
-          <Camera className="size-4" />
-          {uploading ? "Uploading…" : pet.photoUrl ? "Change photo" : "Add photo"}
-        </button>
+
+        <div className="absolute bottom-6 right-5 z-10 flex flex-col items-end gap-2">
+          {pickerOpen ? (
+            <div className="overflow-hidden rounded-2xl bg-background/95 shadow-[var(--shadow-card)] backdrop-blur">
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => galleryRef.current?.click()}
+                className="flex w-full items-center gap-2 px-4 py-3 text-sm font-semibold text-primary"
+              >
+                <ImagePlus className="size-4" />
+                Gallery
+              </button>
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => cameraRef.current?.click()}
+                className="flex w-full items-center gap-2 border-t border-border px-4 py-3 text-sm font-semibold text-primary"
+              >
+                <Camera className="size-4" />
+                Camera
+              </button>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => setPickerOpen((open) => !open)}
+            className="flex items-center gap-2 rounded-full bg-background/95 px-4 py-2 text-sm font-semibold text-primary shadow-[var(--shadow-card)] backdrop-blur"
+          >
+            <Camera className="size-4" />
+            {uploading ? "Uploading…" : pet.photoUrl ? "Change photo" : "Add photo"}
+          </button>
+        </div>
       </div>
 
       <div className="-mt-8 rounded-t-3xl bg-background px-5 pt-6">
