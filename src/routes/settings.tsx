@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
+import { playNotificationSound } from "@/lib/notificationSound";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -48,6 +49,7 @@ function SettingsPage() {
             checked={notificationsOn}
             onCheckedChange={(checked) => {
               void updateUser({ notificationsEnabled: checked });
+              if (checked) playNotificationSound({ force: true });
               toast.success(checked ? "Notifications enabled" : "Notifications paused");
             }}
           />
