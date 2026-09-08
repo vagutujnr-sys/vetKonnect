@@ -35,6 +35,10 @@ function PatientsScreen() {
   const firstName = user.fullName?.split(" ")[0] || "Doctor";
 
   useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
+
+  useEffect(() => {
     void getNotifications()
       .then((notes) => setUnread(notes.filter((n) => !n.read).length))
       .catch(() => undefined);

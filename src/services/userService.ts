@@ -193,29 +193,45 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
   }
 
   const next = { ...current, ...patch };
-  const { error } = await supabase
-    .from("accounts")
-    .update({
-      full_name: next.fullName,
-      phone: normalizePhone(next.phone),
-      country_code: next.countryCode,
-      modules: next.modules,
-      onboarded: next.onboarded,
-      vet_sure_member: next.vetSureMember,
-      is_admin: Boolean(next.isAdmin),
-      notifications_enabled: next.notificationsEnabled !== false,
-      avatar_url: next.avatarUrl ?? "",
-      account_type: next.accountType === "vet" ? "vet" : "owner",
-      vet_verified: Boolean(next.vetVerified),
-      practice_name: next.practiceName ?? "",
-      patients_served: Number(next.patientsServed ?? 0),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", current.id);
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (patch.fullName !== undefined) payload.full_name = next.fullName;
+  if (patch.phone !== undefined) payload.phone = normalizePhone(next.phone);
+  if (patch.countryCode !== undefined) payload.country_code = next.countryCode;
+  if (patch.modules !== undefined) payload.modules = next.modules;
+  if (patch.onboarded !== undefined) payload.onboarded = next.onboarded;
+  if (patch.vetSureMember !== undefined) payload.vet_sure_member = next.vetSureMember;
+  if (patch.notificationsEnabled !== undefined) payload.notifications_enabled = next.notificationsEnabled !== false;
+  if (patch.avatarUrl !== undefined) payload.avatar_url = next.avatarUrl ?? "";
+  if (patch.practiceName !== undefined) payload.practice_name = next.practiceName ?? "";
+  if (patch.patientsServed !== undefined) payload.patients_served = Number(next.patientsServed ?? 0);
+
+  // Admin-controlled fields — only write when explicitly patched so stale client
+  // cache cannot overwrite elevation / block status from the dashboard.
+  if (patch.isAdmin !== undefined) payload.is_admin = Boolean(next.isAdmin);
+  if (patch.accountType !== undefined) payload.account_type = next.accountType === "vet" ? "vet" : "owner";
+  if (patch.vetVerified !== undefined) payload.vet_verified = Boolean(next.vetVerified);
+  if (patch.blocked !== undefined) payload.blocked = Boolean(next.blocked);
+
+  if (Object.keys(payload).length === 1) {
+    cacheSessionProfile(next);
+    return next;
+  }
+
+  const { error } = await supabase.from("accounts").update(payload).eq("id", current.id);
 
   if (error) throw error;
-  cacheSessionProfile(next);
-  return next;
+
+  // Re-read so admin elevation / verification changes win over any local merge.
+  const refreshed = await getUser();
+  const merged = { ...refreshed, ...patch, id: refreshed.id || current.id };
+  // Prefer server values for admin-controlled fields after write.
+  merged.accountType = refreshed.accountType;
+  merged.vetVerified = refreshed.vetVerified;
+  merged.blocked = refreshed.blocked;
+  merged.isAdmin = refreshed.isAdmin;
+  cacheSessionProfile(merged);
+  return merged;
 }
 
 export async function uploadProfilePhoto(file: File): Promise<string> {

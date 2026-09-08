@@ -22,10 +22,14 @@ export const Route = createFileRoute("/impact")({
 });
 
 function ImpactScreen() {
-  const { user } = useApp();
+  const { user, refreshSession } = useApp();
   const [clients, setClients] = useState<PotentialClient[]>([]);
   const [loading, setLoading] = useState(true);
   const verified = Boolean(user.vetVerified);
+
+  useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
 
   useEffect(() => {
     if (!verified) {

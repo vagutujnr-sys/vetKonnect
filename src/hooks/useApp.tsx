@@ -57,6 +57,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshSession]);
 
+  // Pick up admin elevation / block changes without requiring a full re-login.
+  useEffect(() => {
+    const onFocus = () => {
+      void refreshSession();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onFocus();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    const timer = window.setInterval(() => void refreshSession(), 30000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(timer);
+    };
+  }, [refreshSession]);
+
   const updateUser = useCallback(async (patch: Partial<UserProfile>) => {
     setUser((prev) => ({ ...prev, ...patch }));
     const next = await userService.updateUser(patch);

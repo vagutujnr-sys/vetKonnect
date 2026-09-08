@@ -1,4 +1,5 @@
 import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, ModuleId } from "@/types";
+import { createNotification } from "./notificationService";
 import { supabase } from "./supabaseClient";
 
 function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
@@ -152,7 +153,7 @@ export async function elevateAdminVet(id: string, options?: { practiceName?: str
     current?.practiceName?.trim() ||
     `${current?.fullName?.trim() || "Vet"}'s Practice`;
 
-  return updateAdminUser(id, {
+  const updated = await updateAdminUser(id, {
     accountType: "vet",
     vetVerified: true,
     blocked: false,
@@ -160,6 +161,17 @@ export async function elevateAdminVet(id: string, options?: { practiceName?: str
     practiceName,
     modules: current?.modules?.length ? current.modules : ["community", "tips"],
   });
+
+  if (updated) {
+    await createNotification({
+      accountId: id,
+      title: "Vet account elevated",
+      body: "Your practice access is unlocked. Open Patients to manage care and Impact to reach nearby owners.",
+      type: "security",
+    });
+  }
+
+  return updated;
 }
 
 /** Convert a vet account back to an owner/user account. */
