@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, BellRing, CheckCheck } from "lucide-react";
+import { ArrowLeft, CheckCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LogoMark } from "@/components/brand/Logo";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
+import { getAppHomePath } from "@/lib/account";
 import type { AppNotification } from "@/types";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "@/services/notificationService";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ function NotificationsPage() {
   const { user } = useApp();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const homePath = getAppHomePath(user);
 
   const load = async () => {
     setLoading(true);
@@ -66,7 +68,7 @@ function NotificationsPage() {
     <AppShell>
       <header className="flex items-center gap-3 px-5 pb-4 pt-8">
         <Link
-          to="/home"
+          to={homePath}
           className="flex size-10 items-center justify-center rounded-full border border-border"
           aria-label="Back"
         >
