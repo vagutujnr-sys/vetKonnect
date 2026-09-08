@@ -1,18 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Bell,
-  BellRing,
-  CheckCheck,
-  Eye,
-  Heart,
-  MessageCircle,
-  Megaphone,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
-import { useEffect, useState, type ComponentType } from "react";
+import { ArrowLeft, BellRing, CheckCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { LogoMark } from "@/components/brand/Logo";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
@@ -30,27 +20,24 @@ export const Route = createFileRoute("/notifications")({
   component: NotificationsPage,
 });
 
-type NoteVisual = {
-  icon: ComponentType<{ className?: string }>;
-  accent: string;
-};
-
-function noteVisual(type: string): NoteVisual {
+function noteAccent(type: string): string {
   switch (type) {
     case "like":
-      return { icon: Heart, accent: "oklch(0.58 0.2 25)" };
+      return "oklch(0.58 0.2 25)";
     case "comment":
-      return { icon: MessageCircle, accent: "oklch(0.52 0.14 250)" };
+      return "oklch(0.52 0.14 250)";
     case "view":
-      return { icon: Eye, accent: "oklch(0.55 0.08 200)" };
+      return "oklch(0.55 0.08 200)";
     case "community":
-      return { icon: Users, accent: "oklch(0.44 0.121 155.5)" };
+      return "oklch(0.44 0.121 155.5)";
     case "security":
-      return { icon: ShieldCheck, accent: "oklch(0.48 0.12 155)" };
+      return "oklch(0.48 0.12 155)";
     case "notice":
-      return { icon: Megaphone, accent: "oklch(0.65 0.15 70)" };
+      return "oklch(0.65 0.15 70)";
+    case "health":
+      return "oklch(0.48 0.12 155)";
     default:
-      return { icon: Bell, accent: "oklch(0.44 0.121 155.5)" };
+      return "oklch(0.44 0.121 155.5)";
   }
 }
 
@@ -108,14 +95,13 @@ function NotificationsPage() {
         {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
         {!loading && items.length === 0 ? (
           <div className="rounded-2xl border border-border bg-white p-8 text-center shadow-[var(--shadow-card)]">
-            <BellRing className="mx-auto size-8 text-primary" />
+            <LogoMark className="mx-auto h-8 w-8" />
             <p className="mt-3 font-bold">You're all caught up</p>
             <p className="mt-1 text-sm text-muted-foreground">New likes, comments and security alerts will appear here.</p>
           </div>
         ) : null}
         {items.map((note) => {
-          const visual = noteVisual(note.type);
-          const Icon = visual.icon;
+          const accent = noteAccent(note.type);
           return (
             <button
               key={note.id}
@@ -130,20 +116,20 @@ function NotificationsPage() {
                 "w-full rounded-2xl bg-white p-4 text-left shadow-[var(--shadow-card)] transition-opacity",
                 note.read && "opacity-75",
               )}
-              style={{ borderLeft: `4px solid ${visual.accent}` }}
+              style={{ borderLeft: `4px solid ${accent}` }}
             >
               <div className="flex items-start gap-3">
                 <span
-                  className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full"
-                  style={{ color: visual.accent, backgroundColor: `color-mix(in oklab, ${visual.accent} 12%, white)` }}
+                  className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-accent/70 p-1.5"
+                  style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${accent} 25%, transparent)` }}
                 >
-                  <Icon className="size-5" />
+                  <LogoMark className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-semibold text-foreground">{note.title}</p>
                     {!note.read ? (
-                      <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: visual.accent }} />
+                      <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
                     ) : null}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>

@@ -1,22 +1,21 @@
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  XCircle,
-} from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
 import { Toaster as Sonner } from "sonner";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
+
+const ToastLogo = ({ className }: { className?: string }) => (
+  <LogoMark className={className ?? "size-4"} />
+);
 
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       className="toaster group"
       icons={{
-        success: <CheckCircle2 className="size-5 text-[oklch(0.48_0.12_155)]" />,
-        error: <XCircle className="size-5 text-[oklch(0.58_0.2_25)]" />,
-        warning: <AlertTriangle className="size-5 text-[oklch(0.65_0.15_70)]" />,
-        info: <Info className="size-5 text-[oklch(0.52_0.14_250)]" />,
+        success: <ToastLogo className="size-4" />,
+        error: <ToastLogo className="size-4" />,
+        warning: <ToastLogo className="size-4" />,
+        info: <ToastLogo className="size-4" />,
       }}
       toastOptions={{
         classNames: {
@@ -30,6 +29,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           error: "premium-toast-error",
           warning: "premium-toast-warning",
           info: "premium-toast-info",
+          icon: "group-[.toast]:!size-4",
         },
       }}
       {...props}

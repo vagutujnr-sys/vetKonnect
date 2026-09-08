@@ -131,7 +131,7 @@ function AdminDashboard() {
 
     async function loadData() {
       try {
-        const [usersData, vetsData, petsData, servicesData, herdTagsData, postsData, notificationsData] = await Promise.all([
+        const results = await Promise.allSettled([
           getAdminUsers(),
           getAdminVets(),
           getAllPets(),
@@ -142,13 +142,25 @@ function AdminDashboard() {
         ]);
 
         if (cancelled) return;
-        setUsers(usersData);
-        setVets(vetsData);
-        setPets(petsData);
-        setServices(servicesData);
-        setHerdTags(herdTagsData);
-        setPosts(postsData);
-        setNotifications(notificationsData);
+
+        const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult] = results;
+        const failures = results.filter((result) => result.status === "rejected");
+
+        if (usersResult.status === "fulfilled") setUsers(usersResult.value);
+        if (vetsResult.status === "fulfilled") setVets(vetsResult.value);
+        if (petsResult.status === "fulfilled") setPets(petsResult.value);
+        if (servicesResult.status === "fulfilled") setServices(servicesResult.value);
+        if (herdResult.status === "fulfilled") setHerdTags(herdResult.value);
+        if (postsResult.status === "fulfilled") setPosts(postsResult.value);
+        if (notificationsResult.status === "fulfilled") setNotifications(notificationsResult.value);
+
+        if (failures.length === results.length) {
+          console.error("Failed to load admin data", failures);
+          toast.error("Failed to load admin data");
+        } else if (failures.length) {
+          console.error("Some admin datasets failed to load", failures);
+          toast.error("Some admin sections could not load");
+        }
       } catch (error) {
         console.error(error);
         toast.error("Failed to load admin data");
@@ -159,7 +171,7 @@ function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ready]);
 
   const totalUsers = users.length;
   const totalVets = vets.length;
