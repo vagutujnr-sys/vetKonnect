@@ -1,6 +1,7 @@
 import type { ModuleId, UserProfile } from "@/types";
 import { getDeviceId } from "@/lib/device";
-import { supabase } from "./supabaseClient";
+import { withTimeout } from "@/lib/timeout";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 const SESSION_KEY = "vetkonnect:session_account_id";
 const SESSION_PROFILE_KEY = "vetkonnect:session_profile";
@@ -112,12 +113,23 @@ export async function getUser(): Promise<UserProfile> {
     return defaultUser;
   }
 
-  const { data, error } = await supabase.from("accounts").select("*").eq("id", sessionId).maybeSingle();
+  const cached = getCachedSessionProfile(sessionId);
 
-  // Never wipe a valid local session on transient network / API failures.
-  if (error) {
+  if (!isSupabaseConfigured) {
+    return cached ? { ...cached, isAdmin: cached.isAdmin || isAdminSession() } : { ...defaultUser, id: sessionId, boundDeviceId: getDeviceId(), onboarded: true };
+  }
+
+  let data: Record<string, unknown> | null = null;
+  try {
+    const result = await withTimeout(
+      supabase.from("accounts").select("*").eq("id", sessionId).maybeSingle(),
+      5000,
+      "Account session",
+    );
+    if (result.error) throw result.error;
+    data = (result.data as Record<string, unknown> | null) ?? null;
+  } catch (error) {
     console.error("Failed to refresh account session", error);
-    const cached = getCachedSessionProfile(sessionId);
     if (cached) return { ...cached, isAdmin: cached.isAdmin || isAdminSession() };
     return {
       ...defaultUser,
@@ -394,6 +406,13 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 export async function hasActiveSession(): Promise<boolean> {
+  const sessionId = getSessionAccountId();
+  if (sessionId) {
+    const cached = getCachedSessionProfile(sessionId);
+    if (cached?.id) return true;
+    return true;
+  }
+  if (isAdminSession()) return true;
   const user = await getUser();
   return Boolean(user.id && user.boundDeviceId);
 }

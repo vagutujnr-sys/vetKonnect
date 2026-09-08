@@ -30,6 +30,9 @@ function mapVetRow(row: Record<string, unknown>): AdminVet {
     phone: String(row.phone ?? ""),
     status: row.status as AdminVet["status"],
     rating: Number(row.rating ?? 0),
+    latitude: row.latitude != null ? Number(row.latitude) : undefined,
+    longitude: row.longitude != null ? Number(row.longitude) : undefined,
+    address: row.address ? String(row.address) : undefined,
   };
 }
 
@@ -149,6 +152,9 @@ export async function saveAdminVets(vets: AdminVet[]): Promise<void> {
       phone: vet.phone,
       status: vet.status,
       rating: vet.rating,
+      latitude: vet.latitude ?? null,
+      longitude: vet.longitude ?? null,
+      address: vet.address ?? null,
     })),
     { onConflict: "id" },
   );

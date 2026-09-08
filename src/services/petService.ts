@@ -1,6 +1,7 @@
 import type { NewPetInput, Pet } from "@/types";
+import { withTimeout } from "@/lib/timeout";
 import { getSessionAccountId } from "./userService";
-import { supabase } from "./supabaseClient";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 function createVetKonnectId(): string {
   const suffix = Math.floor(100000 + Math.random() * 900000).toString();
@@ -44,16 +45,20 @@ export async function uploadPetPhoto(file: File, petId?: string): Promise<string
 
 export async function getPets(ownerId?: string): Promise<Pet[]> {
   const accountId = ownerId ?? getSessionAccountId();
-  let query = supabase.from("pets").select("*").order("created_at", { ascending: true });
-  if (accountId) {
-    query = query.eq("owner_id", accountId);
-  } else {
+  if (!accountId || !isSupabaseConfigured) return [];
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("pets").select("*").eq("owner_id", accountId).order("created_at", { ascending: true }),
+      5000,
+      "Pets",
+    );
+    if (error) throw error;
+    return (data ?? []).map(mapPetRow);
+  } catch (error) {
+    console.error("Failed to load pets", error);
     return [];
   }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []).map(mapPetRow);
 }
 
 /** Admin listing — all pets regardless of owner. */

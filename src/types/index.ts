@@ -74,6 +74,22 @@ export interface AdminVet {
   phone: string;
   status: "Active" | "Inactive";
   rating: number;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+}
+
+export interface MappableVet {
+  id: string;
+  name: string;
+  surgery: string;
+  address: string;
+  phone: string;
+  rating: number;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+  open?: boolean;
 }
 
 export interface CommunityPost {

@@ -80,30 +80,57 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+function PendingScreen() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
+      <p className="text-sm text-muted-foreground">Loading VetKonnect…</p>
+    </div>
+  );
+}
+
 const publicRoutes = new Set(["/", "/register", "/verify", "/modules", "/admin-login", "/admin", "/welcome"]);
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({ location }) => {
     const pathname = location.pathname;
 
-    if (pathname === "/" || pathname === "/welcome") {
-      const session = await hasActiveSession();
-      if (session) {
-        const user = await getUser();
-        throw redirect({ to: user.onboarded && user.modules.length ? "/home" : "/modules" });
+    // Session lives in localStorage — never block SSR on a network round-trip.
+    if (typeof window === "undefined") {
+      if (pathname === "/" || pathname === "/welcome") {
+        throw redirect({ to: "/register" });
       }
-      throw redirect({ to: "/register" });
-    }
-
-    if (publicRoutes.has(pathname)) {
       return;
     }
 
-    const user = await getUser();
-    const isReadyUser = Boolean(user.id && user.boundDeviceId && user.onboarded && user.phone && user.fullName && user.modules.length);
+    try {
+      if (pathname === "/" || pathname === "/welcome") {
+        const session = await hasActiveSession();
+        if (session) {
+          const user = await getUser();
+          throw redirect({ to: user.onboarded && user.modules.length ? "/home" : "/modules" });
+        }
+        throw redirect({ to: "/register" });
+      }
 
-    if (!isReadyUser) {
-      throw redirect({ to: "/register" });
+      if (publicRoutes.has(pathname)) {
+        return;
+      }
+
+      const user = await getUser();
+      const isReadyUser = Boolean(user.id && user.boundDeviceId && user.onboarded && user.phone && user.fullName && user.modules.length);
+
+      if (!isReadyUser) {
+        throw redirect({ to: "/register" });
+      }
+    } catch (error) {
+      // Preserve TanStack redirects / notFound throws.
+      if (error != null && typeof error === "object" && ("isRedirect" in error || "to" in error || "statusCode" in error)) {
+        throw error;
+      }
+      console.error("Auth check failed", error);
+      if (!publicRoutes.has(pathname) && pathname !== "/") {
+        throw redirect({ to: "/register" });
+      }
     }
   },
   head: () => ({
@@ -132,6 +159,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
   }),
+  pendingComponent: PendingScreen,
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,

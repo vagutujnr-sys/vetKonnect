@@ -27,23 +27,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activePetId, setActivePetId] = useState<string | null>(null);
 
   const refreshSession = useCallback(async () => {
-    const u = await userService.getUser();
-    setUser(u);
-    if (u.id) {
-      const p = await petService.getPets(u.id);
-      setPets(p);
-      setActivePetId((prev) => (prev && p.some((pet) => pet.id === prev) ? prev : p[0]?.id ?? null));
-    } else {
-      setPets([]);
-      setActivePetId(null);
+    try {
+      const u = await userService.getUser();
+      setUser(u);
+      if (u.id) {
+        const p = await petService.getPets(u.id);
+        setPets(p);
+        setActivePetId((prev) => (prev && p.some((pet) => pet.id === prev) ? prev : p[0]?.id ?? null));
+      } else {
+        setPets([]);
+        setActivePetId(null);
+      }
+    } catch (error) {
+      console.error("Failed to refresh session", error);
     }
   }, []);
 
   useEffect(() => {
     let alive = true;
     void (async () => {
-      await refreshSession();
-      if (alive) setReady(true);
+      try {
+        await refreshSession();
+      } finally {
+        if (alive) setReady(true);
+      }
     })();
     return () => {
       alive = false;

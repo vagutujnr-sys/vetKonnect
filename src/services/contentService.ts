@@ -1,7 +1,9 @@
-import type { CommunityComment, CommunityPost, MediaType, ServiceListing } from "@/types";
+import type { CommunityComment, CommunityPost, MediaType, MappableVet, ServiceListing } from "@/types";
+import { coordsFromPlace, haversineKm, type GeoPoint } from "@/lib/geo";
+import { withTimeout } from "@/lib/timeout";
 import { getSessionAccountId } from "./userService";
 import { createNotification } from "./notificationService";
-import { supabase } from "./supabaseClient";
+import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 function formatTimeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -308,9 +310,83 @@ export async function addComment(postId: string, body: string, authorName: strin
 }
 
 export async function getServices(): Promise<ServiceListing[]> {
-  const { data, error } = await supabase.from("services").select("*").order("distance_km", { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((row) => mapServiceRow(row as Record<string, unknown>));
+  if (!isSupabaseConfigured) return [];
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from("services").select("*").order("distance_km", { ascending: true }),
+      5000,
+      "Services",
+    );
+    if (error) throw error;
+    return (data ?? []).map((row) => mapServiceRow(row as Record<string, unknown>));
+  } catch (error) {
+    console.error("Failed to load services", error);
+    return [];
+  }
+}
+
+export async function getNearbyVets(origin: GeoPoint, limit = 5): Promise<MappableVet[]> {
+  if (!isSupabaseConfigured) return [];
+
+  try {
+    const [servicesResult, vetsResult] = await Promise.all([
+      withTimeout(supabase.from("services").select("*"), 5000, "Vet services"),
+      withTimeout(supabase.from("vets").select("*"), 5000, "Vets"),
+    ]);
+
+    const mapped = new Map<string, MappableVet>();
+
+    for (const row of (servicesResult.data ?? []) as Record<string, unknown>[]) {
+      const category = String(row.category ?? "");
+      if (category !== "Veterinary Clinic" && category !== "Emergency") continue;
+      const latitude = Number(row.latitude ?? 0);
+      const longitude = Number(row.longitude ?? 0);
+      if (!latitude || !longitude) continue;
+      const point = { latitude, longitude };
+      const name = String(row.name ?? "Veterinary clinic");
+      mapped.set(name.toLowerCase(), {
+        id: String(row.id),
+        name,
+        surgery: name,
+        address: String(row.address ?? ""),
+        phone: "",
+        rating: Number(row.rating ?? 0),
+        latitude,
+        longitude,
+        distanceKm: Number(haversineKm(origin, point).toFixed(1)),
+        open: Boolean(row.open),
+      });
+    }
+
+    for (const row of (vetsResult.data ?? []) as Record<string, unknown>[]) {
+      if (String(row.status ?? "Active") !== "Active") continue;
+      const fallback = coordsFromPlace(String(row.location ?? ""));
+      const latitude = row.latitude != null && Number(row.latitude) !== 0 ? Number(row.latitude) : fallback?.latitude;
+      const longitude = row.longitude != null && Number(row.longitude) !== 0 ? Number(row.longitude) : fallback?.longitude;
+      if (latitude == null || longitude == null) continue;
+      const name = String(row.name ?? "Veterinarian");
+      const key = name.toLowerCase();
+      const point = { latitude, longitude };
+      const existing = mapped.get(key);
+      mapped.set(key, {
+        id: String(row.id),
+        name,
+        surgery: String(row.surgery || existing?.surgery || name),
+        address: String(row.address || row.location || existing?.address || ""),
+        phone: String(row.phone ?? ""),
+        rating: Number(row.rating ?? existing?.rating ?? 0),
+        latitude,
+        longitude,
+        distanceKm: Number(haversineKm(origin, point).toFixed(1)),
+        open: existing?.open,
+      });
+    }
+
+    return [...mapped.values()].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, limit);
+  } catch (error) {
+    console.error("Failed to load nearby vets", error);
+    return [];
+  }
 }
 
 export async function saveServices(services: ServiceListing[]): Promise<void> {

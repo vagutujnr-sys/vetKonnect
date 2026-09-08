@@ -33,6 +33,7 @@ function FlagZimbabwe({ className }: { className?: string }) {
 
 export const Route = createFileRoute("/register")({
   beforeLoad: async () => {
+    if (typeof window === "undefined") return;
     const session = await hasActiveSession();
     if (!session) return;
     const user = await getUser();
