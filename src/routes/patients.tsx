@@ -1,20 +1,22 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, ClipboardList, LayoutDashboard, PawPrint, ShieldCheck, Users } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Bell, ClipboardList, HeartPulse, LayoutDashboard, PawPrint, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
+import { TagScanPanel } from "@/components/vet/TagScanPanel";
 import { VetFeatureGate } from "@/components/vet/VetFeatureGate";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
 import { getNotifications } from "@/services/notificationService";
-import { requestPracticeDashboard } from "@/services/vetService";
+import { getRecentPatients, lookupPatientByTag, requestPracticeDashboard } from "@/services/vetService";
+import type { Pet } from "@/types";
 
 export const Route = createFileRoute("/patients")({
   head: () => ({
     meta: [
       { title: "Patients — VetKonnect" },
-      { name: "description", content: "Manage patients and practice stats in your VetKonnect vet workspace." },
+      { name: "description", content: "Scan a pet tag to open history, prescribe treatment, and update health cards." },
       { property: "og:title", content: "Patients — VetKonnect" },
       { property: "og:description", content: "Patient management for verified VetKonnect practices." },
     ],
@@ -23,9 +25,12 @@ export const Route = createFileRoute("/patients")({
 });
 
 function PatientsScreen() {
+  const navigate = useNavigate();
   const { user, refreshSession } = useApp();
   const [unread, setUnread] = useState(0);
   const [requesting, setRequesting] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [recent, setRecent] = useState<Pet[]>([]);
   const verified = Boolean(user.vetVerified);
   const firstName = user.fullName?.split(" ")[0] || "Doctor";
 
@@ -34,6 +39,13 @@ function PatientsScreen() {
       .then((notes) => setUnread(notes.filter((n) => !n.read).length))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!verified) return;
+    void getRecentPatients()
+      .then(setRecent)
+      .catch((error) => console.error("Failed to load recent patients", error));
+  }, [verified]);
 
   const requestDashboard = async () => {
     setRequesting(true);
@@ -47,6 +59,21 @@ function PatientsScreen() {
       toast.error(error instanceof Error ? error.message : "Could not send request.");
     } finally {
       setRequesting(false);
+    }
+  };
+
+  const handleScan = async (value: string) => {
+    setSearching(true);
+    try {
+      const pet = await lookupPatientByTag(value);
+      toast.success(`Found ${pet.name}`, {
+        description: pet.vetConnectId || pet.collarId || "Opening health card",
+      });
+      void navigate({ to: "/patients/$petId", params: { petId: pet.id } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not find that patient.");
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -96,9 +123,20 @@ function PatientsScreen() {
           </div>
           <div className="rounded-2xl border border-border bg-card p-4">
             <PawPrint className="size-5 text-primary" />
-            <p className="mt-3 text-3xl font-extrabold">0</p>
-            <p className="mt-1 text-sm text-muted-foreground">Active patients</p>
+            <p className="mt-3 text-3xl font-extrabold">{recent.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Recent lookups</p>
           </div>
+        </section>
+
+        <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <HeartPulse className="size-5 text-primary" />
+            <h2 className="font-extrabold">Scan patient tag</h2>
+          </div>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Scan a collar / pet tag QR, or type a VetKonnect ID or collar code to open the health card.
+          </p>
+          <TagScanPanel busy={searching} onScan={handleScan} />
         </section>
 
         <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-4">
@@ -127,15 +165,46 @@ function PatientsScreen() {
         <section className="mx-5 mt-4 mb-4 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <ClipboardList className="size-5 text-primary" />
-            <h2 className="font-extrabold">Patient list</h2>
+            <h2 className="font-extrabold">Recent patients</h2>
           </div>
-          <div className="mt-4 rounded-xl bg-accent/50 px-4 py-8 text-center">
-            <ShieldCheck className="mx-auto size-8 text-primary" />
-            <p className="mt-3 font-semibold">No patients yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Connected pet owners will appear here as you start serving clients.
-            </p>
-          </div>
+          {recent.length === 0 ? (
+            <div className="mt-4 rounded-xl bg-accent/50 px-4 py-8 text-center">
+              <PawPrint className="mx-auto size-8 text-primary" />
+              <p className="mt-3 font-semibold">No recent lookups</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Scan a tag to pull patient history and prescribe treatment.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {recent.map((pet) => (
+                <Link
+                  key={pet.id}
+                  to="/patients/$petId"
+                  params={{ petId: pet.id }}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3"
+                >
+                  {pet.photoUrl ? (
+                    <img src={pet.photoUrl} alt={pet.name} className="size-12 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex size-12 items-center justify-center rounded-full bg-accent font-bold text-primary">
+                      {pet.name.charAt(0) || "P"}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold">{pet.name}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      {pet.vetConnectId}
+                      {pet.collarId ? ` · ${pet.collarId}` : ""}
+                    </span>
+                  </span>
+                  <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-primary">
+                    {pet.healthStatus}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </VetFeatureGate>
     </AppShell>

@@ -73,6 +73,60 @@ export async function getPetById(id: string): Promise<Pet | undefined> {
   return pets.find((p) => p.id === id);
 }
 
+/** Fetch any pet by primary key (used by verified vets). */
+export async function getPetRecordById(id: string): Promise<Pet | undefined> {
+  const { data, error } = await supabase.from("pets").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  return mapPetRow(data as Record<string, unknown>);
+}
+
+/** Normalize scanned QR text or typed tag into candidate codes. */
+export function parseTagScanInput(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+
+  const candidates = new Set<string>([trimmed]);
+
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    for (const key of ["id", "vetConnectId", "collarId", "code", "vetconnect_id", "collar_id"]) {
+      const value = parsed[key];
+      if (typeof value === "string" && value.trim()) candidates.add(value.trim());
+    }
+  } catch {
+    // Plain tag / ID string
+  }
+
+  // Pull common ID shapes out of longer pasted text.
+  for (const match of trimmed.matchAll(/\b(?:VK-ZW-\d{6}|VC-\d{8}-\d{3}|[A-Z]{2,4}-\d{6,10}-\d{1,4})\b/gi)) {
+    candidates.add(match[0]);
+  }
+
+  return [...candidates];
+}
+
+/** Lookup a pet by VetKonnect ID, collar/tag ID, or pet UUID (from QR / typed scan). */
+export async function findPetByTag(raw: string): Promise<Pet | undefined> {
+  const codes = parseTagScanInput(raw);
+  if (!codes.length) throw new Error("Enter or scan a tag / VetKonnect ID.");
+
+  for (const code of codes) {
+    const [byId, byVk, byCollar] = await Promise.all([
+      supabase.from("pets").select("*").eq("id", code).maybeSingle(),
+      supabase.from("pets").select("*").eq("vetconnect_id", code).maybeSingle(),
+      supabase.from("pets").select("*").eq("collar_id", code).maybeSingle(),
+    ]);
+    if (byId.error) throw byId.error;
+    if (byVk.error) throw byVk.error;
+    if (byCollar.error) throw byCollar.error;
+    const row = byId.data ?? byVk.data ?? byCollar.data;
+    if (row) return mapPetRow(row as Record<string, unknown>);
+  }
+
+  return undefined;
+}
+
 export async function createPet(input: NewPetInput): Promise<Pet> {
   const ownerId = getSessionAccountId();
   if (!ownerId) throw new Error("You must be logged in to add a pet.");
