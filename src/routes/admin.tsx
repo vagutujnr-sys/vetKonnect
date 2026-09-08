@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { BarChart3, Bell, Ban, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, ShieldPlus, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
+import { BarChart3, Bell, Ban, ClipboardList, Globe2, LogOut, MoreHorizontal, PawPrint, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,14 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   getAdminUsers,
   getAdminVets,
   updateAdminUser,
@@ -21,6 +29,7 @@ import {
   unbindAdminAccount,
   setAdminVetVerified,
   elevateAdminVet,
+  demoteAdminToOwner,
   setAdminAccountBlocked,
   getAdminPosts,
   updateAdminPost,
@@ -467,15 +476,35 @@ function AdminDashboard() {
 
   const handleElevateVet = async (account: AdminUser) => {
     try {
+      const wasOwner = account.accountType !== "vet";
       const updated = await elevateAdminVet(account.id);
       if (updated) {
         syncAccount(updated);
-        toast.success(`Elevated ${account.fullName || account.phone}`, {
-          description: "Verified practice access granted.",
-        });
+        toast.success(
+          wasOwner
+            ? `Promoted ${account.fullName || account.phone} to vet`
+            : `Elevated ${account.fullName || account.phone}`,
+          {
+            description: wasOwner
+              ? "Account is now a verified vet with practice access."
+              : "Verified practice access granted.",
+          },
+        );
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not elevate vet");
+      toast.error(error instanceof Error ? error.message : "Could not elevate account");
+    }
+  };
+
+  const handleDemoteToOwner = async (account: AdminUser) => {
+    try {
+      const updated = await demoteAdminToOwner(account.id);
+      if (updated) {
+        syncAccount(updated);
+        toast.success(`Converted ${account.fullName || account.phone} to user account`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not convert account");
     }
   };
 
@@ -882,29 +911,60 @@ function AdminDashboard() {
                       <TableCell>{item.pets}</TableCell>
                       <TableCell><Badge variant={item.boundDeviceId ? "default" : "secondary"}>{item.boundDeviceId ? "Bound" : "Unbound"}</Badge></TableCell>
                       <TableCell><Badge variant={item.onboarded ? "default" : "secondary"}>{item.onboarded ? "Onboarded" : "Pending"}</Badge></TableCell>
-                      <TableCell className="flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "users", item })}><Eye className="h-4 w-4" /> View</Button>
-                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "users", item })}><Pencil className="h-4 w-4" /> Edit</Button>
-                        {item.accountType === "vet" && !item.vetVerified && !item.blocked ? (
-                          <Button variant="default" size="sm" onClick={() => void handleElevateVet(item)}>
-                            <ShieldPlus className="h-4 w-4" /> Elevate
-                          </Button>
-                        ) : null}
-                        {item.accountType === "vet" && item.vetVerified && !item.blocked ? (
-                          <Button variant="outline" size="sm" onClick={() => void handleVerifyVet(item, false)}>
-                            <ShieldCheck className="h-4 w-4" /> Demote
-                          </Button>
-                        ) : null}
-                        <Button
-                          variant={item.blocked ? "outline" : "destructive"}
-                          size="sm"
-                          onClick={() => void handleBlockAccount(item, !item.blocked)}
-                        >
-                          <Ban className="h-4 w-4" />
-                          {item.blocked ? "Unblock" : "Block"}
-                        </Button>
-                        {item.boundDeviceId ? <Button variant="outline" size="sm" onClick={() => void handleUnbind(item)}><Unplug className="h-4 w-4" /> Unbind</Button> : null}
-                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "users", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      <TableCell className="w-[72px]">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Account actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => void startView({ section: "users", item })}>
+                              <Eye className="h-4 w-4" /> View profile
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEdit({ section: "users", item })}>
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {item.accountType !== "vet" && !item.blocked ? (
+                              <DropdownMenuItem onClick={() => void handleElevateVet(item)}>
+                                <Stethoscope className="h-4 w-4" /> Promote to vet
+                              </DropdownMenuItem>
+                            ) : null}
+                            {item.accountType === "vet" && !item.vetVerified && !item.blocked ? (
+                              <DropdownMenuItem onClick={() => void handleElevateVet(item)}>
+                                <ShieldPlus className="h-4 w-4" /> Elevate vet access
+                              </DropdownMenuItem>
+                            ) : null}
+                            {item.accountType === "vet" && item.vetVerified && !item.blocked ? (
+                              <DropdownMenuItem onClick={() => void handleVerifyVet(item, false)}>
+                                <ShieldCheck className="h-4 w-4" /> Revoke vet access
+                              </DropdownMenuItem>
+                            ) : null}
+                            {item.accountType === "vet" && !item.blocked ? (
+                              <DropdownMenuItem onClick={() => void handleDemoteToOwner(item)}>
+                                <User className="h-4 w-4" /> Convert to user
+                              </DropdownMenuItem>
+                            ) : null}
+                            {item.boundDeviceId ? (
+                              <DropdownMenuItem onClick={() => void handleUnbind(item)}>
+                                <Unplug className="h-4 w-4" /> Unbind device
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => void handleBlockAccount(item, !item.blocked)}>
+                              <Ban className="h-4 w-4" />
+                              {item.blocked ? "Unblock account" : "Block from app"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => startDelete({ section: "users", item })}
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -915,10 +975,29 @@ function AdminDashboard() {
                       <TableCell>{item.location}</TableCell>
                       <TableCell>{item.phone}</TableCell>
                       <TableCell><Badge variant={item.status === "Active" ? "default" : "secondary"}>{item.status}</Badge></TableCell>
-                      <TableCell className="flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "vets", item })}><Eye className="h-4 w-4" /> View</Button>
-                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "vets", item })}><Pencil className="h-4 w-4" /> Edit</Button>
-                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "vets", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      <TableCell className="w-[72px]">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Clinic actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => void startView({ section: "vets", item })}>
+                              <Eye className="h-4 w-4" /> View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEdit({ section: "vets", item })}>
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => startDelete({ section: "vets", item })}
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -929,10 +1008,29 @@ function AdminDashboard() {
                       <TableCell className="max-w-[140px] truncate">{item.ownerId ?? "—"}</TableCell>
                       <TableCell>{item.healthStatus}</TableCell>
                       <TableCell>{item.vetSure ? "Yes" : "No"}</TableCell>
-                      <TableCell className="flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "pets", item })}><Eye className="h-4 w-4" /> View</Button>
-                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "pets", item })}><Pencil className="h-4 w-4" /> Edit</Button>
-                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "pets", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      <TableCell className="w-[72px]">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Pet actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => void startView({ section: "pets", item })}>
+                              <Eye className="h-4 w-4" /> View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEdit({ section: "pets", item })}>
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => startDelete({ section: "pets", item })}
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -943,10 +1041,29 @@ function AdminDashboard() {
                       <TableCell>{item.rating.toFixed(1)}</TableCell>
                       <TableCell>{item.distanceKm} km</TableCell>
                       <TableCell><Badge variant={item.open ? "default" : "secondary"}>{item.open ? "Open" : "Closed"}</Badge></TableCell>
-                      <TableCell className="flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "services", item })}><Eye className="h-4 w-4" /> View</Button>
-                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "services", item })}><Pencil className="h-4 w-4" /> Edit</Button>
-                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "services", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      <TableCell className="w-[72px]">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Service actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => void startView({ section: "services", item })}>
+                              <Eye className="h-4 w-4" /> View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEdit({ section: "services", item })}>
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => startDelete({ section: "services", item })}
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -957,10 +1074,29 @@ function AdminDashboard() {
                       <TableCell className="max-w-[240px] truncate">{item.body}</TableCell>
                       <TableCell>{item.likes}</TableCell>
                       <TableCell>{item.comments}</TableCell>
-                      <TableCell className="flex flex-wrap gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => void startView({ section: "community", item })}><Eye className="h-4 w-4" /> View</Button>
-                        <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "community", item })}><Pencil className="h-4 w-4" /> Edit</Button>
-                        <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "community", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
+                      <TableCell className="w-[72px]">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Post actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => void startView({ section: "community", item })}>
+                              <Eye className="h-4 w-4" /> View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => startEdit({ section: "community", item })}>
+                              <Pencil className="h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => startDelete({ section: "community", item })}
+                            >
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1076,19 +1212,27 @@ function AdminDashboard() {
                   <div className="rounded-xl border border-slate-200 p-4">
                     <p className="mb-2 text-sm font-semibold">Account controls</p>
                     <p className="mb-3 text-sm text-muted-foreground">
-                      {isVet
-                        ? "Elevate grants Patients & Impact access. Block removes app sign-in and revokes verification."
-                        : "Block prevents this user from signing in to VetKonnect."}
+                      Promote owners to verified vets, elevate pending vets, or block sign-in access.
                     </p>
                     <div className="flex flex-wrap gap-2">
+                      {!isVet && !account.blocked ? (
+                        <Button size="sm" onClick={() => void handleElevateVet(account)}>
+                          <Stethoscope className="mr-2 h-4 w-4" /> Promote to vet
+                        </Button>
+                      ) : null}
                       {isVet && !account.vetVerified && !account.blocked ? (
                         <Button size="sm" onClick={() => void handleElevateVet(account)}>
-                          <ShieldPlus className="mr-2 h-4 w-4" /> Elevate vet
+                          <ShieldPlus className="mr-2 h-4 w-4" /> Elevate vet access
                         </Button>
                       ) : null}
                       {isVet && account.vetVerified && !account.blocked ? (
                         <Button size="sm" variant="outline" onClick={() => void handleVerifyVet(account, false)}>
-                          <ShieldCheck className="mr-2 h-4 w-4" /> Demote vet
+                          <ShieldCheck className="mr-2 h-4 w-4" /> Revoke vet access
+                        </Button>
+                      ) : null}
+                      {isVet && !account.blocked ? (
+                        <Button size="sm" variant="outline" onClick={() => void handleDemoteToOwner(account)}>
+                          <User className="mr-2 h-4 w-4" /> Convert to user
                         </Button>
                       ) : null}
                       <Button

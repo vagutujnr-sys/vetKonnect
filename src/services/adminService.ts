@@ -144,13 +144,29 @@ export async function setAdminVetVerified(id: string, verified: boolean): Promis
   return updateAdminUser(id, { accountType: "vet", vetVerified: verified });
 }
 
-/** Elevate a vet: verified practice access and ensure they are not blocked. */
-export async function elevateAdminVet(id: string): Promise<AdminUser | undefined> {
+/** Elevate / promote an account to a verified vet (works for owners and pending vets). */
+export async function elevateAdminVet(id: string, options?: { practiceName?: string }): Promise<AdminUser | undefined> {
+  const current = await getAdminUserById(id);
+  const practiceName =
+    options?.practiceName?.trim() ||
+    current?.practiceName?.trim() ||
+    `${current?.fullName?.trim() || "Vet"}'s Practice`;
+
   return updateAdminUser(id, {
     accountType: "vet",
     vetVerified: true,
     blocked: false,
     onboarded: true,
+    practiceName,
+    modules: current?.modules?.length ? current.modules : ["community", "tips"],
+  });
+}
+
+/** Convert a vet account back to an owner/user account. */
+export async function demoteAdminToOwner(id: string): Promise<AdminUser | undefined> {
+  return updateAdminUser(id, {
+    accountType: "owner",
+    vetVerified: false,
   });
 }
 
@@ -164,6 +180,13 @@ export async function setAdminAccountBlocked(id: string, blocked: boolean): Prom
     });
   }
   return updateAdminUser(id, { blocked: false });
+}
+
+async function getAdminUserById(id: string): Promise<AdminUser | undefined> {
+  const { data, error } = await supabase.from("accounts").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  return mapAccountRow(data as Record<string, unknown>);
 }
 
 export async function deleteAdminUser(id: string): Promise<void> {
