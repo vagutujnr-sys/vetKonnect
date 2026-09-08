@@ -1,5 +1,5 @@
 import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, ModuleId } from "@/types";
-import { createNotification } from "./notificationService";
+import { notifyAccount } from "./notificationService";
 import { supabase } from "./supabaseClient";
 
 function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
@@ -142,7 +142,18 @@ export async function unbindAdminAccount(id: string): Promise<AdminUser | undefi
 }
 
 export async function setAdminVetVerified(id: string, verified: boolean): Promise<AdminUser | undefined> {
-  return updateAdminUser(id, { accountType: "vet", vetVerified: verified });
+  const updated = await updateAdminUser(id, { accountType: "vet", vetVerified: verified });
+  if (updated) {
+    await notifyAccount({
+      accountId: id,
+      title: verified ? "Vet account elevated" : "Vet access revoked",
+      body: verified
+        ? "Your practice access is unlocked. Open Patients and Impact to continue."
+        : "Your Patients and Impact tabs are locked until an admin elevates you again.",
+      type: "security",
+    });
+  }
+  return updated;
 }
 
 /** Elevate / promote an account to a verified vet (works for owners and pending vets). */
@@ -163,12 +174,15 @@ export async function elevateAdminVet(id: string, options?: { practiceName?: str
   });
 
   if (updated) {
-    await createNotification({
+    const notified = await notifyAccount({
       accountId: id,
       title: "Vet account elevated",
       body: "Your practice access is unlocked. Open Patients to manage care and Impact to reach nearby owners.",
       type: "security",
     });
+    if (!notified) {
+      console.error("Elevation saved but notification was not delivered for account", id);
+    }
   }
 
   return updated;
@@ -176,22 +190,50 @@ export async function elevateAdminVet(id: string, options?: { practiceName?: str
 
 /** Convert a vet account back to an owner/user account. */
 export async function demoteAdminToOwner(id: string): Promise<AdminUser | undefined> {
-  return updateAdminUser(id, {
+  const updated = await updateAdminUser(id, {
     accountType: "owner",
     vetVerified: false,
   });
+  if (updated) {
+    await notifyAccount({
+      accountId: id,
+      title: "Account converted to user",
+      body: "Your account is now a standard VetKonnect user profile.",
+      type: "security",
+    });
+  }
+  return updated;
 }
 
 /** Block or unblock an app account from signing in. */
 export async function setAdminAccountBlocked(id: string, blocked: boolean): Promise<AdminUser | undefined> {
   if (blocked) {
-    return updateAdminUser(id, {
+    const updated = await updateAdminUser(id, {
       blocked: true,
       vetVerified: false,
       boundDeviceId: null,
     });
+    if (updated) {
+      await notifyAccount({
+        accountId: id,
+        title: "Account blocked",
+        body: "Your VetKonnect account was blocked by admin. Contact support if this is unexpected.",
+        type: "security",
+      });
+    }
+    return updated;
   }
-  return updateAdminUser(id, { blocked: false });
+
+  const updated = await updateAdminUser(id, { blocked: false });
+  if (updated) {
+    await notifyAccount({
+      accountId: id,
+      title: "Account unblocked",
+      body: "Your VetKonnect account access has been restored. You can sign in again.",
+      type: "security",
+    });
+  }
+  return updated;
 }
 
 async function getAdminUserById(id: string): Promise<AdminUser | undefined> {

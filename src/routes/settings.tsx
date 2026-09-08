@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { playNotificationSound } from "@/lib/notificationSound";
+import { requestBrowserNotificationPermission } from "@/services/notificationService";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -43,14 +44,25 @@ function SettingsPage() {
           <Bell className="size-5 text-primary" />
           <div className="flex-1">
             <p className="font-medium">Notifications</p>
-            <p className="text-sm text-muted-foreground">Alerts for likes, comments and security</p>
+            <p className="text-sm text-muted-foreground">Alerts for likes, comments, security and vet access</p>
           </div>
           <Switch
             checked={notificationsOn}
             onCheckedChange={(checked) => {
-              void updateUser({ notificationsEnabled: checked });
-              if (checked) playNotificationSound({ force: true });
-              toast.success(checked ? "Notifications enabled" : "Notifications paused");
+              void (async () => {
+                await updateUser({ notificationsEnabled: checked });
+                if (checked) {
+                  playNotificationSound({ force: true });
+                  const permission = await requestBrowserNotificationPermission();
+                  toast.success(
+                    permission === "granted"
+                      ? "Notifications enabled (including device alerts)"
+                      : "Notifications enabled in-app",
+                  );
+                } else {
+                  toast.success("Notifications paused");
+                }
+              })();
             }}
           />
         </div>
