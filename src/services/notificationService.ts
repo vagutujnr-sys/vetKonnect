@@ -1,4 +1,5 @@
 import type { AppNotification } from "@/types";
+import { playNotificationSound } from "@/lib/notificationSound";
 import { getSessionAccountId } from "./userService";
 import { supabase } from "./supabaseClient";
 
@@ -49,6 +50,20 @@ export async function createNotification(input: {
 
   const { data, error } = await supabase.from("notifications").insert(row).select("*").single();
   if (error) throw error;
+
+  // Chime immediately when the current device created a note for itself.
+  if (accountId === getSessionAccountId()) {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem("vetkonnect:session_profile") : null;
+      const profile = raw ? (JSON.parse(raw) as { notificationsEnabled?: boolean }) : null;
+      if (profile?.notificationsEnabled !== false) {
+        playNotificationSound();
+      }
+    } catch {
+      playNotificationSound();
+    }
+  }
+
   return mapNotification(data as Record<string, unknown>);
 }
 

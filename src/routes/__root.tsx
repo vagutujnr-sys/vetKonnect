@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppProvider } from "../hooks/useApp";
 import { getAppHomePath, isAppReadyUser } from "@/lib/account";
+import { NotificationSoundWatcher } from "@/components/notifications/NotificationSoundWatcher";
 import { getUser, hasActiveSession } from "../services/userService";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -194,6 +195,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
+        <NotificationSoundWatcher />
         <PageTransition>
           <Outlet />
         </PageTransition>
