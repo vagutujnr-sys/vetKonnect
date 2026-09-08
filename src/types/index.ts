@@ -50,6 +50,7 @@ export interface UserProfile {
   vetVerified?: boolean;
   practiceName?: string;
   patientsServed?: number;
+  blocked?: boolean;
 }
 
 export interface AdminUser {
@@ -73,6 +74,8 @@ export interface AdminUser {
   vetVerified?: boolean;
   practiceName?: string;
   patientsServed?: number;
+  blocked?: boolean;
+  avatarUrl?: string;
 }
 
 export interface PotentialClient {

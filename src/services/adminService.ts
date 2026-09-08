@@ -23,6 +23,8 @@ function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
     vetVerified: Boolean(row.vet_verified),
     practiceName: String(row.practice_name ?? ""),
     patientsServed: Number(row.patients_served ?? 0),
+    blocked: Boolean(row.blocked),
+    avatarUrl: String(row.avatar_url ?? ""),
   };
 }
 
@@ -123,6 +125,7 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
   if (patch.vetVerified !== undefined) payload.vet_verified = patch.vetVerified;
   if (patch.practiceName !== undefined) payload.practice_name = patch.practiceName;
   if (patch.patientsServed !== undefined) payload.patients_served = patch.patientsServed;
+  if (patch.blocked !== undefined) payload.blocked = patch.blocked;
   if (patch.boundDeviceId === null) {
     payload.bound_device_id = null;
     payload.device_bound_at = null;
@@ -139,6 +142,28 @@ export async function unbindAdminAccount(id: string): Promise<AdminUser | undefi
 
 export async function setAdminVetVerified(id: string, verified: boolean): Promise<AdminUser | undefined> {
   return updateAdminUser(id, { accountType: "vet", vetVerified: verified });
+}
+
+/** Elevate a vet: verified practice access and ensure they are not blocked. */
+export async function elevateAdminVet(id: string): Promise<AdminUser | undefined> {
+  return updateAdminUser(id, {
+    accountType: "vet",
+    vetVerified: true,
+    blocked: false,
+    onboarded: true,
+  });
+}
+
+/** Block or unblock an app account from signing in. */
+export async function setAdminAccountBlocked(id: string, blocked: boolean): Promise<AdminUser | undefined> {
+  if (blocked) {
+    return updateAdminUser(id, {
+      blocked: true,
+      vetVerified: false,
+      boundDeviceId: null,
+    });
+  }
+  return updateAdminUser(id, { blocked: false });
 }
 
 export async function deleteAdminUser(id: string): Promise<void> {

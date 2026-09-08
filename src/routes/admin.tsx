@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { BarChart3, Bell, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
+import { BarChart3, Bell, Ban, ClipboardList, Globe2, LogOut, PawPrint, ShieldCheck, ShieldPlus, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import {
   deleteAdminVet,
   unbindAdminAccount,
   setAdminVetVerified,
+  elevateAdminVet,
+  setAdminAccountBlocked,
   getAdminPosts,
   updateAdminPost,
   deleteAdminPost,
@@ -50,7 +52,7 @@ export const Route = createFileRoute("/admin")({
 const sections = [
   { id: "overview", label: "Overview", icon: Globe2 },
   { id: "users", label: "App Accounts", icon: Users },
-  { id: "vets", label: "Vets", icon: User },
+  { id: "vets", label: "Clinic Directory", icon: User },
   { id: "pets", label: "Pets", icon: PawPrint },
   { id: "services", label: "Services", icon: ClipboardList },
   { id: "herd", label: "Tag Inventory", icon: Layers },
@@ -82,6 +84,7 @@ function AdminDashboard() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [postComments, setPostComments] = useState<CommunityComment[]>([]);
   const [search, setSearch] = useState("");
+  const [accountFilter, setAccountFilter] = useState<"all" | "owners" | "vets" | "blocked">("all");
   const [tagType, setTagType] = useState<HerdTag["type"]>("Collar ID");
   const [tagPrefix, setTagPrefix] = useState("VC");
   const [tagQuantity, setTagQuantity] = useState(3);
@@ -156,6 +159,8 @@ function AdminDashboard() {
   const totalPosts = posts.length;
   const onboardedUsers = users.filter((u) => u.onboarded).length;
   const boundAccounts = users.filter((u) => Boolean(u.boundDeviceId)).length;
+  const vetAccounts = users.filter((u) => u.accountType === "vet").length;
+  const blockedAccounts = users.filter((u) => u.blocked).length;
   const activeVets = vets.filter((v) => v.status === "Active").length;
 
   const handleSignOut = async () => {
@@ -165,18 +170,29 @@ function AdminDashboard() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeSection, search]);
+  }, [activeSection, search, accountFilter]);
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return query
-      ? users.filter((item) =>
-          [item.fullName, item.phone, item.country, item.boundDeviceId ?? ""].some((value) =>
-            value.toLowerCase().includes(query),
-          ),
-        )
-      : users;
-  }, [search, users]);
+    return users.filter((item) => {
+      if (accountFilter === "owners" && item.accountType === "vet") return false;
+      if (accountFilter === "vets" && item.accountType !== "vet") return false;
+      if (accountFilter === "blocked" && !item.blocked) return false;
+      if (!query) return true;
+      return [item.fullName, item.phone, item.country, item.practiceName ?? "", item.boundDeviceId ?? ""].some((value) =>
+        value.toLowerCase().includes(query),
+      );
+    });
+  }, [accountFilter, search, users]);
+
+  const syncAccount = (updated: AdminUser) => {
+    setUsers((prev) =>
+      prev.map((item) => (item.id === updated.id ? { ...item, ...updated, pets: item.pets, petIds: item.petIds } : item)),
+    );
+    setViewingRow((prev) =>
+      prev?.section === "users" && prev.item.id === updated.id ? { section: "users", item: { ...prev.item, ...updated, pets: prev.item.pets, petIds: prev.item.petIds } } : prev,
+    );
+  };
 
   const filteredVets = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -315,6 +331,7 @@ function AdminDashboard() {
           vetVerified: Boolean(formValues.vetVerified ?? editingRow.item.vetVerified),
           practiceName: String(formValues.practiceName ?? editingRow.item.practiceName ?? ""),
           patientsServed: Number(formValues.patientsServed ?? editingRow.item.patientsServed ?? 0),
+          blocked: Boolean(formValues.blocked ?? editingRow.item.blocked),
           pets: editingRow.item.pets,
         });
         if (updated) {
@@ -440,11 +457,42 @@ function AdminDashboard() {
     try {
       const updated = await setAdminVetVerified(account.id, verified);
       if (updated) {
-        setUsers((prev) => prev.map((item) => (item.id === account.id ? { ...item, ...updated, pets: item.pets, petIds: item.petIds } : item)));
+        syncAccount(updated);
         toast.success(verified ? `Verified ${account.fullName || account.phone}` : `Unverified ${account.fullName || account.phone}`);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update vet verification");
+    }
+  };
+
+  const handleElevateVet = async (account: AdminUser) => {
+    try {
+      const updated = await elevateAdminVet(account.id);
+      if (updated) {
+        syncAccount(updated);
+        toast.success(`Elevated ${account.fullName || account.phone}`, {
+          description: "Verified practice access granted.",
+        });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not elevate vet");
+    }
+  };
+
+  const handleBlockAccount = async (account: AdminUser, blocked: boolean) => {
+    try {
+      const updated = await setAdminAccountBlocked(account.id, blocked);
+      if (updated) {
+        syncAccount(updated);
+        toast.success(
+          blocked ? `Blocked ${account.fullName || account.phone}` : `Unblocked ${account.fullName || account.phone}`,
+          {
+            description: blocked ? "They can no longer sign in to the app." : "Sign-in access restored.",
+          },
+        );
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update block status");
     }
   };
 
@@ -581,13 +629,15 @@ function AdminDashboard() {
                       <div className="text-right">
                         <p className="font-semibold">{adminUser.pets} pets</p>
                         <p className="text-xs text-muted-foreground">
-                          {adminUser.accountType === "vet"
-                            ? adminUser.vetVerified
-                              ? "Vet · Verified"
-                              : "Vet · Pending"
-                            : adminUser.boundDeviceId
-                              ? "Device bound"
-                              : "Unbound"}{" "}
+                          {adminUser.blocked
+                            ? "Blocked"
+                            : adminUser.accountType === "vet"
+                              ? adminUser.vetVerified
+                                ? "Vet · Elevated"
+                                : "Vet · Pending"
+                              : adminUser.boundDeviceId
+                                ? "Device bound"
+                                : "Unbound"}{" "}
                           · {adminUser.onboarded ? "Onboarded" : "Pending"}
                         </p>
                       </div>
@@ -615,6 +665,8 @@ function AdminDashboard() {
                       <>
                         <Badge variant="secondary">{onboardedUsers} onboarded</Badge>
                         <Badge>{boundAccounts} bound</Badge>
+                        <Badge variant="secondary">{vetAccounts} vets</Badge>
+                        <Badge variant={blockedAccounts ? "destructive" : "secondary"}>{blockedAccounts} blocked</Badge>
                       </>
                     ) : activeSection === "vets" ? (
                       <>
@@ -642,6 +694,27 @@ function AdminDashboard() {
               </div>
             </Card>
           ) : null}
+          {(activeSection === "users" || activeSection === "accounts") && (
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { id: "all", label: "All profiles" },
+                  { id: "owners", label: "User profiles" },
+                  { id: "vets", label: "Vet profiles" },
+                  { id: "blocked", label: "Blocked" },
+                ] as const
+              ).map((filter) => (
+                <Button
+                  key={filter.id}
+                  size="sm"
+                  variant={accountFilter === filter.id ? "default" : "outline"}
+                  onClick={() => setAccountFilter(filter.id)}
+                >
+                  {filter.label}
+                </Button>
+              ))}
+            </div>
+          )}
           {activeSection === "herd" ? (
             <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -778,12 +851,28 @@ function AdminDashboard() {
                 </TableHeader>
                 <TableBody>
                   {(activeSection === "users" || activeSection === "accounts") && pagedUsers.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.fullName || "—"}</TableCell>
+                    <TableRow key={item.id} className={item.blocked ? "bg-destructive/5" : undefined}>
                       <TableCell>
-                        {item.accountType === "vet" ? (
+                        <div className="flex items-center gap-3">
+                          {item.avatarUrl ? (
+                            <img src={item.avatarUrl} alt="" className="size-9 rounded-full object-cover" />
+                          ) : (
+                            <span className="flex size-9 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-primary">
+                              {(item.fullName || item.phone || "?").charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <div>
+                            <p className="font-medium">{item.fullName || "—"}</p>
+                            {item.practiceName ? <p className="text-xs text-muted-foreground">{item.practiceName}</p> : null}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {item.blocked ? (
+                          <Badge variant="destructive">Blocked</Badge>
+                        ) : item.accountType === "vet" ? (
                           <Badge variant={item.vetVerified ? "default" : "secondary"}>
-                            {item.vetVerified ? "Vet · Verified" : "Vet · Pending"}
+                            {item.vetVerified ? "Vet · Elevated" : "Vet · Pending"}
                           </Badge>
                         ) : (
                           <Badge variant="outline">Owner</Badge>
@@ -796,16 +885,24 @@ function AdminDashboard() {
                       <TableCell className="flex flex-wrap gap-2">
                         <Button variant="secondary" size="sm" onClick={() => void startView({ section: "users", item })}><Eye className="h-4 w-4" /> View</Button>
                         <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "users", item })}><Pencil className="h-4 w-4" /> Edit</Button>
-                        {item.accountType === "vet" ? (
-                          <Button
-                            variant={item.vetVerified ? "outline" : "default"}
-                            size="sm"
-                            onClick={() => void handleVerifyVet(item, !item.vetVerified)}
-                          >
-                            <ShieldCheck className="h-4 w-4" />
-                            {item.vetVerified ? "Unverify" : "Verify vet"}
+                        {item.accountType === "vet" && !item.vetVerified && !item.blocked ? (
+                          <Button variant="default" size="sm" onClick={() => void handleElevateVet(item)}>
+                            <ShieldPlus className="h-4 w-4" /> Elevate
                           </Button>
                         ) : null}
+                        {item.accountType === "vet" && item.vetVerified && !item.blocked ? (
+                          <Button variant="outline" size="sm" onClick={() => void handleVerifyVet(item, false)}>
+                            <ShieldCheck className="h-4 w-4" /> Demote
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant={item.blocked ? "outline" : "destructive"}
+                          size="sm"
+                          onClick={() => void handleBlockAccount(item, !item.blocked)}
+                        >
+                          <Ban className="h-4 w-4" />
+                          {item.blocked ? "Unblock" : "Block"}
+                        </Button>
                         {item.boundDeviceId ? <Button variant="outline" size="sm" onClick={() => void handleUnbind(item)}><Unplug className="h-4 w-4" /> Unbind</Button> : null}
                         <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "users", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
                       </TableCell>
@@ -887,8 +984,9 @@ function AdminDashboard() {
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {viewingRow?.section === "users" && "App account"}
-              {viewingRow?.section === "vets" && "Vet profile"}
+              {viewingRow?.section === "users" &&
+                ((viewingRow.item as AdminUser).accountType === "vet" ? "Vet profile" : "User profile")}
+              {viewingRow?.section === "vets" && "Clinic directory profile"}
               {viewingRow?.section === "pets" && "Pet profile"}
               {viewingRow?.section === "services" && "Service profile"}
               {viewingRow?.section === "community" && "Community post"}
@@ -900,21 +998,38 @@ function AdminDashboard() {
             {viewingRow?.section === "users" && (() => {
               const account = viewingRow.item as AdminUser;
               const linkedPets = pets.filter((pet) => pet.ownerId === account.id || account.petIds?.includes(pet.id));
+              const isVet = account.accountType === "vet";
               return (
                 <>
+                  <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
+                    {account.avatarUrl ? (
+                      <img src={account.avatarUrl} alt="" className="size-20 rounded-full object-cover ring-2 ring-primary/20" />
+                    ) : (
+                      <span className="flex size-20 items-center justify-center rounded-full bg-white text-2xl font-extrabold text-primary shadow-sm">
+                        {(account.fullName || account.phone || "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xl font-bold">{account.fullName || "Unnamed account"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {account.country} {account.phone}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant={isVet ? "default" : "outline"}>{isVet ? "Vet account" : "User account"}</Badge>
+                        {account.blocked ? <Badge variant="destructive">Blocked</Badge> : null}
+                        {isVet ? (
+                          <Badge variant={account.vetVerified ? "default" : "secondary"}>
+                            {account.vetVerified ? "Elevated / verified" : "Pending elevation"}
+                          </Badge>
+                        ) : null}
+                        <Badge variant={account.onboarded ? "secondary" : "outline"}>
+                          {account.onboarded ? "Onboarded" : "Not onboarded"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Name</p>
-                      <p className="font-semibold">{account.fullName || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Phone</p>
-                      <p className="font-semibold">{account.phone}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Country code</p>
-                      <p className="font-semibold">{account.country}</p>
-                    </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Member since</p>
                       <p className="font-semibold">{account.memberSince ?? "—"}</p>
@@ -936,42 +1051,61 @@ function AdminDashboard() {
                       <p className="font-semibold">{account.modules?.length ? account.modules.join(", ") : "None"}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Account type</p>
-                      <p className="font-semibold">{account.accountType === "vet" ? "Vet" : "Owner"}</p>
+                      <p className="text-sm text-muted-foreground">Admin flag</p>
+                      <p className="font-semibold">{account.isAdmin ? "Yes" : "No"}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Vet verification</p>
-                      <p className="font-semibold">
-                        {account.accountType === "vet" ? (account.vetVerified ? "Verified" : "Pending verification") : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Practice</p>
-                      <p className="font-semibold">{account.practiceName || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Patients served</p>
-                      <p className="font-semibold">{account.patientsServed ?? 0}</p>
-                    </div>
+                    {isVet ? (
+                      <>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Practice</p>
+                          <p className="font-semibold">{account.practiceName || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Patients served</p>
+                          <p className="font-semibold">{account.patientsServed ?? 0}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Linked pets</p>
+                        <p className="font-semibold">{account.pets}</p>
+                      </div>
+                    )}
                   </div>
 
-                  {account.accountType === "vet" ? (
-                    <div className="rounded-xl border border-slate-200 p-4">
-                      <p className="mb-2 text-sm font-semibold">Practice access</p>
-                      <p className="text-sm text-muted-foreground">
-                        Patients and Impact tabs stay locked until this vet is verified.
-                      </p>
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="mb-2 text-sm font-semibold">Account controls</p>
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      {isVet
+                        ? "Elevate grants Patients & Impact access. Block removes app sign-in and revokes verification."
+                        : "Block prevents this user from signing in to VetKonnect."}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {isVet && !account.vetVerified && !account.blocked ? (
+                        <Button size="sm" onClick={() => void handleElevateVet(account)}>
+                          <ShieldPlus className="mr-2 h-4 w-4" /> Elevate vet
+                        </Button>
+                      ) : null}
+                      {isVet && account.vetVerified && !account.blocked ? (
+                        <Button size="sm" variant="outline" onClick={() => void handleVerifyVet(account, false)}>
+                          <ShieldCheck className="mr-2 h-4 w-4" /> Demote vet
+                        </Button>
+                      ) : null}
                       <Button
-                        className="mt-3"
-                        variant={account.vetVerified ? "outline" : "default"}
                         size="sm"
-                        onClick={() => void handleVerifyVet(account, !account.vetVerified)}
+                        variant={account.blocked ? "outline" : "destructive"}
+                        onClick={() => void handleBlockAccount(account, !account.blocked)}
                       >
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        {account.vetVerified ? "Revoke verification" : "Verify vet account"}
+                        <Ban className="mr-2 h-4 w-4" />
+                        {account.blocked ? "Unblock account" : "Block from app"}
                       </Button>
+                      {account.boundDeviceId ? (
+                        <Button size="sm" variant="outline" onClick={() => void handleUnbind(account)}>
+                          <Unplug className="mr-2 h-4 w-4" /> Force unbind
+                        </Button>
+                      ) : null}
                     </div>
-                  ) : null}
+                  </div>
 
                   {account.boundDeviceId ? (
                     <div className="rounded-xl border border-slate-200 p-4">
@@ -980,14 +1114,11 @@ function AdminDashboard() {
                       {account.deviceBoundAt ? (
                         <p className="mt-2 text-xs text-muted-foreground">Bound at {new Date(account.deviceBoundAt).toLocaleString()}</p>
                       ) : null}
-                      <Button className="mt-3" variant="outline" size="sm" onClick={() => void handleUnbind(account)}>
-                        <Unplug className="mr-2 h-4 w-4" /> Force unbind
-                      </Button>
                     </div>
                   ) : null}
 
                   <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="mb-2 text-sm font-semibold">Pets under this account</p>
+                    <p className="mb-2 text-sm font-semibold">{isVet ? "Linked owner pets (if any)" : "Pets under this account"}</p>
                     {linkedPets.length ? (
                       <div className="space-y-3">
                         {linkedPets.map((pet) => (
@@ -1012,31 +1143,96 @@ function AdminDashboard() {
 
             {viewingRow?.section === "vets" && (() => {
               const vet = viewingRow.item as AdminVet;
+              const matchingAppVets = users.filter(
+                (account) =>
+                  account.accountType === "vet" &&
+                  account.phone.replace(/\s+/g, "") === vet.phone.replace(/\s+/g, ""),
+              );
               return (
-                <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Name</p>
-                    <p className="font-semibold">{vet.name}</p>
+                <div className="space-y-4">
+                  <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Name</p>
+                      <p className="font-semibold">{vet.name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Surgery</p>
+                      <p className="font-semibold">{vet.surgery}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Location</p>
+                      <p className="font-semibold">{vet.location}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Phone</p>
+                      <p className="font-semibold">{vet.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Directory status</p>
+                      <p className="font-semibold">{vet.status}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Rating</p>
+                      <p className="font-semibold">{vet.rating.toFixed(1)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Address</p>
+                      <p className="font-semibold">{vet.address || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Coordinates</p>
+                      <p className="font-semibold">
+                        {vet.latitude != null && vet.longitude != null
+                          ? `${vet.latitude.toFixed(4)}, ${vet.longitude.toFixed(4)}`
+                          : "—"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Surgery</p>
-                    <p className="font-semibold">{vet.surgery}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Location</p>
-                    <p className="font-semibold">{vet.location}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="font-semibold">{vet.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Status</p>
-                    <p className="font-semibold">{vet.status}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Rating</p>
-                    <p className="font-semibold">{vet.rating.toFixed(1)}</p>
+
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="mb-2 text-sm font-semibold">Linked app vet accounts</p>
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      App vet profiles with the same phone number. Elevate or block them from here.
+                    </p>
+                    {matchingAppVets.length ? (
+                      <div className="space-y-3">
+                        {matchingAppVets.map((account) => (
+                          <div key={account.id} className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-semibold">{account.fullName || account.phone}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {account.blocked
+                                  ? "Blocked"
+                                  : account.vetVerified
+                                    ? "Elevated"
+                                    : "Pending elevation"}
+                                {account.practiceName ? ` · ${account.practiceName}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" variant="secondary" onClick={() => void startView({ section: "users", item: account })}>
+                                <Eye className="h-4 w-4" /> Open profile
+                              </Button>
+                              {!account.vetVerified && !account.blocked ? (
+                                <Button size="sm" onClick={() => void handleElevateVet(account)}>
+                                  <ShieldPlus className="h-4 w-4" /> Elevate
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="sm"
+                                variant={account.blocked ? "outline" : "destructive"}
+                                onClick={() => void handleBlockAccount(account, !account.blocked)}
+                              >
+                                <Ban className="h-4 w-4" />
+                                {account.blocked ? "Unblock" : "Block"}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No matching app vet account for this phone yet.</p>
+                    )}
                   </div>
                 </div>
               );
@@ -1228,6 +1424,10 @@ function AdminDashboard() {
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={Boolean(formValues.vetVerified)} onChange={(event) => handleFormChange("vetVerified", event.target.checked)} className="h-4 w-4 rounded border border-input" />
                   Vet verified (unlock Patients & Impact)
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={Boolean(formValues.blocked)} onChange={(event) => handleFormChange("blocked", event.target.checked)} className="h-4 w-4 rounded border border-input" />
+                  Blocked from app
                 </label>
                 <label className="grid gap-2 text-sm">
                   Practice name

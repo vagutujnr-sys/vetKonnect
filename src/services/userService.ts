@@ -26,6 +26,7 @@ export const defaultUser: UserProfile = {
   vetVerified: false,
   practiceName: "",
   patientsServed: 0,
+  blocked: false,
 };
 
 function normalizePhone(phone: string) {
@@ -54,7 +55,14 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     vetVerified: Boolean(row.vet_verified),
     practiceName: String(row.practice_name ?? ""),
     patientsServed: Number(row.patients_served ?? 0),
+    blocked: Boolean(row.blocked),
   };
+}
+
+function assertAccountNotBlocked(user: Pick<UserProfile, "blocked">) {
+  if (user.blocked) {
+    throw new Error("This account has been blocked by VetKonnect admin.");
+  }
 }
 
 function cacheSessionProfile(user: UserProfile) {
@@ -156,6 +164,11 @@ export async function getUser(): Promise<UserProfile> {
 
   const account = mapAccount(data as Record<string, unknown>);
   const deviceId = getDeviceId();
+
+  if (account.blocked) {
+    setSessionAccountId(null);
+    return defaultUser;
+  }
 
   // Session is only valid on the bound device.
   if (account.boundDeviceId && account.boundDeviceId !== deviceId) {
@@ -269,6 +282,10 @@ export async function requestAccessCode(
 
   if (lookupError) throw lookupError;
 
+  if (existing) {
+    assertAccountNotBlocked(mapAccount(existing as Record<string, unknown>));
+  }
+
   if (existing?.bound_device_id && String(existing.bound_device_id) !== deviceId) {
     throw new Error(
       "This account is bound to another device. Open Settings on that device and unbind it before logging in here.",
@@ -366,6 +383,8 @@ export async function verifyAccessCode(input: {
   const { data, error } = await supabase.from("accounts").select("*").eq("id", input.accountId).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Account not found. Start again from login.");
+
+  assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
 
   if (data.bound_device_id && String(data.bound_device_id) !== deviceId) {
     throw new Error("This account is bound to another device.");

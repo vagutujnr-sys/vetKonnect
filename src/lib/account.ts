@@ -14,6 +14,7 @@ export function getAppHomePath(user: UserProfile): "/patients" | "/home" | "/mod
 
 export function isAppReadyUser(user: UserProfile): boolean {
   if (!user.id || !user.boundDeviceId || !user.phone || !user.fullName) return false;
+  if (user.blocked) return false;
   if (isVetAccount(user)) return Boolean(user.onboarded);
   return Boolean(user.onboarded && user.modules.length);
 }
