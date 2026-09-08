@@ -14,6 +14,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppProvider } from "../hooks/useApp";
+import { getAppHomePath, isAppReadyUser } from "@/lib/account";
 import { getUser, hasActiveSession } from "../services/userService";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -107,7 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         const session = await hasActiveSession();
         if (session) {
           const user = await getUser();
-          throw redirect({ to: user.onboarded && user.modules.length ? "/home" : "/modules" });
+          throw redirect({ to: getAppHomePath(user) });
         }
         throw redirect({ to: "/register" });
       }
@@ -117,9 +118,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       }
 
       const user = await getUser();
-      const isReadyUser = Boolean(user.id && user.boundDeviceId && user.onboarded && user.phone && user.fullName && user.modules.length);
-
-      if (!isReadyUser) {
+      if (!isAppReadyUser(user)) {
         throw redirect({ to: "/register" });
       }
     } catch (error) {

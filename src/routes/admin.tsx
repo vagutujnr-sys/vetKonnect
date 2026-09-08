@@ -19,6 +19,7 @@ import {
   updateAdminVet,
   deleteAdminVet,
   unbindAdminAccount,
+  setAdminVetVerified,
   getAdminPosts,
   updateAdminPost,
   deleteAdminPost,
@@ -310,6 +311,10 @@ function AdminDashboard() {
           vetSureMember: Boolean(formValues.vetSureMember ?? editingRow.item.vetSureMember),
           notificationsEnabled: Boolean(formValues.notificationsEnabled ?? editingRow.item.notificationsEnabled !== false),
           isAdmin: Boolean(formValues.isAdmin ?? editingRow.item.isAdmin),
+          accountType: formValues.accountType === "vet" ? "vet" : "owner",
+          vetVerified: Boolean(formValues.vetVerified ?? editingRow.item.vetVerified),
+          practiceName: String(formValues.practiceName ?? editingRow.item.practiceName ?? ""),
+          patientsServed: Number(formValues.patientsServed ?? editingRow.item.patientsServed ?? 0),
           pets: editingRow.item.pets,
         });
         if (updated) {
@@ -428,6 +433,18 @@ function AdminDashboard() {
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not unbind device");
+    }
+  };
+
+  const handleVerifyVet = async (account: AdminUser, verified: boolean) => {
+    try {
+      const updated = await setAdminVetVerified(account.id, verified);
+      if (updated) {
+        setUsers((prev) => prev.map((item) => (item.id === account.id ? { ...item, ...updated, pets: item.pets, petIds: item.petIds } : item)));
+        toast.success(verified ? `Verified ${account.fullName || account.phone}` : `Unverified ${account.fullName || account.phone}`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update vet verification");
     }
   };
 
@@ -564,7 +581,14 @@ function AdminDashboard() {
                       <div className="text-right">
                         <p className="font-semibold">{adminUser.pets} pets</p>
                         <p className="text-xs text-muted-foreground">
-                          {adminUser.boundDeviceId ? "Device bound" : "Unbound"} · {adminUser.onboarded ? "Onboarded" : "Pending"}
+                          {adminUser.accountType === "vet"
+                            ? adminUser.vetVerified
+                              ? "Vet · Verified"
+                              : "Vet · Pending"
+                            : adminUser.boundDeviceId
+                              ? "Device bound"
+                              : "Unbound"}{" "}
+                          · {adminUser.onboarded ? "Onboarded" : "Pending"}
                         </p>
                       </div>
                     </div>
@@ -744,7 +768,7 @@ function AdminDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {(activeSection === "users" || activeSection === "accounts") && (<><TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Pets</TableHead><TableHead>Device</TableHead><TableHead>Status</TableHead></>)}
+                    {(activeSection === "users" || activeSection === "accounts") && (<><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead><TableHead>Pets</TableHead><TableHead>Device</TableHead><TableHead>Status</TableHead></>)}
                     {activeSection === "vets" && (<><TableHead>Name</TableHead><TableHead>Surgery</TableHead><TableHead>Location</TableHead><TableHead>Phone</TableHead><TableHead>Status</TableHead></>)}
                     {activeSection === "pets" && (<><TableHead>Name</TableHead><TableHead>Breed</TableHead><TableHead>Owner</TableHead><TableHead>Status</TableHead><TableHead>VetSure</TableHead></>)}
                     {activeSection === "services" && (<><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Rating</TableHead><TableHead>Distance</TableHead><TableHead>Open</TableHead></>)}
@@ -756,6 +780,15 @@ function AdminDashboard() {
                   {(activeSection === "users" || activeSection === "accounts") && pagedUsers.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.fullName || "—"}</TableCell>
+                      <TableCell>
+                        {item.accountType === "vet" ? (
+                          <Badge variant={item.vetVerified ? "default" : "secondary"}>
+                            {item.vetVerified ? "Vet · Verified" : "Vet · Pending"}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Owner</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{item.phone}</TableCell>
                       <TableCell>{item.pets}</TableCell>
                       <TableCell><Badge variant={item.boundDeviceId ? "default" : "secondary"}>{item.boundDeviceId ? "Bound" : "Unbound"}</Badge></TableCell>
@@ -763,6 +796,16 @@ function AdminDashboard() {
                       <TableCell className="flex flex-wrap gap-2">
                         <Button variant="secondary" size="sm" onClick={() => void startView({ section: "users", item })}><Eye className="h-4 w-4" /> View</Button>
                         <Button variant="secondary" size="sm" onClick={() => startEdit({ section: "users", item })}><Pencil className="h-4 w-4" /> Edit</Button>
+                        {item.accountType === "vet" ? (
+                          <Button
+                            variant={item.vetVerified ? "outline" : "default"}
+                            size="sm"
+                            onClick={() => void handleVerifyVet(item, !item.vetVerified)}
+                          >
+                            <ShieldCheck className="h-4 w-4" />
+                            {item.vetVerified ? "Unverify" : "Verify vet"}
+                          </Button>
+                        ) : null}
                         {item.boundDeviceId ? <Button variant="outline" size="sm" onClick={() => void handleUnbind(item)}><Unplug className="h-4 w-4" /> Unbind</Button> : null}
                         <Button variant="destructive" size="sm" onClick={() => startDelete({ section: "users", item })}><Trash2 className="h-4 w-4" /> Delete</Button>
                       </TableCell>
@@ -892,7 +935,43 @@ function AdminDashboard() {
                       <p className="text-sm text-muted-foreground">Modules</p>
                       <p className="font-semibold">{account.modules?.length ? account.modules.join(", ") : "None"}</p>
                     </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Account type</p>
+                      <p className="font-semibold">{account.accountType === "vet" ? "Vet" : "Owner"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Vet verification</p>
+                      <p className="font-semibold">
+                        {account.accountType === "vet" ? (account.vetVerified ? "Verified" : "Pending verification") : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Practice</p>
+                      <p className="font-semibold">{account.practiceName || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Patients served</p>
+                      <p className="font-semibold">{account.patientsServed ?? 0}</p>
+                    </div>
                   </div>
+
+                  {account.accountType === "vet" ? (
+                    <div className="rounded-xl border border-slate-200 p-4">
+                      <p className="mb-2 text-sm font-semibold">Practice access</p>
+                      <p className="text-sm text-muted-foreground">
+                        Patients and Impact tabs stay locked until this vet is verified.
+                      </p>
+                      <Button
+                        className="mt-3"
+                        variant={account.vetVerified ? "outline" : "default"}
+                        size="sm"
+                        onClick={() => void handleVerifyVet(account, !account.vetVerified)}
+                      >
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        {account.vetVerified ? "Revoke verification" : "Verify vet account"}
+                      </Button>
+                    </div>
+                  ) : null}
 
                   {account.boundDeviceId ? (
                     <div className="rounded-xl border border-slate-200 p-4">
@@ -1136,6 +1215,27 @@ function AdminDashboard() {
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={Boolean(formValues.isAdmin)} onChange={(event) => handleFormChange("isAdmin", event.target.checked)} className="h-4 w-4 rounded border border-input" />
                   Admin flag
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={formValues.accountType === "vet"}
+                    onChange={(event) => handleFormChange("accountType", event.target.checked ? "vet" : "owner")}
+                    className="h-4 w-4 rounded border border-input"
+                  />
+                  Vet account
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={Boolean(formValues.vetVerified)} onChange={(event) => handleFormChange("vetVerified", event.target.checked)} className="h-4 w-4 rounded border border-input" />
+                  Vet verified (unlock Patients & Impact)
+                </label>
+                <label className="grid gap-2 text-sm">
+                  Practice name
+                  <Input value={String(formValues.practiceName ?? "")} onChange={(event) => handleFormChange("practiceName", event.target.value)} />
+                </label>
+                <label className="grid gap-2 text-sm">
+                  Patients served
+                  <Input type="number" value={Number(formValues.patientsServed ?? 0)} onChange={(event) => handleFormChange("patientsServed", Number(event.target.value))} />
                 </label>
               </>
             )}

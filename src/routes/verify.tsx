@@ -7,8 +7,10 @@ import { MobileScreen } from "@/components/layout/MobileScreen";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
+import { getAppHomePath } from "@/lib/account";
 import { verifyAccessCode } from "@/services/userService";
 import { createNotification } from "@/services/notificationService";
+import type { AccountType } from "@/types";
 
 type PendingAuth = {
   accountId: string;
@@ -17,6 +19,7 @@ type PendingAuth = {
   countryCode: string;
   isNew: boolean;
   expiresAt: string;
+  accountType?: AccountType;
 };
 
 export const Route = createFileRoute("/verify")({
@@ -72,14 +75,20 @@ function Verify() {
       await refreshSession();
       await createNotification({
         accountId: user.id,
-        title: "Device secured",
-        body: "This account is now bound to this device.",
+        title: user.accountType === "vet" ? "Vet account secured" : "Device secured",
+        body:
+          user.accountType === "vet"
+            ? "Your practice account is bound to this device. Patients & Impact unlock after admin verification."
+            : "This account is now bound to this device.",
         type: "security",
       });
       toast.success("Device bound successfully", {
-        description: "Your VetKonnect account is secured on this device.",
+        description:
+          user.accountType === "vet"
+            ? "Opening your vet workspace."
+            : "Your VetKonnect account is secured on this device.",
       });
-      void navigate({ to: user.onboarded && user.modules.length ? "/home" : "/modules" });
+      void navigate({ to: getAppHomePath(user) });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Verification failed.");
     } finally {

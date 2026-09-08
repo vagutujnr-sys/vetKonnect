@@ -1,8 +1,10 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Compass, Home, PawPrint, User, Users } from "lucide-react";
+import { Compass, HeartHandshake, Home, PawPrint, Stethoscope, User, Users } from "lucide-react";
+import { useApp } from "@/hooks/useApp";
+import { isVetAccount } from "@/lib/account";
 import { cn } from "@/lib/utils";
 
-const items = [
+const ownerItems = [
   { to: "/home", label: "Home", icon: Home },
   { to: "/pets", label: "Pets", icon: PawPrint },
   { to: "/community", label: "Community", icon: Users },
@@ -10,8 +12,18 @@ const items = [
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
+const vetItems = [
+  { to: "/patients", label: "Patients", icon: Stethoscope },
+  { to: "/impact", label: "Impact", icon: HeartHandshake },
+  { to: "/discover", label: "Discover", icon: Compass },
+  { to: "/community", label: "Community", icon: Users },
+  { to: "/profile", label: "Profile", icon: User },
+] as const;
+
 export function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useApp();
+  const items = isVetAccount(user) ? vetItems : ownerItems;
 
   return (
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-5">

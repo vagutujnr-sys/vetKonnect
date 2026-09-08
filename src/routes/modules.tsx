@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, BookOpen, Check, Dog, Home, ShieldCheck, ShoppingCart, Tractor, Users } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
+import { getAppHomePath, isVetAccount } from "@/lib/account";
 import { cn } from "@/lib/utils";
 import type { ModuleId } from "@/types";
 
@@ -35,12 +36,34 @@ function Modules() {
   const { user, updateUser } = useApp();
   const [selected, setSelected] = useState<ModuleId[]>(user.modules.length ? user.modules : ["pets"]);
 
+  useEffect(() => {
+    if (!isVetAccount(user)) return;
+    void (async () => {
+      if (!user.onboarded) {
+        await updateUser({
+          modules: user.modules.length ? user.modules : ["community", "tips"],
+          onboarded: true,
+          practiceName: user.practiceName?.trim() || `${user.fullName}'s Practice`,
+        });
+      }
+      void navigate({ to: "/patients" });
+    })();
+  }, [navigate, updateUser, user]);
+
+  if (isVetAccount(user)) {
+    return (
+      <MobileScreen className="px-5">
+        <p className="pt-16 text-center text-sm text-muted-foreground">Opening your vet workspace…</p>
+      </MobileScreen>
+    );
+  }
+
   const toggle = (id: ModuleId) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
 
   const finish = async () => {
     await updateUser({ modules: selected, onboarded: true });
-    void navigate({ to: "/home" });
+    void navigate({ to: getAppHomePath({ ...user, modules: selected, onboarded: true }) });
   };
 
   return (

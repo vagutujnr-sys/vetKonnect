@@ -1,4 +1,5 @@
-import type { ModuleId, UserProfile } from "@/types";
+import type { AccountType, ModuleId, UserProfile } from "@/types";
+import { isAppReadyUser } from "@/lib/account";
 import { getDeviceId } from "@/lib/device";
 import { withTimeout } from "@/lib/timeout";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
@@ -21,6 +22,10 @@ export const defaultUser: UserProfile = {
   notificationsEnabled: true,
   boundDeviceId: null,
   avatarUrl: "",
+  accountType: "owner",
+  vetVerified: false,
+  practiceName: "",
+  patientsServed: 0,
 };
 
 function normalizePhone(phone: string) {
@@ -32,6 +37,7 @@ function generateOtp() {
 }
 
 function mapAccount(row: Record<string, unknown>): UserProfile {
+  const accountType = String(row.account_type ?? "owner") === "vet" ? "vet" : "owner";
   return {
     id: String(row.id),
     fullName: String(row.full_name ?? ""),
@@ -44,6 +50,10 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     notificationsEnabled: row.notifications_enabled !== false,
     boundDeviceId: row.bound_device_id ? String(row.bound_device_id) : null,
     avatarUrl: String(row.avatar_url ?? ""),
+    accountType,
+    vetVerified: Boolean(row.vet_verified),
+    practiceName: String(row.practice_name ?? ""),
+    patientsServed: Number(row.patients_served ?? 0),
   };
 }
 
@@ -182,6 +192,10 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
       is_admin: Boolean(next.isAdmin),
       notifications_enabled: next.notificationsEnabled !== false,
       avatar_url: next.avatarUrl ?? "",
+      account_type: next.accountType === "vet" ? "vet" : "owner",
+      vet_verified: Boolean(next.vetVerified),
+      practice_name: next.practiceName ?? "",
+      patients_served: Number(next.patientsServed ?? 0),
       updated_at: new Date().toISOString(),
     })
     .eq("id", current.id);
@@ -235,12 +249,17 @@ export type AccessCodeResult = {
 };
 
 /** Request a unique one-time access code for this phone (no SMS — returned to the client). */
-export async function requestAccessCode(phone: string, countryCode = "+263"): Promise<AccessCodeResult> {
+export async function requestAccessCode(
+  phone: string,
+  countryCode = "+263",
+  options?: { accountType?: AccountType },
+): Promise<AccessCodeResult> {
   const cleanPhone = normalizePhone(phone);
   if (cleanPhone.length < 6) {
     throw new Error("Enter a valid mobile number.");
   }
 
+  const registerAsVet = options?.accountType === "vet";
   const deviceId = getDeviceId();
   const { data: existing, error: lookupError } = await supabase
     .from("accounts")
@@ -316,8 +335,10 @@ export async function requestAccessCode(phone: string, countryCode = "+263"): Pr
       phone: cleanPhone,
       country_code: countryCode,
       full_name: "",
-      modules: [],
+      modules: registerAsVet ? ["community", "tips"] : [],
       onboarded: false,
+      account_type: registerAsVet ? "vet" : "owner",
+      vet_verified: false,
       otp_code: otp,
       otp_expires_at: expiresAt,
     })
@@ -360,6 +381,7 @@ export async function verifyAccessCode(input: {
 
   const existingName = String(data.full_name ?? "").trim();
   const fullName = (input.fullName ?? existingName).trim() || existingName;
+  const isVet = String(data.account_type ?? "owner") === "vet";
   const { data: updated, error: updateError } = await supabase
     .from("accounts")
     .update({
@@ -368,6 +390,14 @@ export async function verifyAccessCode(input: {
       otp_expires_at: null,
       bound_device_id: deviceId,
       device_bound_at: new Date().toISOString(),
+      // Vet accounts skip owner module picking and land in the practice app.
+      ...(isVet
+        ? {
+            onboarded: true,
+            modules: Array.isArray(data.modules) && (data.modules as unknown[]).length ? data.modules : ["community", "tips"],
+            practice_name: String(data.practice_name ?? "").trim() || `${fullName}'s Practice`,
+          }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.accountId)
@@ -402,7 +432,7 @@ export async function unbindDevice(): Promise<void> {
 
 export async function isAuthenticated(): Promise<boolean> {
   const user = await getUser();
-  return Boolean(user.id && user.boundDeviceId && user.onboarded && user.phone && user.fullName && user.modules.length);
+  return isAppReadyUser(user);
 }
 
 export async function hasActiveSession(): Promise<boolean> {

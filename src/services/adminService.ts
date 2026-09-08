@@ -2,6 +2,7 @@ import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityP
 import { supabase } from "./supabaseClient";
 
 function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
+  const accountType = String(row.account_type ?? "owner") === "vet" ? "vet" : "owner";
   return {
     id: String(row.id),
     fullName: String(row.full_name ?? ""),
@@ -18,6 +19,10 @@ function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
     boundDeviceId: row.bound_device_id ? String(row.bound_device_id) : null,
     deviceBoundAt: row.device_bound_at ? String(row.device_bound_at) : null,
     isAdmin: Boolean(row.is_admin),
+    accountType,
+    vetVerified: Boolean(row.vet_verified),
+    practiceName: String(row.practice_name ?? ""),
+    patientsServed: Number(row.patients_served ?? 0),
   };
 }
 
@@ -114,6 +119,10 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
   if (patch.notificationsEnabled !== undefined) payload.notifications_enabled = patch.notificationsEnabled;
   if (patch.modules !== undefined) payload.modules = patch.modules;
   if (patch.isAdmin !== undefined) payload.is_admin = patch.isAdmin;
+  if (patch.accountType !== undefined) payload.account_type = patch.accountType === "vet" ? "vet" : "owner";
+  if (patch.vetVerified !== undefined) payload.vet_verified = patch.vetVerified;
+  if (patch.practiceName !== undefined) payload.practice_name = patch.practiceName;
+  if (patch.patientsServed !== undefined) payload.patients_served = patch.patientsServed;
   if (patch.boundDeviceId === null) {
     payload.bound_device_id = null;
     payload.device_bound_at = null;
@@ -126,6 +135,10 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
 
 export async function unbindAdminAccount(id: string): Promise<AdminUser | undefined> {
   return updateAdminUser(id, { boundDeviceId: null });
+}
+
+export async function setAdminVetVerified(id: string, verified: boolean): Promise<AdminUser | undefined> {
+  return updateAdminUser(id, { accountType: "vet", vetVerified: verified });
 }
 
 export async function deleteAdminUser(id: string): Promise<void> {

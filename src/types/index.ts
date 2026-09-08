@@ -2,6 +2,7 @@ export type Species = "Dog" | "Cat" | "Bird" | "Other";
 export type HealthStatus = "Healthy" | "Attention" | "Under Care";
 export type ModuleId = "pets" | "community" | "marketplace" | "rescue" | "tips" | "farm";
 export type MediaType = "none" | "image" | "video";
+export type AccountType = "owner" | "vet";
 
 export interface Pet {
   id: string;
@@ -45,6 +46,10 @@ export interface UserProfile {
   notificationsEnabled?: boolean;
   boundDeviceId?: string | null;
   avatarUrl?: string;
+  accountType?: AccountType;
+  vetVerified?: boolean;
+  practiceName?: string;
+  patientsServed?: number;
 }
 
 export interface AdminUser {
@@ -64,6 +69,19 @@ export interface AdminUser {
   boundDeviceId?: string | null;
   deviceBoundAt?: string | null;
   isAdmin?: boolean;
+  accountType?: AccountType;
+  vetVerified?: boolean;
+  practiceName?: string;
+  patientsServed?: number;
+}
+
+export interface PotentialClient {
+  id: string;
+  fullName: string;
+  phone: string;
+  pets: number;
+  petNames: string[];
+  memberSince?: string;
 }
 
 export interface AdminVet {

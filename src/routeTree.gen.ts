@@ -15,6 +15,8 @@ import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as HomeRouteImport } from './routes/home'
+import { Route as ImpactRouteImport } from './routes/impact'
+import { Route as PatientsRouteImport } from './routes/patients'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -56,6 +58,16 @@ const DiscoverRoute = DiscoverRouteImport.update({
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImpactRoute = ImpactRouteImport.update({
+  id: '/impact',
+  path: '/impact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PatientsRoute = PatientsRouteImport.update({
+  id: '/patients',
+  path: '/patients',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModulesRoute = ModulesRouteImport.update({
@@ -126,6 +138,8 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRouteWithChildren
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
+  '/impact': typeof ImpactRoute
+  '/patients': typeof PatientsRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
@@ -146,6 +160,8 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRouteWithChildren
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
+  '/impact': typeof ImpactRoute
+  '/patients': typeof PatientsRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
@@ -167,6 +183,8 @@ export interface FileRoutesById {
   '/community': typeof CommunityRouteWithChildren
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
+  '/impact': typeof ImpactRoute
+  '/patients': typeof PatientsRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
@@ -189,6 +207,8 @@ export interface FileRouteTypes {
     | '/community'
     | '/discover'
     | '/home'
+    | '/impact'
+    | '/patients'
     | '/modules'
     | '/notifications'
     | '/profile'
@@ -209,6 +229,8 @@ export interface FileRouteTypes {
     | '/community'
     | '/discover'
     | '/home'
+    | '/impact'
+    | '/patients'
     | '/modules'
     | '/notifications'
     | '/profile'
@@ -229,6 +251,8 @@ export interface FileRouteTypes {
     | '/community'
     | '/discover'
     | '/home'
+    | '/impact'
+    | '/patients'
     | '/modules'
     | '/notifications'
     | '/profile'
@@ -250,6 +274,8 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRouteWithChildren
   DiscoverRoute: typeof DiscoverRoute
   HomeRoute: typeof HomeRoute
+  ImpactRoute: typeof ImpactRoute
+  PatientsRoute: typeof PatientsRoute
   ModulesRoute: typeof ModulesRoute
   NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRoute
@@ -305,6 +331,20 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/impact': {
+      id: '/impact'
+      path: '/impact'
+      fullPath: '/impact'
+      preLoaderRoute: typeof ImpactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/patients': {
+      id: '/patients'
+      path: '/patients'
+      fullPath: '/patients'
+      preLoaderRoute: typeof PatientsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/modules': {
@@ -413,6 +453,8 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRouteWithChildren,
   DiscoverRoute: DiscoverRoute,
   HomeRoute: HomeRoute,
+  ImpactRoute: ImpactRoute,
+  PatientsRoute: PatientsRoute,
   ModulesRoute: ModulesRoute,
   NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRoute,

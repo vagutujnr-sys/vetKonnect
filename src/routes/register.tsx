@@ -1,11 +1,13 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, Lock, Phone, ShieldCheck } from "lucide-react";
+import { ArrowRight, ChevronDown, Lock, Phone, ShieldCheck, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/hooks/useApp";
+import { getAppHomePath } from "@/lib/account";
 import { getUser, hasActiveSession, requestAccessCode } from "@/services/userService";
 
 function FlagZimbabwe({ className }: { className?: string }) {
@@ -37,7 +39,7 @@ export const Route = createFileRoute("/register")({
     const session = await hasActiveSession();
     if (!session) return;
     const user = await getUser();
-    throw redirect({ to: user.onboarded && user.modules.length ? "/home" : "/modules" });
+    throw redirect({ to: getAppHomePath(user) });
   },
   head: () => ({
     meta: [
@@ -54,21 +56,22 @@ function Register() {
   const navigate = useNavigate();
   const { refreshSession } = useApp();
   const [phone, setPhone] = useState("");
+  const [registerAsVet, setRegisterAsVet] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
     setLoading(true);
     try {
-      const result = await requestAccessCode(phone, "+263");
+      const result = await requestAccessCode(phone, "+263", {
+        accountType: registerAsVet ? "vet" : "owner",
+      });
 
       if (result.skipVerify && result.user) {
         await refreshSession();
         toast.success("Welcome back", {
           description: "Signed in on this trusted device.",
         });
-        void navigate({
-          to: result.user.onboarded && result.user.modules.length ? "/home" : "/modules",
-        });
+        void navigate({ to: getAppHomePath(result.user) });
         return;
       }
 
@@ -81,10 +84,13 @@ function Register() {
           countryCode: result.countryCode,
           isNew: result.isNew,
           expiresAt: result.expiresAt,
+          accountType: registerAsVet ? "vet" : "owner",
         }),
       );
       toast.success("Unique access code created", {
-        description: "Enter the code on the next screen to bind this device.",
+        description: registerAsVet
+          ? "Continue to secure your vet account on this device."
+          : "Enter the code on the next screen to bind this device.",
       });
       void navigate({ to: "/verify" });
     } catch (error) {
@@ -125,6 +131,19 @@ function Register() {
           />
         </div>
       </div>
+
+      <label className="mt-4 flex cursor-pointer items-center gap-4 rounded-2xl border border-border bg-card/80 px-4 py-4 backdrop-blur">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent">
+          <Stethoscope className="size-5 text-primary" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold text-foreground">Register as Vet</span>
+          <span className="mt-0.5 block text-sm text-muted-foreground">
+            Open the practice app by default. Patients & Impact unlock after admin verification.
+          </span>
+        </span>
+        <Switch checked={registerAsVet} onCheckedChange={setRegisterAsVet} aria-label="Register as Vet" />
+      </label>
 
       <div className="mt-4 flex items-start gap-3 rounded-2xl bg-accent/60 p-4 text-sm text-secondary-foreground">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />

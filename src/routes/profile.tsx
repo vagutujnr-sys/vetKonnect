@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   ShieldPlus,
   SlidersHorizontal,
+  Stethoscope,
   Lock,
   Unplug,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { VetSureCard } from "@/components/vetsure/VetSureCard";
 import { useApp } from "@/hooks/useApp";
+import { isVetAccount } from "@/lib/account";
 import { uploadProfilePhoto } from "@/services/userService";
 import { toast } from "sonner";
 
@@ -71,12 +73,29 @@ function Profile() {
     }
   };
 
-  const rows = [
-    { icon: PawPrint, label: "My pets", value: `${pets.length}`, to: "/pets" as const },
-    { icon: SlidersHorizontal, label: "Customize modules", value: `${user.modules.length} active`, to: "/modules" as const },
-    { icon: Bell, label: "Notifications", value: user.notificationsEnabled === false ? "Off" : "On", to: "/notifications" as const },
-    { icon: Settings, label: "Settings", value: "", to: "/settings" as const },
-  ];
+  const rows = isVetAccount(user)
+    ? [
+        {
+          icon: Stethoscope,
+          label: "Patients",
+          value: user.vetVerified ? `${user.patientsServed ?? 0} served` : "Pending verify",
+          to: "/patients" as const,
+        },
+        {
+          icon: ShieldCheck,
+          label: "Verification",
+          value: user.vetVerified ? "Verified" : "Awaiting admin",
+          to: "/patients" as const,
+        },
+        { icon: Bell, label: "Notifications", value: user.notificationsEnabled === false ? "Off" : "On", to: "/notifications" as const },
+        { icon: Settings, label: "Settings", value: "", to: "/settings" as const },
+      ]
+    : [
+        { icon: PawPrint, label: "My pets", value: `${pets.length}`, to: "/pets" as const },
+        { icon: SlidersHorizontal, label: "Customize modules", value: `${user.modules.length} active`, to: "/modules" as const },
+        { icon: Bell, label: "Notifications", value: user.notificationsEnabled === false ? "Off" : "On", to: "/notifications" as const },
+        { icon: Settings, label: "Settings", value: "", to: "/settings" as const },
+      ];
 
   return (
     <AppShell>
@@ -164,21 +183,37 @@ function Profile() {
         </div>
       </section>
 
-      <div className="mx-5 mt-4">
-        <VetSureCard />
-      </div>
-
-      <section className="mx-5 mt-4 rounded-2xl border border-accent bg-accent/40 p-5">
-        <div className="flex items-center gap-3">
-          {user.vetSureMember ? <ShieldCheck className="size-6 text-primary" /> : <ShieldPlus className="size-6 text-primary" />}
-          <div className="flex-1">
-            <p className="font-bold text-primary">Membership overview</p>
-            <p className="text-sm text-muted-foreground">
-              {user.vetSureMember ? "Active · all pets covered" : "Join VetSure from the card above"}
-            </p>
+      {!isVetAccount(user) ? (
+        <>
+          <div className="mx-5 mt-4">
+            <VetSureCard />
           </div>
-        </div>
-      </section>
+
+          <section className="mx-5 mt-4 rounded-2xl border border-accent bg-accent/40 p-5">
+            <div className="flex items-center gap-3">
+              {user.vetSureMember ? <ShieldCheck className="size-6 text-primary" /> : <ShieldPlus className="size-6 text-primary" />}
+              <div className="flex-1">
+                <p className="font-bold text-primary">Membership overview</p>
+                <p className="text-sm text-muted-foreground">
+                  {user.vetSureMember ? "Active · all pets covered" : "Join VetSure from the card above"}
+                </p>
+              </div>
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center gap-3">
+            <Stethoscope className="size-6 text-primary" />
+            <div className="flex-1">
+              <p className="font-bold text-primary">{user.practiceName?.trim() || "Practice profile"}</p>
+              <p className="text-sm text-muted-foreground">
+                {user.vetVerified ? "Verified vet account" : "Pending admin verification"}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="mx-5 mt-4 card-surface divide-y divide-border">
         {rows.map(({ icon: Icon, label, value, to }) => (
