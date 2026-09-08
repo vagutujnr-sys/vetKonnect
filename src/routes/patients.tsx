@@ -118,6 +118,37 @@ function PatientsScreen() {
         </div>
       </header>
 
+      {!verified ? (
+        <section className="mx-5 mt-5 rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent">
+              <LayoutDashboard className="size-5 text-primary" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">Practice Dashboard</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {user.dashboardRequestedAt
+                  ? "Your request is with VetKonnect admin. Patients and Impact unlock after they approve."
+                  : "Request access so admin can verify your practice and unlock Patients and Impact."}
+              </p>
+              <Button
+                variant="hero"
+                size="sm"
+                className="mt-3"
+                disabled={requesting || Boolean(user.dashboardRequestedAt)}
+                onClick={() => void requestDashboard()}
+              >
+                {requesting
+                  ? "Sending…"
+                  : user.dashboardRequestedAt
+                    ? "Request sent"
+                    : "Request Practice Dashboard"}
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <VetFeatureGate verified={verified} title="Patient management">
         <section className="mx-5 mt-5 grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-border bg-card p-4">
@@ -141,29 +172,6 @@ function PatientsScreen() {
             Scan a collar / pet tag QR, or type a VetKonnect ID or collar code to open the health card.
           </p>
           <TagScanPanel busy={searching} onScan={handleScan} />
-        </section>
-
-        <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent">
-              <LayoutDashboard className="size-5 text-primary" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-bold">Practice Dashboard</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Request full scheduling, records, and clinic tools once your account is verified.
-              </p>
-              <Button
-                variant="hero"
-                size="sm"
-                className="mt-3"
-                disabled={requesting}
-                onClick={() => void requestDashboard()}
-              >
-                {requesting ? "Sending…" : "Request Practice Dashboard"}
-              </Button>
-            </div>
-          </div>
         </section>
 
         <section className="mx-5 mt-4 mb-4 rounded-2xl border border-border bg-card p-4">

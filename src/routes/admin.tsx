@@ -93,7 +93,7 @@ function AdminDashboard() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [postComments, setPostComments] = useState<CommunityComment[]>([]);
   const [search, setSearch] = useState("");
-  const [accountFilter, setAccountFilter] = useState<"all" | "owners" | "vets" | "blocked">("all");
+  const [accountFilter, setAccountFilter] = useState<"all" | "owners" | "vets" | "pending" | "blocked">("all");
   const [tagType, setTagType] = useState<HerdTag["type"]>("Collar ID");
   const [tagPrefix, setTagPrefix] = useState("VC");
   const [tagQuantity, setTagQuantity] = useState(3);
@@ -198,6 +198,9 @@ function AdminDashboard() {
     return users.filter((item) => {
       if (accountFilter === "owners" && item.accountType === "vet") return false;
       if (accountFilter === "vets" && item.accountType !== "vet") return false;
+      if (accountFilter === "pending" && !(item.accountType === "vet" && !item.vetVerified && !item.blocked)) {
+        return false;
+      }
       if (accountFilter === "blocked" && !item.blocked) return false;
       if (!query) return true;
       return [item.fullName, item.phone, item.country, item.practiceName ?? "", item.boundDeviceId ?? ""].some((value) =>
@@ -205,6 +208,11 @@ function AdminDashboard() {
       );
     });
   }, [accountFilter, search, users]);
+
+  const pendingElevate = useMemo(
+    () => users.filter((item) => item.accountType === "vet" && !item.vetVerified && !item.blocked),
+    [users],
+  );
 
   const syncAccount = (updated: AdminUser) => {
     setUsers((prev) =>
@@ -643,12 +651,59 @@ function AdminDashboard() {
                 <StatCard icon={User} label="Onboarded" value={onboardedUsers} />
                 <StatCard icon={Unplug} label="Device Bound" value={boundAccounts} />
                 <StatCard icon={ShieldCheck} label="Active Vets" value={activeVets} />
+                <StatCard icon={ShieldPlus} label="Pending elevate" value={pendingElevate.length} />
                 <StatCard icon={PawPrint} label="Total Pets" value={totalPets} />
                 <StatCard icon={MessageSquare} label="Community Posts" value={totalPosts} />
                 <StatCard icon={Globe2} label="Services Listed" value={totalServices} />
                 <StatCard icon={Bell} label="Notifications" value={notifications.length} />
                 <StatCard icon={BarChart3} label="Tags Issued" value={herdTags.length} />
               </div>
+
+              {pendingElevate.length > 0 ? (
+                <Card className="space-y-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">Approvals needed</p>
+                      <h2 className="text-xl font-bold text-foreground">Practice dashboard requests</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Pending vet accounts waiting for elevation. Approve to unlock Patients and Impact.
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      className="h-10"
+                      onClick={() => {
+                        setActiveSection("users");
+                        setAccountFilter("pending");
+                      }}
+                    >
+                      View queue
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {pendingElevate.slice(0, 5).map((account) => (
+                      <div
+                        key={account.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-white p-3"
+                      >
+                        <div>
+                          <p className="font-semibold">{account.fullName || "Unnamed vet"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {account.phone}
+                            {account.practiceName ? ` · ${account.practiceName}` : ""}
+                            {account.dashboardRequestedAt
+                              ? ` · requested ${new Date(account.dashboardRequestedAt).toLocaleDateString()}`
+                              : " · pending verification"}
+                          </p>
+                        </div>
+                        <Button size="sm" onClick={() => void handleElevateVet(account)}>
+                          <ShieldPlus className="mr-2 h-4 w-4" /> Approve access
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ) : null}
 
               <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
@@ -742,6 +797,7 @@ function AdminDashboard() {
                   { id: "all", label: "All profiles" },
                   { id: "owners", label: "User profiles" },
                   { id: "vets", label: "Vet profiles" },
+                  { id: "pending", label: `Pending elevate${pendingElevate.length ? ` (${pendingElevate.length})` : ""}` },
                   { id: "blocked", label: "Blocked" },
                 ] as const
               ).map((filter) => (
@@ -913,7 +969,11 @@ function AdminDashboard() {
                           <Badge variant="destructive">Blocked</Badge>
                         ) : item.accountType === "vet" ? (
                           <Badge variant={item.vetVerified ? "default" : "secondary"}>
-                            {item.vetVerified ? "Vet · Elevated" : "Vet · Pending"}
+                            {item.vetVerified
+                              ? "Vet · Elevated"
+                              : item.dashboardRequestedAt
+                                ? "Vet · Requested"
+                                : "Vet · Pending"}
                           </Badge>
                         ) : (
                           <Badge variant="outline">Owner</Badge>
@@ -946,7 +1006,7 @@ function AdminDashboard() {
                             ) : null}
                             {item.accountType === "vet" && !item.vetVerified && !item.blocked ? (
                               <DropdownMenuItem onClick={() => void handleElevateVet(item)}>
-                                <ShieldPlus className="h-4 w-4" /> Elevate vet access
+                                <ShieldPlus className="h-4 w-4" /> Approve dashboard access
                               </DropdownMenuItem>
                             ) : null}
                             {item.accountType === "vet" && item.vetVerified && !item.blocked ? (
@@ -1234,7 +1294,7 @@ function AdminDashboard() {
                       ) : null}
                       {isVet && !account.vetVerified && !account.blocked ? (
                         <Button size="sm" onClick={() => void handleElevateVet(account)}>
-                          <ShieldPlus className="mr-2 h-4 w-4" /> Elevate vet access
+                          <ShieldPlus className="mr-2 h-4 w-4" /> Approve dashboard access
                         </Button>
                       ) : null}
                       {isVet && account.vetVerified && !account.blocked ? (

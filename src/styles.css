@@ -181,6 +181,67 @@
   cursor: pointer;
 }
 
+.vk-owner-marker {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+}
+
+.vk-owner-marker-face {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 2px solid white;
+  background: oklch(0.55 0.12 145);
+  color: white;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.vk-owner-marker-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vk-owner-marker-paw {
+  width: 20px;
+  height: 20px;
+}
+
+.vk-owner-marker-count {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 2px solid white;
+  background: var(--primary);
+  color: white;
+  font: 700 10px/16px var(--font-sans);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow-card);
+}
+
+.vk-owner-marker-active .vk-owner-marker-face {
+  background: var(--primary);
+  transform: scale(1.08);
+}
+
+.vk-owner-marker-active .vk-owner-marker-count {
+  background: oklch(0.45 0.14 145);
+}
+
 .mapboxgl-popup-content {
   border-radius: 12px !important;
   padding: 10px 12px !important;

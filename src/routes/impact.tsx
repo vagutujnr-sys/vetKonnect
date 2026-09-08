@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { MapPin, Phone, Users } from "lucide-react";
+import { PawPrint, Phone, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
+import { AppShell } from "@/components/layout/AppShell";
+import { ImpactOwnersMap } from "@/components/vet/ImpactOwnersMap";
 import { VetFeatureGate } from "@/components/vet/VetFeatureGate";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
+import { getCurrentPosition, HARARE, type GeoPoint } from "@/lib/geo";
 import { getPotentialClients } from "@/services/vetService";
 import type { PotentialClient } from "@/types";
 
@@ -13,9 +15,9 @@ export const Route = createFileRoute("/impact")({
   head: () => ({
     meta: [
       { title: "Impact — VetKonnect" },
-      { name: "description", content: "See potential clients near your practice on VetKonnect." },
+      { name: "description", content: "Map nearby pet owners around your practice on VetKonnect." },
       { property: "og:title", content: "Impact — VetKonnect" },
-      { property: "og:description", content: "Reach nearby pet owners who need veterinary care." },
+      { property: "og:description", content: "See pet owners near your practice on a full-screen map." },
     ],
   }),
   component: ImpactScreen,
@@ -23,8 +25,10 @@ export const Route = createFileRoute("/impact")({
 
 function ImpactScreen() {
   const { user, refreshSession } = useApp();
+  const [origin, setOrigin] = useState<GeoPoint>(HARARE);
   const [clients, setClients] = useState<PotentialClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<PotentialClient | null>(null);
   const verified = Boolean(user.vetVerified);
 
   useEffect(() => {
@@ -32,22 +36,41 @@ function ImpactScreen() {
   }, [refreshSession]);
 
   useEffect(() => {
+    let cancelled = false;
+    void getCurrentPosition()
+      .then((point) => {
+        if (!cancelled) setOrigin(point);
+      })
+      .catch(() => {
+        /* keep Harare fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!verified) {
       setLoading(false);
       return;
     }
-    void getPotentialClients()
-      .then(setClients)
+    setLoading(true);
+    void getPotentialClients(origin)
+      .then((rows) => {
+        setClients(rows);
+        setSelected(null);
+      })
       .catch((error) => console.error("Failed to load potential clients", error))
       .finally(() => setLoading(false));
-  }, [verified]);
+  }, [verified, origin.latitude, origin.longitude]);
 
   if (!isVetAccount(user)) {
     return (
       <AppShell>
-        <ScreenHeader title="Impact" subtitle="This workspace is for vet accounts." />
-        <div className="px-5">
-          <Button asChild variant="hero" className="w-full">
+        <div className="px-5 pt-8">
+          <h1 className="text-2xl font-extrabold">Impact</h1>
+          <p className="mt-1 text-sm text-muted-foreground">This workspace is for vet accounts.</p>
+          <Button asChild variant="hero" className="mt-6 w-full">
             <Link to="/home">Go to owner home</Link>
           </Button>
         </div>
@@ -56,65 +79,89 @@ function ImpactScreen() {
   }
 
   return (
-    <AppShell>
-      <ScreenHeader
-        title="Impact"
-        subtitle="Potential clients near your practice — pet owners who may need care."
-      />
-
+    <AppShell immersive>
       <VetFeatureGate verified={verified} title="Impact">
-        <section className="mx-5 mb-3 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-full bg-accent">
-              <Users className="size-5 text-primary" />
-            </span>
-            <div>
-              <p className="text-3xl font-extrabold">{loading ? "…" : clients.length}</p>
-              <p className="text-sm text-muted-foreground">Nearby potential clients</p>
+        <div className="relative h-dvh w-full overflow-hidden bg-muted">
+          <ImpactOwnersMap
+            vetLocation={origin}
+            owners={clients}
+            selectedId={selected?.id}
+            onSelect={setSelected}
+            className="absolute inset-0 h-full w-full"
+          />
+
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/95 via-background/55 to-transparent px-4 pb-14 pt-6">
+            <div className="pointer-events-auto flex items-start justify-between gap-3">
+              <div>
+                <h1 className="text-2xl font-extrabold text-foreground">Impact</h1>
+                <p className="mt-0.5 text-sm text-muted-foreground">Owners near your practice</p>
+              </div>
+              <span className="rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur">
+                {loading ? "…" : `${clients.length} on map`}
+              </span>
             </div>
           </div>
-        </section>
 
-        <section className="mx-5 mb-6 space-y-3">
-          {loading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Finding nearby owners…</p>
-          ) : clients.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center">
-              <MapPin className="mx-auto size-8 text-primary" />
-              <p className="mt-3 font-semibold">No potential clients yet</p>
+          {!loading && clients.length === 0 ? (
+            <div className="absolute inset-x-4 top-1/3 z-10 rounded-2xl border border-border bg-card/95 p-5 text-center shadow-[var(--shadow-card)] backdrop-blur">
+              <PawPrint className="mx-auto size-8 text-primary" />
+              <p className="mt-3 font-semibold">No owners on the map yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                When pet owners nearby join VetKonnect, they will show up here.
+                When pet owners join VetKonnect, they appear here around your practice.
               </p>
             </div>
-          ) : (
-            clients.map((client) => (
-              <article key={client.id} className="rounded-2xl border border-border bg-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-extrabold">{client.fullName}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {client.pets} pet{client.pets === 1 ? "" : "s"}
-                      {client.petNames.length ? ` · ${client.petNames.slice(0, 3).join(", ")}` : ""}
-                    </p>
-                    {client.memberSince ? (
-                      <p className="mt-1 text-xs text-muted-foreground">Member since {client.memberSince}</p>
-                    ) : null}
+          ) : null}
+
+          {selected ? (
+            <div className="absolute inset-x-3 bottom-28 z-20 rounded-2xl border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
+              <div className="flex items-start gap-3">
+                {selected.avatarUrl ? (
+                  <img
+                    src={selected.avatarUrl}
+                    alt=""
+                    className="size-12 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-primary">
+                    <PawPrint className="size-5" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <h2 className="font-extrabold">{selected.fullName}</h2>
+                    <button
+                      type="button"
+                      className="rounded-full p-1.5 text-muted-foreground hover:bg-accent"
+                      aria-label="Close"
+                      onClick={() => setSelected(null)}
+                    >
+                      <X className="size-4" />
+                    </button>
                   </div>
-                  <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-primary">Owner</span>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <PawPrint className="size-3.5 shrink-0 text-primary" />
+                    {selected.pets} pet{selected.pets === 1 ? "" : "s"}
+                    {selected.petNames.length ? ` · ${selected.petNames.slice(0, 3).join(", ")}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {selected.distanceKm.toFixed(1)} km away
+                    {selected.approximate ? " · approx. location" : ""}
+                    {selected.memberSince ? ` · since ${selected.memberSince}` : ""}
+                  </p>
+                  {selected.phone ? (
+                    <a
+                      href={`tel:${selected.phone}`}
+                      className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary"
+                    >
+                      <Phone className="size-4" />
+                      {selected.phone}
+                    </a>
+                  ) : null}
                 </div>
-                {client.phone ? (
-                  <a
-                    href={`tel:${client.phone}`}
-                    className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary"
-                  >
-                    <Phone className="size-4" />
-                    {client.phone}
-                  </a>
-                ) : null}
-              </article>
-            ))
-          )}
-        </section>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </VetFeatureGate>
     </AppShell>
   );

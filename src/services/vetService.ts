@@ -1,10 +1,28 @@
 import type { HealthStatus, Pet, PotentialClient } from "@/types";
-import { createNotification } from "./notificationService";
+import { haversineKm, HARARE, type GeoPoint } from "@/lib/geo";
+import { createNotification, notifyAccount } from "./notificationService";
 import { findPetByTag, getPetRecordById, updatePet } from "./petService";
 import { supabase } from "./supabaseClient";
 import { getUser, updateUser } from "./userService";
 
 const RECENT_PATIENTS_KEY = "vetkonnect:recent_patients";
+
+/** Stable map placement around an origin until owners store real coordinates. */
+function approximateOwnerPoint(ownerId: string, origin: GeoPoint): GeoPoint {
+  let hash = 0;
+  for (let i = 0; i < ownerId.length; i += 1) {
+    hash = (hash * 31 + ownerId.charCodeAt(i)) >>> 0;
+  }
+  const angle = ((hash % 360) * Math.PI) / 180;
+  const radiusKm = 1.2 + (hash % 90) / 12; // ~1.2–8.7 km
+  const dLat = (radiusKm / 111) * Math.cos(angle);
+  const cosLat = Math.cos((origin.latitude * Math.PI) / 180) || 0.95;
+  const dLng = (radiusKm / (111 * cosLat)) * Math.sin(angle);
+  return {
+    latitude: origin.latitude + dLat,
+    longitude: origin.longitude + dLng,
+  };
+}
 
 export type PrescribeTreatmentInput = {
   petId: string;
@@ -98,23 +116,45 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
   return updated;
 }
 
-/** Owner accounts with pets — treated as potential clients for verified vets. */
-export async function getPotentialClients(limit = 40): Promise<PotentialClient[]> {
+/** Owner accounts with pets — mapped near the logged-in vet for Impact. */
+export async function getPotentialClients(
+  origin: GeoPoint = HARARE,
+  limit = 60,
+): Promise<PotentialClient[]> {
   const [{ data: accounts, error: accountsError }, { data: pets, error: petsError }] = await Promise.all([
     supabase
       .from("accounts")
-      .select("id,full_name,phone,created_at,account_type")
+      .select("id,full_name,phone,created_at,account_type,latitude,longitude,avatar_url")
       .neq("account_type", "vet")
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("pets").select("id,name,owner_id"),
   ]);
 
-  if (accountsError) throw accountsError;
+  if (accountsError) {
+    // Fallback if lat/lng columns are not migrated yet.
+    const { data: basicAccounts, error: basicError } = await supabase
+      .from("accounts")
+      .select("id,full_name,phone,created_at,account_type,avatar_url")
+      .neq("account_type", "vet")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (basicError) throw basicError;
+    return mapPotentialClients(basicAccounts ?? [], pets ?? [], origin, limit);
+  }
   if (petsError) throw petsError;
 
+  return mapPotentialClients(accounts ?? [], pets ?? [], origin, limit);
+}
+
+function mapPotentialClients(
+  accounts: Array<Record<string, unknown>>,
+  pets: Array<Record<string, unknown>>,
+  origin: GeoPoint,
+  limit: number,
+): PotentialClient[] {
   const petsByOwner = new Map<string, string[]>();
-  for (const pet of pets ?? []) {
+  for (const pet of pets) {
     const ownerId = pet.owner_id ? String(pet.owner_id) : "";
     if (!ownerId) continue;
     const list = petsByOwner.get(ownerId) ?? [];
@@ -122,10 +162,19 @@ export async function getPotentialClients(limit = 40): Promise<PotentialClient[]
     petsByOwner.set(ownerId, list);
   }
 
-  return (accounts ?? [])
+  return accounts
     .map((row) => {
       const id = String(row.id);
       const petNames = petsByOwner.get(id) ?? [];
+      const hasStored =
+        row.latitude != null &&
+        row.longitude != null &&
+        !Number.isNaN(Number(row.latitude)) &&
+        !Number.isNaN(Number(row.longitude));
+      const point = hasStored
+        ? { latitude: Number(row.latitude), longitude: Number(row.longitude) }
+        : approximateOwnerPoint(id, origin);
+
       return {
         id,
         fullName: String(row.full_name ?? "").trim() || "Pet owner",
@@ -135,24 +184,73 @@ export async function getPotentialClients(limit = 40): Promise<PotentialClient[]
         memberSince: row.created_at
           ? new Date(String(row.created_at)).toLocaleDateString("en-GB", { month: "short", year: "numeric" })
           : undefined,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        distanceKm: haversineKm(origin, point),
+        avatarUrl: row.avatar_url ? String(row.avatar_url) : undefined,
+        approximate: !hasStored,
       } satisfies PotentialClient;
     })
     .filter((client) => client.pets > 0)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, limit);
 }
 
 export async function requestPracticeDashboard(): Promise<void> {
   const user = await getUser();
   if (!user.id) throw new Error("Sign in to request a practice dashboard.");
+  if (user.accountType !== "vet") throw new Error("Only vet accounts can request a practice dashboard.");
+  if (user.vetVerified) throw new Error("Your practice dashboard is already unlocked.");
+
+  const practiceName = user.practiceName?.trim() || `${user.fullName?.trim() || "Vet"}'s Practice`;
+  const requestedAt = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("accounts")
+    .update({
+      practice_name: practiceName,
+      dashboard_requested_at: requestedAt,
+      updated_at: requestedAt,
+    })
+    .eq("id", user.id);
+
+  if (error) {
+    // Column may not be migrated yet — still store practice name.
+    const { error: fallbackError } = await supabase
+      .from("accounts")
+      .update({ practice_name: practiceName, updated_at: requestedAt })
+      .eq("id", user.id);
+    if (fallbackError) throw fallbackError;
+  }
+
+  await updateUser({ practiceName });
 
   await createNotification({
     accountId: user.id,
     title: "Practice dashboard requested",
-    body: "Your request was sent to VetKonnect admin. We'll follow up after verification.",
+    body: "Your request was sent to VetKonnect admin. We'll unlock Patients and Impact after approval.",
     type: "system",
   });
 
-  await updateUser({
-    practiceName: user.practiceName?.trim() || `${user.fullName}'s Practice`,
-  });
+  const { data: admins, error: adminError } = await supabase.from("accounts").select("id").eq("is_admin", true);
+  if (adminError) {
+    console.error("Could not load admins for dashboard request", adminError);
+    return;
+  }
+
+  const name = user.fullName?.trim() || "A vet";
+  const phone = user.phone || "unknown phone";
+  await Promise.all(
+    (admins ?? [])
+      .map((row) => String(row.id))
+      .filter((id) => id && id !== user.id)
+      .map((adminId) =>
+        notifyAccount({
+          accountId: adminId,
+          title: "Practice dashboard request",
+          body: `${name} (${phone}) requested practice access. Open Admin → App Accounts → Pending elevate to approve.`,
+          type: "admin",
+        }),
+      ),
+  );
 }

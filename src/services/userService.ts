@@ -56,6 +56,7 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     practiceName: String(row.practice_name ?? ""),
     patientsServed: Number(row.patients_served ?? 0),
     blocked: Boolean(row.blocked),
+    dashboardRequestedAt: row.dashboard_requested_at ? String(row.dashboard_requested_at) : null,
   };
 }
 

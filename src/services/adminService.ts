@@ -26,6 +26,7 @@ function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
     patientsServed: Number(row.patients_served ?? 0),
     blocked: Boolean(row.blocked),
     avatarUrl: String(row.avatar_url ?? ""),
+    dashboardRequestedAt: row.dashboard_requested_at ? String(row.dashboard_requested_at) : null,
   };
 }
 
@@ -127,6 +128,9 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
   if (patch.practiceName !== undefined) payload.practice_name = patch.practiceName;
   if (patch.patientsServed !== undefined) payload.patients_served = patch.patientsServed;
   if (patch.blocked !== undefined) payload.blocked = patch.blocked;
+  if (patch.dashboardRequestedAt !== undefined) {
+    payload.dashboard_requested_at = patch.dashboardRequestedAt;
+  }
   if (patch.boundDeviceId === null) {
     payload.bound_device_id = null;
     payload.device_bound_at = null;
@@ -170,6 +174,7 @@ export async function elevateAdminVet(id: string, options?: { practiceName?: str
     blocked: false,
     onboarded: true,
     practiceName,
+    dashboardRequestedAt: null,
     modules: current?.modules?.length ? current.modules : ["community", "tips"],
   });
 

@@ -51,6 +51,8 @@ export interface UserProfile {
   practiceName?: string;
   patientsServed?: number;
   blocked?: boolean;
+  /** ISO timestamp when the vet asked for practice dashboard access. */
+  dashboardRequestedAt?: string | null;
 }
 
 export interface AdminUser {
@@ -76,6 +78,7 @@ export interface AdminUser {
   patientsServed?: number;
   blocked?: boolean;
   avatarUrl?: string;
+  dashboardRequestedAt?: string | null;
 }
 
 export interface PotentialClient {
@@ -85,6 +88,12 @@ export interface PotentialClient {
   pets: number;
   petNames: string[];
   memberSince?: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+  avatarUrl?: string;
+  /** True when coordinates are estimated near the vet (no stored owner location yet). */
+  approximate?: boolean;
 }
 
 export interface AdminVet {

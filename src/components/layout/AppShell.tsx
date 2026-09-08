@@ -2,9 +2,16 @@ import type { ReactNode } from "react";
 import { BottomNav } from "./BottomNav";
 import { MobileScreen } from "./MobileScreen";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  immersive = false,
+}: {
+  children: ReactNode;
+  /** Full-bleed layouts (maps) — skip bottom nav padding so content fills the viewport. */
+  immersive?: boolean;
+}) {
   return (
-    <MobileScreen withNavPadding>
+    <MobileScreen withNavPadding={!immersive}>
       {children}
       <BottomNav />
     </MobileScreen>

@@ -16,10 +16,9 @@ import { Route as CommunityRouteImport } from './routes/community'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as ImpactRouteImport } from './routes/impact'
-import { Route as PatientsRouteImport } from './routes/patients'
-import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as PatientsRouteImport } from './routes/patients'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -27,6 +26,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as CommunityPostIdRouteImport } from './routes/community.$postId'
+import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
 import { Route as PetsIndexRouteImport } from './routes/pets.index'
 import { Route as PetsPetIdRouteImport } from './routes/pets.$petId'
 import { Route as PetsNewRouteImport } from './routes/pets.new'
@@ -66,16 +66,6 @@ const ImpactRoute = ImpactRouteImport.update({
   path: '/impact',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PatientsRoute = PatientsRouteImport.update({
-  id: '/patients',
-  path: '/patients',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PatientsPetIdRoute = PatientsPetIdRouteImport.update({
-  id: '/patients/$petId',
-  path: '/patients/$petId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ModulesRoute = ModulesRouteImport.update({
   id: '/modules',
   path: '/modules',
@@ -84,6 +74,11 @@ const ModulesRoute = ModulesRouteImport.update({
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PatientsRoute = PatientsRouteImport.update({
+  id: '/patients',
+  path: '/patients',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -121,6 +116,11 @@ const CommunityPostIdRoute = CommunityPostIdRouteImport.update({
   path: '/$postId',
   getParentRoute: () => CommunityRoute,
 } as any)
+const PatientsPetIdRoute = PatientsPetIdRouteImport.update({
+  id: '/$petId',
+  path: '/$petId',
+  getParentRoute: () => PatientsRoute,
+} as any)
 const PetsIndexRoute = PetsIndexRouteImport.update({
   id: '/pets/',
   path: '/pets/',
@@ -145,10 +145,9 @@ export interface FileRoutesByFullPath {
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
-  '/patients': typeof PatientsRoute
-  '/patients/$petId': typeof PatientsPetIdRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
+  '/patients': typeof PatientsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
@@ -156,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
   '/community/$postId': typeof CommunityPostIdRoute
+  '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
   '/pets/': typeof PetsIndexRoute
@@ -168,10 +168,9 @@ export interface FileRoutesByTo {
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
-  '/patients': typeof PatientsRoute
-  '/patients/$petId': typeof PatientsPetIdRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
+  '/patients': typeof PatientsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
@@ -179,6 +178,7 @@ export interface FileRoutesByTo {
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
   '/community/$postId': typeof CommunityPostIdRoute
+  '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
   '/pets': typeof PetsIndexRoute
@@ -192,10 +192,9 @@ export interface FileRoutesById {
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
-  '/patients': typeof PatientsRoute
-  '/patients/$petId': typeof PatientsPetIdRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
+  '/patients': typeof PatientsRouteWithChildren
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
@@ -203,6 +202,7 @@ export interface FileRoutesById {
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
   '/community/$postId': typeof CommunityPostIdRoute
+  '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
   '/pets/': typeof PetsIndexRoute
@@ -217,10 +217,9 @@ export interface FileRouteTypes {
     | '/discover'
     | '/home'
     | '/impact'
-    | '/patients'
-    | '/patients/$petId'
     | '/modules'
     | '/notifications'
+    | '/patients'
     | '/profile'
     | '/register'
     | '/settings'
@@ -228,6 +227,7 @@ export interface FileRouteTypes {
     | '/verify'
     | '/welcome'
     | '/community/$postId'
+    | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
     | '/pets/'
@@ -240,10 +240,9 @@ export interface FileRouteTypes {
     | '/discover'
     | '/home'
     | '/impact'
-    | '/patients'
-    | '/patients/$petId'
     | '/modules'
     | '/notifications'
+    | '/patients'
     | '/profile'
     | '/register'
     | '/settings'
@@ -251,6 +250,7 @@ export interface FileRouteTypes {
     | '/verify'
     | '/welcome'
     | '/community/$postId'
+    | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
     | '/pets'
@@ -263,10 +263,9 @@ export interface FileRouteTypes {
     | '/discover'
     | '/home'
     | '/impact'
-    | '/patients'
-    | '/patients/$petId'
     | '/modules'
     | '/notifications'
+    | '/patients'
     | '/profile'
     | '/register'
     | '/settings'
@@ -274,6 +273,7 @@ export interface FileRouteTypes {
     | '/verify'
     | '/welcome'
     | '/community/$postId'
+    | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
     | '/pets/'
@@ -287,10 +287,9 @@ export interface RootRouteChildren {
   DiscoverRoute: typeof DiscoverRoute
   HomeRoute: typeof HomeRoute
   ImpactRoute: typeof ImpactRoute
-  PatientsRoute: typeof PatientsRoute
-  PatientsPetIdRoute: typeof PatientsPetIdRoute
   ModulesRoute: typeof ModulesRoute
   NotificationsRoute: typeof NotificationsRoute
+  PatientsRoute: typeof PatientsRouteWithChildren
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
   SettingsRoute: typeof SettingsRoute
@@ -353,20 +352,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ImpactRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/patients': {
-      id: '/patients'
-      path: '/patients'
-      fullPath: '/patients'
-      preLoaderRoute: typeof PatientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/patients/$petId': {
-      id: '/patients/$petId'
-      path: '/patients/$petId'
-      fullPath: '/patients/$petId'
-      preLoaderRoute: typeof PatientsPetIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/modules': {
       id: '/modules'
       path: '/modules'
@@ -379,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/patients': {
+      id: '/patients'
+      path: '/patients'
+      fullPath: '/patients'
+      preLoaderRoute: typeof PatientsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -430,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunityPostIdRouteImport
       parentRoute: typeof CommunityRoute
     }
+    '/patients/$petId': {
+      id: '/patients/$petId'
+      path: '/$petId'
+      fullPath: '/patients/$petId'
+      preLoaderRoute: typeof PatientsPetIdRouteImport
+      parentRoute: typeof PatientsRoute
+    }
     '/pets/': {
       id: '/pets/'
       path: '/pets'
@@ -466,6 +465,18 @@ const CommunityRouteWithChildren = CommunityRoute._addFileChildren(
   CommunityRouteChildren,
 )
 
+interface PatientsRouteChildren {
+  PatientsPetIdRoute: typeof PatientsPetIdRoute
+}
+
+const PatientsRouteChildren: PatientsRouteChildren = {
+  PatientsPetIdRoute: PatientsPetIdRoute,
+}
+
+const PatientsRouteWithChildren = PatientsRoute._addFileChildren(
+  PatientsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
@@ -474,10 +485,9 @@ const rootRouteChildren: RootRouteChildren = {
   DiscoverRoute: DiscoverRoute,
   HomeRoute: HomeRoute,
   ImpactRoute: ImpactRoute,
-  PatientsRoute: PatientsRoute,
-  PatientsPetIdRoute: PatientsPetIdRoute,
   ModulesRoute: ModulesRoute,
   NotificationsRoute: NotificationsRoute,
+  PatientsRoute: PatientsRouteWithChildren,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
   SettingsRoute: SettingsRoute,
