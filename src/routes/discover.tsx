@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { ClosestVetsMap } from "@/components/discover/ClosestVetsMap";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import { useApp } from "@/hooks/useApp";
+import { isVetAccount } from "@/lib/account";
 import { getNearbyVets, getServices } from "@/services/contentService";
 import type { MappableVet, ServiceListing } from "@/types";
 import { getCurrentPosition, HARARE, type GeoPoint } from "@/lib/geo";
@@ -25,6 +27,8 @@ export const Route = createFileRoute("/discover")({
 const categories = ["All", "Veterinary Clinic", "Grooming", "Pet Store", "Emergency"] as const;
 
 function Discover() {
+  const { user } = useApp();
+  const isVet = isVetAccount(user);
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
   const [query, setQuery] = useState("");
   const [servicesData, setServicesData] = useState<ServiceListing[]>([]);
@@ -32,11 +36,21 @@ function Discover() {
   const [mapLoading, setMapLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<GeoPoint | null>(null);
   const [nearbyVets, setNearbyVets] = useState<MappableVet[]>([]);
+  const [selectedVet, setSelectedVet] = useState<MappableVet | null>(null);
   const [locationNote, setLocationNote] = useState("");
 
   useEffect(() => {
     void getServices().then(setServicesData).catch((error) => console.error("Failed to load services", error));
   }, []);
+
+  useEffect(() => {
+    // Vets use Impact for maps — never keep Map Vets open for vet accounts.
+    if (isVet && mapOpen) {
+      setMapOpen(false);
+      setNearbyVets([]);
+      setSelectedVet(null);
+    }
+  }, [isVet, mapOpen]);
 
   const services = servicesData.filter(
     (s) =>
@@ -45,17 +59,25 @@ function Discover() {
   );
 
   const openMapVets = async () => {
+    if (isVet) {
+      toast.message("Map Vets is for pet owners", {
+        description: "Use Impact to see nearby owners around your practice.",
+      });
+      return;
+    }
+
     setMapOpen(true);
     setMapLoading(true);
+    setSelectedVet(null);
     setLocationNote("");
     try {
       let origin = HARARE;
       try {
         origin = await getCurrentPosition();
-        setLocationNote("Showing vets near your current location");
+        setLocationNote("Closest clinics near you");
       } catch {
         origin = HARARE;
-        setLocationNote("Location permission unavailable — showing nearest vets around Harare");
+        setLocationNote("Location off — closest clinics around Harare");
         toast.message("Using Harare as your location", {
           description: "Allow location access for more accurate results.",
         });
@@ -75,6 +97,115 @@ function Discover() {
     }
   };
 
+  if (mapOpen && !isVet) {
+    return (
+      <AppShell immersive>
+        <div className="absolute inset-0 overflow-hidden bg-muted">
+          {mapLoading || !userLocation ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Locating nearby vets…
+            </div>
+          ) : (
+            <ClosestVetsMap
+              userLocation={userLocation}
+              vets={nearbyVets}
+              selectedId={selectedVet?.id}
+              onSelect={setSelectedVet}
+              className="absolute inset-0 h-full w-full"
+            />
+          )}
+
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/95 via-background/55 to-transparent px-4 pb-14 pt-6">
+            <div className="pointer-events-auto flex items-start justify-between gap-3">
+              <div>
+                <h1 className="text-2xl font-extrabold text-foreground">Map Vets</h1>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {locationNote || "Finding nearby clinics…"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur">
+                  {mapLoading ? "…" : `${nearbyVets.length} closest`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapOpen(false);
+                    setSelectedVet(null);
+                  }}
+                  className="flex size-9 items-center justify-center rounded-full border border-border bg-card/95 shadow-sm backdrop-blur"
+                  aria-label="Close map"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {selectedVet ? (
+            <div className="absolute inset-x-3 bottom-28 z-20 rounded-2xl border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-extrabold">{selectedVet.name}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{selectedVet.surgery}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <MapPin className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      {selectedVet.address || "Address unavailable"} · {selectedVet.distanceKm.toFixed(1)} km
+                    </span>
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                    <span className="inline-flex items-center gap-1 font-semibold text-primary">
+                      <Star className="size-3.5 fill-current" /> {selectedVet.rating.toFixed(1)}
+                    </span>
+                    {selectedVet.phone ? (
+                      <a
+                        href={`tel:${selectedVet.phone}`}
+                        className="inline-flex items-center gap-1 font-semibold text-foreground"
+                      >
+                        <Phone className="size-3.5 text-primary" />
+                        {selectedVet.phone}
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-full p-1.5 text-muted-foreground hover:bg-accent"
+                  aria-label="Close"
+                  onClick={() => setSelectedVet(null)}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+          ) : !mapLoading && nearbyVets.length > 0 ? (
+            <div className="absolute inset-x-3 bottom-28 z-20 max-h-40 overflow-y-auto rounded-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur">
+              {nearbyVets.map((vet, index) => (
+                <button
+                  key={vet.id}
+                  type="button"
+                  onClick={() => setSelectedVet(vet)}
+                  className="flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left last:border-b-0"
+                >
+                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{vet.name}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                      {vet.distanceKm.toFixed(1)} km · {vet.surgery}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <ScreenHeader title="Discover" subtitle="Trusted care and services near you." />
@@ -90,71 +221,22 @@ function Discover() {
           />
         </div>
 
-        <Button type="button" variant="hero" size="lg" className="mt-4 w-full justify-between" onClick={() => void openMapVets()}>
-          <span className="inline-flex items-center gap-2">
-            <MapPinned className="size-5" />
-            Map Vets
-          </span>
-          <span className="text-sm font-medium opacity-90">Closest 5</span>
-        </Button>
+        {!isVet ? (
+          <Button
+            type="button"
+            variant="hero"
+            size="lg"
+            className="mt-4 w-full justify-between"
+            onClick={() => void openMapVets()}
+          >
+            <span className="inline-flex items-center gap-2">
+              <MapPinned className="size-5" />
+              Map Vets
+            </span>
+            <span className="text-sm font-medium opacity-90">Closest 5</span>
+          </Button>
+        ) : null}
       </div>
-
-      {mapOpen ? (
-        <section className="mx-5 mt-4 overflow-hidden rounded-3xl border border-border bg-white shadow-[var(--shadow-card)]">
-          <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-            <div>
-              <p className="font-bold">Closest vets</p>
-              <p className="text-xs text-muted-foreground">{locationNote || "Finding nearby clinics…"}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMapOpen(false)}
-              className="flex size-9 items-center justify-center rounded-full border border-border"
-              aria-label="Close map"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-
-          {mapLoading || !userLocation ? (
-            <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">Locating nearby vets…</div>
-          ) : (
-            <ClosestVetsMap userLocation={userLocation} vets={nearbyVets} className="h-72 w-full" />
-          )}
-
-          <div className="divide-y divide-border">
-            {nearbyVets.map((vet, index) => (
-              <article key={vet.id} className="flex items-start gap-3 px-4 py-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                  {index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{vet.name}</p>
-                  <p className="text-sm text-muted-foreground">{vet.surgery}</p>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MapPin className="size-3.5" />
-                    {vet.address || "Address unavailable"} · {vet.distanceKm.toFixed(1)} km
-                  </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
-                    <span className="inline-flex items-center gap-1 font-semibold text-primary">
-                      <Star className="size-3.5 fill-current" /> {vet.rating.toFixed(1)}
-                    </span>
-                    {vet.phone ? (
-                      <a href={`tel:${vet.phone}`} className="inline-flex items-center gap-1 font-semibold text-foreground">
-                        <Phone className="size-3.5 text-primary" />
-                        {vet.phone}
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              </article>
-            ))}
-            {!mapLoading && nearbyVets.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">No nearby vets available yet.</p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
 
       <div className="mt-4 flex gap-2 overflow-x-auto px-5 pb-4">
         {categories.map((c) => (

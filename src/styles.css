@@ -181,6 +181,11 @@
   cursor: pointer;
 }
 
+.vk-vet-marker-active {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 35%, transparent);
+}
+
 .vk-owner-marker {
   position: relative;
   width: 48px;
