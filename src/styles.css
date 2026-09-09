@@ -294,3 +294,15 @@
 .premium-toast-info {
   border-left-color: oklch(0.52 0.14 250) !important;
 }
+
+/* Hide scrollbars while keeping scroll (chat threads, etc.) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

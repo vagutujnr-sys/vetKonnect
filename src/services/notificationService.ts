@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import { toast } from "sonner";
 import type { AppNotification } from "@/types";
 import { playNotificationSound } from "@/lib/notificationSound";
@@ -13,6 +14,7 @@ function mapNotification(row: Record<string, unknown>): AppNotification {
     type: String(row.type ?? "system"),
     read: Boolean(row.read),
     createdAt: String(row.created_at ?? new Date().toISOString()),
+    imageUrl: row.image_url ? String(row.image_url) : null,
   };
 }
 
@@ -27,8 +29,29 @@ function notificationsAllowedLocally() {
   }
 }
 
+function notificationAvatarNode(title: string, imageUrl?: string | null) {
+  if (imageUrl) {
+    return createElement("img", {
+      src: imageUrl,
+      alt: "",
+      className: "size-9 rounded-full object-cover ring-2 ring-white",
+    });
+  }
+  const initial = (title.replace(/^Message from\s+/i, "").trim().charAt(0) || "V").toUpperCase();
+  return createElement(
+    "span",
+    {
+      className:
+        "flex size-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-2 ring-white",
+    },
+    initial,
+  );
+}
+
 /** In-app toast + sound + optional OS notification for a newly arrived alert. */
-export function presentIncomingNotification(note: Pick<AppNotification, "title" | "body" | "type">) {
+export function presentIncomingNotification(
+  note: Pick<AppNotification, "title" | "body" | "type" | "imageUrl">,
+) {
   if (typeof window === "undefined") return;
   if (!notificationsAllowedLocally()) return;
 
@@ -36,13 +59,14 @@ export function presentIncomingNotification(note: Pick<AppNotification, "title" 
   toast(note.title, {
     description: note.body,
     duration: 6500,
+    icon: notificationAvatarNode(note.title, note.imageUrl),
   });
 
   if ("Notification" in window && Notification.permission === "granted") {
     try {
       new Notification(note.title, {
         body: note.body,
-        icon: "/favicon.ico",
+        icon: note.imageUrl || "/favicon.ico",
         tag: `vetkonnect-${note.type || "system"}`,
       });
     } catch {
@@ -77,11 +101,29 @@ export async function getNotifications(): Promise<AppNotification[]> {
   return (data ?? []).map((row) => mapNotification(row as Record<string, unknown>));
 }
 
+async function resolveActorImageUrl(input: {
+  imageUrl?: string | null;
+  actorAccountId?: string | null;
+}): Promise<string | null> {
+  if (input.imageUrl) return input.imageUrl;
+  if (!input.actorAccountId) return null;
+  const { data } = await supabase
+    .from("accounts")
+    .select("avatar_url")
+    .eq("id", input.actorAccountId)
+    .maybeSingle();
+  return data?.avatar_url ? String(data.avatar_url) : null;
+}
+
 export async function createNotification(input: {
   title: string;
   body: string;
   type?: string;
   accountId?: string;
+  /** Direct avatar URL for the actor (preferred when already known). */
+  imageUrl?: string | null;
+  /** Look up avatar_url from this account id when imageUrl is not passed. */
+  actorAccountId?: string | null;
   /** Present toast/sound on this device even if the note is for another account (admin testing). */
   presentLocally?: boolean;
 }): Promise<AppNotification | null> {
@@ -91,7 +133,12 @@ export async function createNotification(input: {
     return null;
   }
 
-  const row = {
+  const imageUrl = await resolveActorImageUrl({
+    imageUrl: input.imageUrl,
+    actorAccountId: input.actorAccountId,
+  });
+
+  const row: Record<string, unknown> = {
     id: crypto.randomUUID(),
     account_id: accountId,
     title: input.title.trim(),
@@ -99,15 +146,26 @@ export async function createNotification(input: {
     type: input.type ?? "system",
     read: false,
     created_at: new Date().toISOString(),
+    image_url: imageUrl,
   };
 
-  const { data, error } = await supabase.from("notifications").insert(row).select("*").single();
+  let { data, error } = await supabase.from("notifications").insert(row).select("*").single();
+
+  // Retry without image_url if migration 017 is not applied yet.
+  if (error && (String(error.message ?? "").includes("image_url") || error.code === "PGRST204")) {
+    const { image_url: _removed, ...withoutImage } = row;
+    const retry = await supabase.from("notifications").insert(withoutImage).select("*").single();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) {
     console.error("createNotification failed", error);
     throw error;
   }
 
   const mapped = mapNotification(data as Record<string, unknown>);
+  if (!mapped.imageUrl && imageUrl) mapped.imageUrl = imageUrl;
   const isForThisDevice = accountId === getSessionAccountId();
   if (isForThisDevice || input.presentLocally) {
     presentIncomingNotification(mapped);
@@ -122,6 +180,8 @@ export async function notifyAccount(input: {
   title: string;
   body: string;
   type?: string;
+  imageUrl?: string | null;
+  actorAccountId?: string | null;
 }): Promise<AppNotification | null> {
   try {
     return await createNotification({
@@ -129,6 +189,8 @@ export async function notifyAccount(input: {
       title: input.title,
       body: input.body,
       type: input.type ?? "system",
+      imageUrl: input.imageUrl,
+      actorAccountId: input.actorAccountId,
     });
   } catch (error) {
     console.error("notifyAccount failed", error);

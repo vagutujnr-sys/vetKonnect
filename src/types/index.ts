@@ -160,6 +160,8 @@ export interface AppNotification {
   type: string;
   read: boolean;
   createdAt: string;
+  /** Sender / actor avatar when available (chats, calls, etc.). */
+  imageUrl?: string | null;
 }
 
 export interface ServiceListing {
@@ -302,6 +304,9 @@ export interface ChatMessage {
   body: string;
   mediaUrl?: string | null;
   mediaType?: "none" | "image" | "video" | "audio";
+  replyToId?: string | null;
+  replyPreview?: string | null;
+  replySenderName?: string | null;
   readByRecipient: boolean;
   createdAt: string;
   mine: boolean;

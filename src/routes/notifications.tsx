@@ -121,12 +121,21 @@ function NotificationsPage() {
               style={{ borderLeft: `4px solid ${accent}` }}
             >
               <div className="flex items-start gap-3">
-                <span
-                  className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-accent/70 p-1.5"
-                  style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${accent} 25%, transparent)` }}
-                >
-                  <LogoMark className="h-5 w-5" />
-                </span>
+                {note.imageUrl ? (
+                  <img
+                    src={note.imageUrl}
+                    alt=""
+                    className="mt-0.5 size-10 shrink-0 rounded-full object-cover ring-2 ring-white"
+                    style={{ boxShadow: `0 0 0 1px color-mix(in oklab, ${accent} 25%, transparent)` }}
+                  />
+                ) : (
+                  <span
+                    className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/70 p-1.5"
+                    style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${accent} 25%, transparent)` }}
+                  >
+                    <LogoMark className="h-5 w-5" />
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-semibold text-foreground">{note.title}</p>

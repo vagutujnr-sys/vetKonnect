@@ -359,6 +359,9 @@ function mapMessage(row: Record<string, unknown>, accountId: string): ChatMessag
     body: String(row.body ?? ""),
     mediaUrl: row.media_url ? String(row.media_url) : null,
     mediaType,
+    replyToId: row.reply_to_id ? String(row.reply_to_id) : null,
+    replyPreview: row.reply_preview ? String(row.reply_preview) : null,
+    replySenderName: row.reply_sender_name ? String(row.reply_sender_name) : null,
     readByRecipient: Boolean(row.read_by_recipient),
     createdAt: String(row.created_at ?? ""),
     mine: String(row.sender_account_id) === accountId,
@@ -425,6 +428,7 @@ export async function sendChatMessage(
   conversationId: string,
   body: string,
   media?: { url: string; mediaType: ChatMediaType } | null,
+  replyTo?: ChatMessage | null,
 ): Promise<ChatMessage> {
   const accountId = getSessionAccountId();
   if (!accountId) throw new Error("You must be signed in to send a message.");
@@ -450,6 +454,17 @@ export async function sendChatMessage(
   const createdAt = new Date().toISOString();
   const mediaType = media?.mediaType ?? "none";
   const mediaUrl = media?.url ?? null;
+  const replyPreview =
+    replyTo == null
+      ? null
+      : replyTo.body.trim() ||
+        (replyTo.mediaType === "image"
+          ? "Photo"
+          : replyTo.mediaType === "video"
+            ? "Video"
+            : replyTo.mediaType === "audio"
+              ? "Voice message"
+              : "Message");
 
   const insertRow: Record<string, unknown> = {
     id,
@@ -460,27 +475,66 @@ export async function sendChatMessage(
     created_at: createdAt,
     media_url: mediaUrl,
     media_type: mediaType,
+    reply_to_id: replyTo?.id ?? null,
+    reply_preview: replyPreview,
+    reply_sender_name: replyTo ? (replyTo.mine ? "You" : "Them") : null,
   };
+
+  // Prefer peer display name for reply attribution when available from accounts.
+  if (replyTo) {
+    const { data: replySender } = await supabase
+      .from("accounts")
+      .select("full_name, practice_name")
+      .eq("id", replyTo.senderAccountId)
+      .maybeSingle();
+    insertRow.reply_sender_name = String(
+      replySender?.practice_name || replySender?.full_name || (replyTo.mine ? "You" : "Chat"),
+    );
+  }
 
   let { data, error } = await supabase.from("messages").insert(insertRow).select("*").single();
 
-  // Retry without media columns if migration 016 is not applied.
-  if (error && (String(error.message ?? "").includes("media_") || error.code === "PGRST204")) {
-    if (!text) throw new Error("Media chat needs migration 016_chat_media.sql applied in Supabase.");
-    const retry = await supabase
-      .from("messages")
-      .insert({
-        id,
-        conversation_id: conversationId,
-        sender_account_id: accountId,
-        body: text,
-        read_by_recipient: false,
-        created_at: createdAt,
-      })
-      .select("*")
-      .single();
+  // Retry without newer columns if migrations 016/017 are not applied.
+  if (
+    error &&
+    (String(error.message ?? "").includes("media_") ||
+      String(error.message ?? "").includes("reply_") ||
+      error.code === "PGRST204")
+  ) {
+    if (!text && media?.url) {
+      throw new Error("Media chat needs migration 016_chat_media.sql applied in Supabase.");
+    }
+    const baseRow: Record<string, unknown> = {
+      id,
+      conversation_id: conversationId,
+      sender_account_id: accountId,
+      body: text || replyPreview || "Message",
+      read_by_recipient: false,
+      created_at: createdAt,
+    };
+    if (mediaUrl) {
+      baseRow.media_url = mediaUrl;
+      baseRow.media_type = mediaType;
+    }
+    const retry = await supabase.from("messages").insert(baseRow).select("*").single();
     data = retry.data;
     error = retry.error;
+    if (error && (String(error.message ?? "").includes("media_") || error.code === "PGRST204")) {
+      const plain = await supabase
+        .from("messages")
+        .insert({
+          id,
+          conversation_id: conversationId,
+          sender_account_id: accountId,
+          body: text || "Message",
+          read_by_recipient: false,
+          created_at: createdAt,
+        })
+        .select("*")
+        .single();
+      data = plain.data;
+      error = plain.error;
+    }
   }
   if (error) throw error;
 
@@ -503,7 +557,11 @@ export async function sendChatMessage(
     .eq("id", conversationId);
 
   const recipientId = accountId === ownerId ? vetId : ownerId;
-  const { data: sender } = await supabase.from("accounts").select("full_name").eq("id", accountId).maybeSingle();
+  const { data: sender } = await supabase
+    .from("accounts")
+    .select("full_name, avatar_url")
+    .eq("id", accountId)
+    .maybeSingle();
   const senderName = String(sender?.full_name ?? "VetKonnect user");
 
   try {
@@ -512,6 +570,8 @@ export async function sendChatMessage(
       title: `Message from ${senderName}`,
       body: preview.length > 100 ? `${preview.slice(0, 97)}…` : preview,
       type: "chat",
+      actorAccountId: accountId,
+      imageUrl: sender?.avatar_url ? String(sender.avatar_url) : null,
     });
   } catch (notifyError) {
     console.warn("Chat notification failed", notifyError);

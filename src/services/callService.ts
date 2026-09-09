@@ -111,13 +111,19 @@ export async function startInAppCall(input: {
         .single();
       if (retry.error) throw retry.error;
       const peerName = await peerNameFor(calleeId);
-      const { data: caller } = await supabase.from("accounts").select("full_name").eq("id", callerId).maybeSingle();
+      const { data: caller } = await supabase
+        .from("accounts")
+        .select("full_name, avatar_url")
+        .eq("id", callerId)
+        .maybeSingle();
       try {
         await createNotification({
           accountId: calleeId,
           title: "Incoming VetKonnect call",
           body: `${String(caller?.full_name ?? "Someone")} is calling you in the app.`,
           type: "call",
+          actorAccountId: callerId,
+          imageUrl: caller?.avatar_url ? String(caller.avatar_url) : null,
         });
       } catch (notifyError) {
         console.warn("Call notification failed", notifyError);
@@ -128,13 +134,19 @@ export async function startInAppCall(input: {
   }
 
   const peerName = await peerNameFor(calleeId);
-  const { data: caller } = await supabase.from("accounts").select("full_name").eq("id", callerId).maybeSingle();
+  const { data: caller } = await supabase
+    .from("accounts")
+    .select("full_name, avatar_url")
+    .eq("id", callerId)
+    .maybeSingle();
   try {
     await createNotification({
       accountId: calleeId,
       title: "Incoming VetKonnect call",
       body: `${String(caller?.full_name ?? "A pet owner")} is calling you in the app.`,
       type: "call",
+      actorAccountId: callerId,
+      imageUrl: caller?.avatar_url ? String(caller.avatar_url) : null,
     });
   } catch (notifyError) {
     console.warn("Call notification failed", notifyError);

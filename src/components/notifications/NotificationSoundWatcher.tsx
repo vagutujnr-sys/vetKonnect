@@ -78,6 +78,7 @@ export function NotificationSoundWatcher() {
             type: String(row.type ?? "system"),
             read: Boolean(row.read),
             createdAt: String(row.created_at ?? new Date().toISOString()),
+            imageUrl: row.image_url ? String(row.image_url) : null,
           };
           const known = knownIdsRef.current ?? new Set<string>();
           knownIdsRef.current = known;

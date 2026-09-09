@@ -29,7 +29,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           error: "premium-toast-error",
           warning: "premium-toast-warning",
           info: "premium-toast-info",
-          icon: "group-[.toast]:!size-4",
+          icon: "group-[.toast]:!size-9 group-[.toast]:!mr-1",
         },
       }}
       {...props}

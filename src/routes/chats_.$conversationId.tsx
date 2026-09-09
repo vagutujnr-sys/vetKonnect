@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ImagePlus, Mic, Phone, Send, Square, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ImagePlus, Mic, Phone, Reply, Send, Square, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,19 @@ function MessageBody({ message }: { message: ChatMessage }) {
   const mediaType = message.mediaType ?? "none";
   return (
     <>
+      {message.replyToId ? (
+        <div
+          className={cn(
+            "mb-2 rounded-xl border-l-2 px-2.5 py-1.5 text-xs",
+            message.mine
+              ? "border-primary-foreground/50 bg-primary-foreground/10 text-primary-foreground/90"
+              : "border-primary/50 bg-muted/80 text-muted-foreground",
+          )}
+        >
+          <p className="font-semibold">{message.replySenderName || "Reply"}</p>
+          <p className="mt-0.5 line-clamp-2">{message.replyPreview || "Message"}</p>
+        </div>
+      ) : null}
       {mediaType === "image" && message.mediaUrl ? (
         <a href={message.mediaUrl} target="_blank" rel="noreferrer" className="mb-2 block overflow-hidden rounded-xl">
           <img src={message.mediaUrl} alt="" className="max-h-64 w-full object-cover" loading="lazy" />
@@ -58,6 +71,80 @@ function MessageBody({ message }: { message: ChatMessage }) {
   );
 }
 
+/** Horizontal swipe to reply (iMessage-style). */
+function SwipeToReply({
+  mine,
+  onReply,
+  children,
+}: {
+  mine: boolean;
+  onReply: () => void;
+  children: ReactNode;
+}) {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dragging = useRef(false);
+  const [offset, setOffset] = useState(0);
+  const max = 72;
+
+  const onTouchStart = (e: TouchEvent) => {
+    const t = e.touches[0];
+    startX.current = t.clientX;
+    startY.current = t.clientY;
+    dragging.current = true;
+  };
+
+  const onTouchMove = (e: TouchEvent) => {
+    if (!dragging.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX.current;
+    const dy = t.clientY - startY.current;
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      dragging.current = false;
+      setOffset(0);
+      return;
+    }
+    // Swipe toward center: others → right, mine → left
+    const next = mine ? Math.min(0, Math.max(-max, dx)) : Math.max(0, Math.min(max, dx));
+    setOffset(next);
+  };
+
+  const onTouchEnd = () => {
+    dragging.current = false;
+    if (Math.abs(offset) >= max * 0.55) onReply();
+    setOffset(0);
+  };
+
+  return (
+    <div className="relative overflow-hidden">
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 flex items-center",
+          mine ? "right-2" : "left-2",
+        )}
+        style={{ opacity: Math.min(1, Math.abs(offset) / (max * 0.55)) }}
+      >
+        <span className="flex size-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <Reply className="size-4" />
+        </span>
+      </div>
+      <div
+        className="touch-pan-y"
+        style={{
+          transform: `translateX(${offset}px)`,
+          transition: dragging.current ? "none" : "transform 160ms ease-out",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ChatThread() {
   const { conversationId } = Route.useParams();
   const navigate = useNavigate();
@@ -66,6 +153,7 @@ function ChatThread() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [calling, setCalling] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<ChatMediaType | null>(null);
@@ -155,6 +243,9 @@ function ChatThread() {
               mediaTypeRaw === "image" || mediaTypeRaw === "video" || mediaTypeRaw === "audio"
                 ? mediaTypeRaw
                 : "none",
+            replyToId: row.reply_to_id ? String(row.reply_to_id) : null,
+            replyPreview: row.reply_preview ? String(row.reply_preview) : null,
+            replySenderName: row.reply_sender_name ? String(row.reply_sender_name) : null,
             readByRecipient: Boolean(row.read_by_recipient),
             createdAt: String(row.created_at ?? ""),
             mine: String(row.sender_account_id) === me,
@@ -252,7 +343,8 @@ function ChatThread() {
         media = await uploadChatMedia(file);
       }
       clearPending();
-      const message = await sendChatMessage(conversationId, text, media);
+      const message = await sendChatMessage(conversationId, text, media, replyTo);
+      setReplyTo(null);
       mergeMessages([message]);
       setConversation((prev) =>
         prev
@@ -331,12 +423,12 @@ function ChatThread() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-4">
+          <div className="scrollbar-none min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-4">
             {messages.length === 0 ? (
               <div className="mx-auto mt-10 max-w-[16rem] text-center">
                 <p className="text-sm font-semibold text-foreground">You're connected</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Send text, photos, video, or voice notes. Phone numbers stay private.
+                  Send text, photos, video, or voice notes. Swipe a message to reply.
                 </p>
               </div>
             ) : null}
@@ -354,34 +446,71 @@ function ChatThread() {
                       </span>
                     </div>
                   ) : null}
-                  <div className={cn("mb-2 flex", message.mine ? "justify-end" : "justify-start")}>
-                    <div
-                      className={cn(
-                        "max-w-[82%] rounded-[1.15rem] px-3.5 py-2.5 text-base leading-relaxed shadow-sm",
-                        message.mine
-                          ? "rounded-br-md bg-primary text-primary-foreground"
-                          : "rounded-bl-md border border-border/60 bg-card text-foreground",
-                      )}
-                    >
-                      <MessageBody message={message} />
-                      <p
+                  <SwipeToReply
+                    mine={message.mine}
+                    onReply={() => {
+                      setReplyTo(message);
+                      composerRef.current?.focus();
+                    }}
+                  >
+                    <div className={cn("mb-2 flex", message.mine ? "justify-end" : "justify-start")}>
+                      <div
                         className={cn(
-                          "mt-1 text-right text-[10px] font-medium",
-                          message.mine ? "text-primary-foreground/70" : "text-muted-foreground",
+                          "max-w-[82%] rounded-[1.15rem] px-3.5 py-2.5 text-base leading-relaxed shadow-sm",
+                          message.mine
+                            ? "rounded-br-md bg-primary text-primary-foreground"
+                            : "rounded-bl-md border border-border/60 bg-card text-foreground",
                         )}
                       >
-                        {new Date(message.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+                        <MessageBody message={message} />
+                        <p
+                          className={cn(
+                            "mt-1 text-right text-[10px] font-medium",
+                            message.mine ? "text-primary-foreground/70" : "text-muted-foreground",
+                          )}
+                        >
+                          {new Date(message.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  </SwipeToReply>
                 </div>
               );
             })}
             <div ref={bottomRef} />
           </div>
+
+          {replyTo ? (
+            <div className="mb-2 flex items-start gap-2 rounded-2xl border border-border bg-card px-3 py-2">
+              <Reply className="mt-0.5 size-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-primary">
+                  Replying to {replyTo.mine ? "yourself" : conversation?.peerName || "message"}
+                </p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                  {replyTo.body ||
+                    (replyTo.mediaType === "image"
+                      ? "Photo"
+                      : replyTo.mediaType === "video"
+                        ? "Video"
+                        : replyTo.mediaType === "audio"
+                          ? "Voice message"
+                          : "Message")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyTo(null)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+                aria-label="Cancel reply"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          ) : null}
 
           {pendingPreview && pendingKind ? (
             <div className="mb-2 flex items-center gap-3 rounded-2xl border border-border bg-card p-2">
