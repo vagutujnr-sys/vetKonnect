@@ -33,40 +33,151 @@ function mapConversationRow(
   };
 }
 
-/** Resolve a directory surgery / vet phone to a verified (or any) vet app account. */
+function phonesMatch(a?: string | null, b?: string | null): boolean {
+  const left = normalizePhone(a);
+  const right = normalizePhone(b);
+  if (left.length < 7 || right.length < 7) return false;
+  return left.endsWith(right) || right.endsWith(left) || left.endsWith(right.slice(-9)) || right.endsWith(left.slice(-9));
+}
+
+function normalizeName(value?: string | null): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function namesLooselyMatch(a?: string | null, b?: string | null): boolean {
+  const left = normalizeName(a);
+  const right = normalizeName(b);
+  if (!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+type VetAccountRow = {
+  id: string;
+  full_name?: string | null;
+  practice_name?: string | null;
+  phone?: string | null;
+  country_code?: string | null;
+  surgery_id?: string | null;
+  vet_verified?: boolean | null;
+};
+
+function pickBestVetAccount(rows: VetAccountRow[]): VetAccountRow | null {
+  if (!rows.length) return null;
+  return [...rows].sort((a, b) => Number(Boolean(b.vet_verified)) - Number(Boolean(a.vet_verified)))[0] ?? null;
+}
+
+function toResolved(row: VetAccountRow): { accountId: string; fullName: string } {
+  return {
+    accountId: String(row.id),
+    fullName: String(row.full_name || row.practice_name || "Veterinarian"),
+  };
+}
+
+/** Resolve a Map Vets / directory clinic to a VetKonnect vet account. */
 export async function resolveVetAccountId(input: {
   surgeryId?: string | null;
   phone?: string | null;
+  /** Clinic / surgery display names from Map Vets (helps when surgery_id was never saved). */
+  name?: string | null;
+  surgery?: string | null;
 }): Promise<{ accountId: string; fullName: string } | null> {
+  const nameHints = [input.name, input.surgery].map(normalizeName).filter(Boolean);
+  const phoneHints = [input.phone].filter(Boolean) as string[];
+  const directoryIds = new Set<string>();
+  if (input.surgeryId) directoryIds.add(String(input.surgeryId));
+
   if (input.surgeryId) {
+    // Direct FK link (preferred).
     const { data, error } = await supabase
       .from("accounts")
-      .select("id, full_name, account_type, vet_verified")
+      .select("id, full_name, practice_name, phone, country_code, surgery_id, vet_verified, account_type")
       .eq("surgery_id", input.surgeryId)
       .eq("account_type", "vet")
       .order("vet_verified", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!error && data) {
-      return { accountId: String(data.id), fullName: String(data.full_name ?? "Veterinarian") };
+    if (!error && data) return toResolved(data as VetAccountRow);
+
+    // Map pin may be a services.id — resolve the clinic name, then find matching vets row(s).
+    const [{ data: vetRow }, { data: serviceRow }] = await Promise.all([
+      supabase.from("vets").select("id, name, surgery, phone").eq("id", input.surgeryId).maybeSingle(),
+      supabase.from("services").select("id, name, phone").eq("id", input.surgeryId).maybeSingle(),
+    ]);
+
+    if (vetRow) {
+      directoryIds.add(String(vetRow.id));
+      if (vetRow.phone) phoneHints.push(String(vetRow.phone));
+      for (const hint of [vetRow.surgery, vetRow.name]) {
+        const n = normalizeName(hint);
+        if (n) nameHints.push(n);
+      }
+    }
+
+    if (serviceRow) {
+      if (serviceRow.phone) phoneHints.push(String(serviceRow.phone));
+      const serviceName = normalizeName(serviceRow.name);
+      if (serviceName) nameHints.push(serviceName);
+
+      const { data: matchingVets } = await supabase.from("vets").select("id, name, surgery, phone");
+      for (const row of matchingVets ?? []) {
+        if (
+          namesLooselyMatch(String(row.name ?? ""), String(serviceRow.name ?? "")) ||
+          namesLooselyMatch(String(row.surgery ?? ""), String(serviceRow.name ?? ""))
+        ) {
+          directoryIds.add(String(row.id));
+          if (row.phone) phoneHints.push(String(row.phone));
+          for (const hint of [row.surgery, row.name]) {
+            const n = normalizeName(hint);
+            if (n) nameHints.push(n);
+          }
+        }
+      }
     }
   }
 
-  const digits = normalizePhone(input.phone);
-  if (digits.length >= 7) {
-    const { data, error } = await supabase
-      .from("accounts")
-      .select("id, full_name, phone, country_code, account_type")
-      .eq("account_type", "vet");
-    if (error) throw error;
-    const match = (data ?? []).find((row) => {
-      const combined = normalizePhone(`${row.country_code ?? ""}${row.phone ?? ""}`);
-      const phoneOnly = normalizePhone(String(row.phone ?? ""));
-      return combined.endsWith(digits) || digits.endsWith(phoneOnly) || phoneOnly.endsWith(digits.slice(-9));
-    });
-    if (match) {
-      return { accountId: String(match.id), fullName: String(match.full_name ?? "Veterinarian") };
-    }
+  const { data: vetAccounts, error: vetAccountsError } = await supabase
+    .from("accounts")
+    .select("id, full_name, practice_name, phone, country_code, surgery_id, vet_verified, account_type")
+    .eq("account_type", "vet");
+  if (vetAccountsError) throw vetAccountsError;
+
+  const accounts = (vetAccounts ?? []) as VetAccountRow[];
+
+  // Linked via surgery_id to any directory id we discovered (including remapped services → vets).
+  const bySurgeryId = pickBestVetAccount(
+    accounts.filter((row) => row.surgery_id && directoryIds.has(String(row.surgery_id))),
+  );
+  if (bySurgeryId) return toResolved(bySurgeryId);
+
+  // Many vets are “associated” only by practice_name (Profile shows linked without surgery_id).
+  const uniqueHints = [...new Set(nameHints)];
+  if (uniqueHints.length) {
+    const byPracticeName = pickBestVetAccount(
+      accounts.filter((row) => uniqueHints.some((hint) => namesLooselyMatch(row.practice_name, hint) || namesLooselyMatch(row.full_name, hint))),
+    );
+    if (byPracticeName) return toResolved(byPracticeName);
+  }
+
+  // Phone match against directory / map phone and account phone (with country code).
+  const uniquePhones = [...new Set(phoneHints.map((p) => normalizePhone(p)).filter((p) => p.length >= 7))];
+  if (uniquePhones.length) {
+    const byPhone = pickBestVetAccount(
+      accounts.filter((row) => {
+        const combined = normalizePhone(`${row.country_code ?? ""}${row.phone ?? ""}`);
+        const phoneOnly = normalizePhone(row.phone);
+        return uniquePhones.some(
+          (digits) =>
+            phonesMatch(combined, digits) ||
+            phonesMatch(phoneOnly, digits) ||
+            combined.endsWith(digits) ||
+            digits.endsWith(phoneOnly),
+        );
+      }),
+    );
+    if (byPhone) return toResolved(byPhone);
   }
 
   return null;

@@ -47,7 +47,12 @@ function Discover() {
   const startChatWithVet = async (vet: MappableVet) => {
     setMessagingId(vet.id);
     try {
-      const resolved = await resolveVetAccountId({ surgeryId: vet.id, phone: vet.phone });
+      const resolved = await resolveVetAccountId({
+        surgeryId: vet.id,
+        phone: vet.phone,
+        name: vet.name,
+        surgery: vet.surgery,
+      });
       if (!resolved) {
         toast.message("Chat unavailable for this clinic yet", {
           description: "This surgery is not linked to a VetKonnect vet account yet.",
@@ -69,7 +74,12 @@ function Discover() {
   const startCallWithVet = async (vet: MappableVet) => {
     setCallingId(vet.id);
     try {
-      const resolved = await resolveVetAccountId({ surgeryId: vet.id, phone: vet.phone });
+      const resolved = await resolveVetAccountId({
+        surgeryId: vet.id,
+        phone: vet.phone,
+        name: vet.name,
+        surgery: vet.surgery,
+      });
       if (!resolved) {
         toast.message("In-app call unavailable for this clinic yet", {
           description: "This surgery is not linked to a VetKonnect vet account.",

@@ -325,6 +325,18 @@ export async function getServices(): Promise<ServiceListing[]> {
   }
 }
 
+function clinicKey(...parts: Array<string | null | undefined>): string {
+  return parts
+    .map((part) =>
+      String(part ?? "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .join("|");
+}
+
 export async function getNearbyVets(origin: GeoPoint, limit = 5): Promise<MappableVet[]> {
   if (!isSupabaseConfigured) return [];
 
@@ -333,6 +345,25 @@ export async function getNearbyVets(origin: GeoPoint, limit = 5): Promise<Mappab
       withTimeout(supabase.from("services").select("*"), 5000, "Vet services"),
       withTimeout(supabase.from("vets").select("*"), 5000, "Vets"),
     ]);
+
+    const directoryVets = ((vetsResult.data ?? []) as Record<string, unknown>[]).filter(
+      (row) => String(row.status ?? "Active") === "Active",
+    );
+
+    const findMatchingDirectoryVet = (serviceName: string) => {
+      const needle = clinicKey(serviceName);
+      if (!needle) return null;
+      return (
+        directoryVets.find((row) => clinicKey(String(row.surgery ?? "")) === needle) ||
+        directoryVets.find((row) => clinicKey(String(row.name ?? "")) === needle) ||
+        directoryVets.find((row) => {
+          const surgery = clinicKey(String(row.surgery ?? ""));
+          const name = clinicKey(String(row.name ?? ""));
+          return surgery.includes(needle) || needle.includes(surgery) || name.includes(needle) || needle.includes(name);
+        }) ||
+        null
+      );
+    };
 
     const mapped = new Map<string, MappableVet>();
 
@@ -344,13 +375,17 @@ export async function getNearbyVets(origin: GeoPoint, limit = 5): Promise<Mappab
       if (!latitude || !longitude) continue;
       const point = { latitude, longitude };
       const name = String(row.name ?? "Veterinary clinic");
-      mapped.set(name.toLowerCase(), {
-        id: String(row.id),
-        name,
-        surgery: name,
-        address: String(row.address ?? ""),
-        phone: "",
-        rating: Number(row.rating ?? 0),
+      const matchedVet = findMatchingDirectoryVet(name);
+      // Prefer public.vets.id so Call/Chat can resolve accounts.surgery_id.
+      const id = matchedVet ? String(matchedVet.id) : String(row.id);
+      const key = clinicKey(String(matchedVet?.surgery || matchedVet?.name || name)) || name.toLowerCase();
+      mapped.set(key, {
+        id,
+        name: String(matchedVet?.name || name),
+        surgery: String(matchedVet?.surgery || name),
+        address: String(matchedVet?.address || matchedVet?.location || row.address || ""),
+        phone: String(matchedVet?.phone || row.phone || ""),
+        rating: Number(matchedVet?.rating ?? row.rating ?? 0),
         latitude,
         longitude,
         distanceKm: Number(haversineKm(origin, point).toFixed(1)),
@@ -358,22 +393,22 @@ export async function getNearbyVets(origin: GeoPoint, limit = 5): Promise<Mappab
       });
     }
 
-    for (const row of (vetsResult.data ?? []) as Record<string, unknown>[]) {
-      if (String(row.status ?? "Active") !== "Active") continue;
+    for (const row of directoryVets) {
       const fallback = coordsFromPlace(String(row.location ?? ""));
       const latitude = row.latitude != null && Number(row.latitude) !== 0 ? Number(row.latitude) : fallback?.latitude;
       const longitude = row.longitude != null && Number(row.longitude) !== 0 ? Number(row.longitude) : fallback?.longitude;
       if (latitude == null || longitude == null) continue;
       const name = String(row.name ?? "Veterinarian");
-      const key = name.toLowerCase();
+      const surgery = String(row.surgery || name);
+      const key = clinicKey(surgery) || clinicKey(name) || name.toLowerCase();
       const point = { latitude, longitude };
       const existing = mapped.get(key);
       mapped.set(key, {
         id: String(row.id),
         name,
-        surgery: String(row.surgery || existing?.surgery || name),
+        surgery,
         address: String(row.address || row.location || existing?.address || ""),
-        phone: String(row.phone ?? ""),
+        phone: String(row.phone || existing?.phone || ""),
         rating: Number(row.rating ?? existing?.rating ?? 0),
         latitude,
         longitude,
