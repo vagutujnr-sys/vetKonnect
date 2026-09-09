@@ -1,37 +1,30 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, ChevronDown, Lock, Phone, ShieldCheck, Stethoscope } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Check, ChevronsUpDown, Lock, Phone, ShieldCheck, Stethoscope } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/hooks/useApp";
 import { getAppHomePath } from "@/lib/account";
+import {
+  COUNTRY_DIAL_CODES,
+  DEFAULT_COUNTRY_ISO,
+  countryFlagEmoji,
+  findCountryByIso,
+} from "@/lib/countryDialCodes";
+import { cn } from "@/lib/utils";
 import { getUser, hasActiveSession, requestAccessCode } from "@/services/userService";
-
-function FlagZimbabwe({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 100 60"
-      className={className}
-      role="img"
-      aria-label="Zimbabwe flag"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect width="100" height="60" fill="#009739" />
-      <rect y="10" width="100" height="10" fill="#f4c430" />
-      <rect y="20" width="100" height="10" fill="#ef3340" />
-      <rect y="30" width="100" height="10" fill="#000" />
-      <rect y="40" width="100" height="10" fill="#ef3340" />
-      <rect y="50" width="100" height="10" fill="#f4c430" />
-      <polygon points="0,0 40,30 0,60" fill="#fff" />
-      <polygon points="0,0 30,30 0,60" fill="#000" />
-      <polygon points="18,30 10,22 12,28 6,24 14,24 8,28 10,34" fill="#ef3340" />
-      <polygon points="9,27 12,30 9,33 11,30" fill="#f4c430" />
-    </svg>
-  );
-}
 
 export const Route = createFileRoute("/register")({
   beforeLoad: async () => {
@@ -56,19 +49,26 @@ function Register() {
   const navigate = useNavigate();
   const { refreshSession } = useApp();
   const [phone, setPhone] = useState("");
+  const [countryIso, setCountryIso] = useState(DEFAULT_COUNTRY_ISO);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [registerAsVet, setRegisterAsVet] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const selectedCountry = useMemo(
+    () => findCountryByIso(countryIso) ?? findCountryByIso(DEFAULT_COUNTRY_ISO)!,
+    [countryIso],
+  );
 
   const submit = async () => {
     setLoading(true);
     try {
-      const result = await requestAccessCode(phone, "+263", {
+      const result = await requestAccessCode(phone, selectedCountry.dial, {
         accountType: registerAsVet ? "vet" : "owner",
       });
 
       if (result.skipVerify && result.user) {
         await refreshSession();
-        toast.success("Welcome back", {
+        toast.success("Signed in", {
           description: "Signed in on this trusted device.",
         });
         void navigate({ to: getAppHomePath(result.user) });
@@ -102,25 +102,67 @@ function Register() {
 
   return (
     <MobileScreen className="bg-white px-6">
-      <div className="flex justify-center pt-12">
-        <Logo size="md" stacked />
+      <div className="flex justify-center pt-14">
+        <Logo size="lg" stacked />
       </div>
 
-      <h1 className="mt-10 text-center text-3xl font-extrabold text-primary">Welcome back</h1>
-      <p className="mt-2 text-center text-[15px] text-muted-foreground">
+      <p className="mt-8 text-center text-[15px] text-muted-foreground">
         Enter your mobile number to create an account or sign in. Your account will be bound to this device.
       </p>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card/80 backdrop-blur">
-        <div className="flex items-center gap-3 border-b border-border px-4 py-4">
-          <span className="flex h-6 w-9 items-center justify-center overflow-hidden rounded-[4px] border border-border bg-white">
-            <FlagZimbabwe className="h-full w-full" />
-          </span>
-          <span className="flex-1 font-medium">Zimbabwe (+263)</span>
-          <ChevronDown className="size-5 text-primary" />
-        </div>
+        <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 border-b border-border px-4 py-4 text-left outline-none"
+              aria-label="Select country code"
+            >
+              <span className="text-2xl leading-none" aria-hidden>
+                {countryFlagEmoji(selectedCountry.iso)}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-medium">
+                {selectedCountry.name} ({selectedCountry.dial})
+              </span>
+              <ChevronsUpDown className="size-5 shrink-0 text-primary" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[min(100vw-3rem,22rem)] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search country or code…" />
+              <CommandList className="max-h-64">
+                <CommandEmpty>No country found.</CommandEmpty>
+                <CommandGroup>
+                  {COUNTRY_DIAL_CODES.map((country) => (
+                    <CommandItem
+                      key={country.iso}
+                      value={`${country.name} ${country.dial} ${country.iso}`}
+                      onSelect={() => {
+                        setCountryIso(country.iso);
+                        setCountryOpen(false);
+                      }}
+                    >
+                      <span className="mr-2 text-lg leading-none" aria-hidden>
+                        {countryFlagEmoji(country.iso)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{country.name}</span>
+                      <span className="ml-2 shrink-0 text-muted-foreground">{country.dial}</span>
+                      <Check
+                        className={cn(
+                          "ml-2 size-4 shrink-0",
+                          countryIso === country.iso ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
         <div className="flex items-center gap-3 px-4 py-4">
           <Phone className="size-5 text-primary" />
+          <span className="shrink-0 text-sm font-semibold text-muted-foreground">{selectedCountry.dial}</span>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
