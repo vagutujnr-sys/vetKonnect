@@ -204,7 +204,7 @@ export function exportCouncilReportPdf(report: CouncilSystemReport): void {
   doc.setTextColor(80);
   doc.text(`Period: ${report.period.from} → ${report.period.to}`, 14, 26);
   doc.text(`Generated: ${new Date(report.generatedAt).toLocaleString()}`, 14, 32);
-  doc.text("In association with VetKonnect · Proposed fee schedule", 14, 38);
+  doc.text("In association with VetKonnect · Official Harare dog licence fees", 14, 38);
   doc.setTextColor(0);
 
   autoTable(doc, {
@@ -218,9 +218,7 @@ export function exportCouncilReportPdf(report: CouncilSystemReport): void {
       ["Licences issued in period", String(report.summary.licencesIssuedInPeriod)],
       ["Cases in period", String(report.summary.casesInPeriod)],
       ["Est. licence revenue (period)", money(report.summary.estimatedLicenceRevenueInPeriod)],
-      ["Est. impound fees (period)", money(report.summary.estimatedImpoundRevenueInPeriod)],
-      ["Est. incident fees (period)", money(report.summary.estimatedIncidentFeesInPeriod)],
-      ["Est. total revenue (period)", money(report.summary.estimatedTotalRevenueInPeriod)],
+      ["Unlicensed penalty exposure", money(report.summary.estimatedUnlicensedPenaltyExposure)],
       ["Active licence annual run-rate", money(report.revenue.activeLicenceRevenueAnnual)],
       ["Full-compliance dog annual", money(report.revenue.fullComplianceDogRevenueAnnual)],
       ["Capture rate", `${report.revenue.captureRatePct}%`],
