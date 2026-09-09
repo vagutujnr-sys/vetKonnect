@@ -339,14 +339,24 @@ export async function requestAccessCode(
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   if (existing) {
+    const existingPatch: Record<string, unknown> = {
+      otp_code: otp,
+      otp_expires_at: expiresAt,
+      country_code: countryCode,
+      updated_at: new Date().toISOString(),
+    };
+    // Allow an owner phone to re-register as a pending vet.
+    if (registerAsVet) {
+      existingPatch.account_type = "vet";
+      existingPatch.vet_verified = false;
+      if (!Array.isArray(existing.modules) || (existing.modules as unknown[]).length === 0) {
+        existingPatch.modules = ["community", "tips"];
+      }
+    }
+
     const { data, error } = await supabase
       .from("accounts")
-      .update({
-        otp_code: otp,
-        otp_expires_at: expiresAt,
-        country_code: countryCode,
-        updated_at: new Date().toISOString(),
-      })
+      .update(existingPatch)
       .eq("id", existing.id)
       .select("*")
       .single();

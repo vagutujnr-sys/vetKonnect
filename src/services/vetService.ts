@@ -205,39 +205,36 @@ export async function requestPracticeDashboard(): Promise<void> {
   const practiceName = user.practiceName?.trim() || `${user.fullName?.trim() || "Vet"}'s Practice`;
   const requestedAt = new Date().toISOString();
 
-  const { error } = await supabase
+  // Always persist practice_name (works without migration 010).
+  const { error: practiceError } = await supabase
     .from("accounts")
     .update({
       practice_name: practiceName,
-      dashboard_requested_at: requestedAt,
       updated_at: requestedAt,
     })
     .eq("id", user.id);
+  if (practiceError) throw practiceError;
 
-  if (error) {
-    // Column may not be migrated yet — still store practice name.
-    const { error: fallbackError } = await supabase
-      .from("accounts")
-      .update({ practice_name: practiceName, updated_at: requestedAt })
-      .eq("id", user.id);
-    if (fallbackError) throw fallbackError;
+  // Best-effort timestamp column when migration 010 is applied.
+  const { error: stampError } = await supabase
+    .from("accounts")
+    .update({ dashboard_requested_at: requestedAt })
+    .eq("id", user.id);
+  if (stampError) {
+    console.warn("dashboard_requested_at unavailable; using notifications + practice_name", stampError.message);
   }
 
   await updateUser({ practiceName });
 
+  // Self confirmation + durable admin-visible request signal (works without is_admin accounts).
   await createNotification({
     accountId: user.id,
     title: "Practice dashboard requested",
-    body: "Your request was sent to VetKonnect admin. We'll unlock Patients and Impact after approval.",
-    type: "system",
+    body: `${practiceName} requested practice access. Approve in Admin → Overview or App Accounts → Pending elevate.`,
+    type: "dashboard_request",
   });
 
-  const { data: admins, error: adminError } = await supabase.from("accounts").select("id").eq("is_admin", true);
-  if (adminError) {
-    console.error("Could not load admins for dashboard request", adminError);
-    return;
-  }
-
+  const { data: admins } = await supabase.from("accounts").select("id").eq("is_admin", true);
   const name = user.fullName?.trim() || "A vet";
   const phone = user.phone || "unknown phone";
   await Promise.all(
@@ -248,7 +245,7 @@ export async function requestPracticeDashboard(): Promise<void> {
         notifyAccount({
           accountId: adminId,
           title: "Practice dashboard request",
-          body: `${name} (${phone}) requested practice access. Open Admin → App Accounts → Pending elevate to approve.`,
+          body: `${name} (${phone}) requested practice access. Open Admin → Pending elevate to approve.`,
           type: "admin",
         }),
       ),

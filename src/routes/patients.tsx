@@ -32,6 +32,7 @@ function PatientsScreen() {
   const [searching, setSearching] = useState(false);
   const [recent, setRecent] = useState<Pet[]>([]);
   const verified = Boolean(user.vetVerified);
+  const hasRequestedDashboard = Boolean(user.dashboardRequestedAt) || Boolean(user.practiceName?.trim());
   const firstName = user.fullName?.split(" ")[0] || "Doctor";
 
   useEffect(() => {
@@ -127,7 +128,7 @@ function PatientsScreen() {
             <div className="min-w-0 flex-1">
               <p className="font-bold">Practice Dashboard</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {user.dashboardRequestedAt
+                {hasRequestedDashboard
                   ? "Your request is with VetKonnect admin. Patients and Impact unlock after they approve."
                   : "Request access so admin can verify your practice and unlock Patients and Impact."}
               </p>
@@ -135,12 +136,12 @@ function PatientsScreen() {
                 variant="hero"
                 size="sm"
                 className="mt-3"
-                disabled={requesting || Boolean(user.dashboardRequestedAt)}
+                disabled={requesting || hasRequestedDashboard}
                 onClick={() => void requestDashboard()}
               >
                 {requesting
                   ? "Sending…"
-                  : user.dashboardRequestedAt
+                  : hasRequestedDashboard
                     ? "Request sent"
                     : "Request Practice Dashboard"}
               </Button>

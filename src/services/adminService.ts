@@ -90,9 +90,10 @@ function mapNotificationRow(row: Record<string, unknown>): AppNotification {
 
 /** App accounts (device-bound login users). */
 export async function getAdminUsers(): Promise<AdminUser[]> {
-  const [{ data: accounts, error }, { data: pets }] = await Promise.all([
+  const [{ data: accounts, error }, { data: pets }, requestNotes] = await Promise.all([
     supabase.from("accounts").select("*").order("created_at", { ascending: false }),
     supabase.from("pets").select("id,owner_id"),
+    listDashboardRequestNotes(),
   ]);
   if (error) throw error;
 
@@ -103,13 +104,60 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
     petCounts.set(ownerId, (petCounts.get(ownerId) ?? 0) + 1);
   }
 
+  const latestRequestAt = new Map<string, string>();
+  for (const note of requestNotes) {
+    if (!latestRequestAt.has(note.accountId)) {
+      latestRequestAt.set(note.accountId, note.createdAt);
+    }
+  }
+
   return (accounts ?? []).map((row) => {
     const mapped = mapAccountRow(row as Record<string, unknown>, petCounts.get(String(row.id)) ?? 0);
     mapped.petIds = (pets ?? [])
       .filter((pet) => String(pet.owner_id ?? "") === mapped.id)
       .map((pet) => String(pet.id));
+
+    // Fallback when dashboard_requested_at column is not migrated yet.
+    if (!mapped.dashboardRequestedAt) {
+      const fromNote = latestRequestAt.get(mapped.id);
+      if (fromNote) {
+        mapped.dashboardRequestedAt = fromNote;
+      } else if (
+        mapped.accountType === "vet" &&
+        !mapped.vetVerified &&
+        mapped.practiceName?.trim()
+      ) {
+        // Practice name is set when a vet requests dashboard access.
+        mapped.dashboardRequestedAt = row.updated_at ? String(row.updated_at) : new Date().toISOString();
+      }
+    }
+
     return mapped;
   });
+}
+
+async function listDashboardRequestNotes(): Promise<Array<{ accountId: string; createdAt: string }>> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("account_id,created_at,title,type")
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  if (error) {
+    console.warn("Could not load dashboard request notifications", error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((row) => {
+      const type = String(row.type ?? "").toLowerCase();
+      const title = String(row.title ?? "").toLowerCase();
+      return type === "dashboard_request" || title.includes("practice dashboard requested");
+    })
+    .map((row) => ({
+      accountId: String(row.account_id),
+      createdAt: String(row.created_at ?? new Date().toISOString()),
+    }));
 }
 
 export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Promise<AdminUser | undefined> {

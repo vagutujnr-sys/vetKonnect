@@ -110,6 +110,7 @@ function AdminDashboard() {
   const [deletingRow, setDeletingRow] = useState<EditableRow | null>(null);
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const pageSize = 5;
 
   useEffect(() => {
@@ -122,56 +123,64 @@ function AdminDashboard() {
     }
   }, [navigate, ready, user.isAdmin]);
 
-  useEffect(() => {
-    if (!ready) {
-      return;
-    }
+  const loadAdminData = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setIsRefreshing(true);
+    try {
+      const results = await Promise.allSettled([
+        getAdminUsers(),
+        getAdminVets(),
+        getAllPets(),
+        getServices(),
+        listHerdTags(),
+        getAdminPosts(),
+        getAdminNotifications(),
+      ]);
 
-    let cancelled = false;
+      const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult] = results;
+      const failures = results.filter((result) => result.status === "rejected");
 
-    async function loadData() {
-      try {
-        const results = await Promise.allSettled([
-          getAdminUsers(),
-          getAdminVets(),
-          getAllPets(),
-          getServices(),
-          listHerdTags(),
-          getAdminPosts(),
-          getAdminNotifications(),
-        ]);
+      if (usersResult.status === "fulfilled") setUsers(usersResult.value);
+      if (vetsResult.status === "fulfilled") setVets(vetsResult.value);
+      if (petsResult.status === "fulfilled") setPets(petsResult.value);
+      if (servicesResult.status === "fulfilled") setServices(servicesResult.value);
+      if (herdResult.status === "fulfilled") setHerdTags(herdResult.value);
+      if (postsResult.status === "fulfilled") setPosts(postsResult.value);
+      if (notificationsResult.status === "fulfilled") setNotifications(notificationsResult.value);
 
-        if (cancelled) return;
-
-        const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult] = results;
-        const failures = results.filter((result) => result.status === "rejected");
-
-        if (usersResult.status === "fulfilled") setUsers(usersResult.value);
-        if (vetsResult.status === "fulfilled") setVets(vetsResult.value);
-        if (petsResult.status === "fulfilled") setPets(petsResult.value);
-        if (servicesResult.status === "fulfilled") setServices(servicesResult.value);
-        if (herdResult.status === "fulfilled") setHerdTags(herdResult.value);
-        if (postsResult.status === "fulfilled") setPosts(postsResult.value);
-        if (notificationsResult.status === "fulfilled") setNotifications(notificationsResult.value);
-
-        if (failures.length === results.length) {
-          console.error("Failed to load admin data", failures);
-          toast.error("Failed to load admin data");
-        } else if (failures.length) {
-          console.error("Some admin datasets failed to load", failures);
-          toast.error("Some admin sections could not load");
-        }
-      } catch (error) {
-        console.error(error);
+      if (failures.length === results.length) {
+        console.error("Failed to load admin data", failures);
         toast.error("Failed to load admin data");
+      } else if (failures.length && !opts?.silent) {
+        console.error("Some admin datasets failed to load", failures);
+        toast.error("Some admin sections could not load");
       }
+    } catch (error) {
+      console.error(error);
+      if (!opts?.silent) toast.error("Failed to load admin data");
+    } finally {
+      setIsRefreshing(false);
     }
+  };
 
-    void loadData();
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    if (!ready) return;
+    void loadAdminData();
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready || !user.isAdmin) return;
+    const onFocus = () => {
+      void loadAdminData({ silent: true });
+    };
+    window.addEventListener("focus", onFocus);
+    const interval = window.setInterval(() => {
+      void loadAdminData({ silent: true });
+    }, 20000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(interval);
+    };
+  }, [ready, user.isAdmin]);
 
   const totalUsers = users.length;
   const totalVets = vets.length;
@@ -209,9 +218,20 @@ function AdminDashboard() {
     });
   }, [accountFilter, search, users]);
 
-  const pendingElevate = useMemo(
-    () => users.filter((item) => item.accountType === "vet" && !item.vetVerified && !item.blocked),
-    [users],
+  const pendingElevate = useMemo(() => {
+    return users
+      .filter((item) => item.accountType === "vet" && !item.vetVerified && !item.blocked)
+      .sort((a, b) => {
+        const aReq = a.dashboardRequestedAt ? Date.parse(a.dashboardRequestedAt) : 0;
+        const bReq = b.dashboardRequestedAt ? Date.parse(b.dashboardRequestedAt) : 0;
+        if (aReq !== bReq) return bReq - aReq;
+        return (b.fullName || "").localeCompare(a.fullName || "");
+      });
+  }, [users]);
+
+  const dashboardRequests = useMemo(
+    () => pendingElevate.filter((item) => Boolean(item.dashboardRequestedAt || item.practiceName?.trim())),
+    [pendingElevate],
   );
 
   const syncAccount = (updated: AdminUser) => {
@@ -651,9 +671,20 @@ function AdminDashboard() {
                       </p>
                     </div>
                   </div>
-                  <Button variant="secondary" size="sm" className="h-10" onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" /> Sign out
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-10"
+                      disabled={isRefreshing}
+                      onClick={() => void loadAdminData()}
+                    >
+                      {isRefreshing ? "Refreshing…" : "Refresh"}
+                    </Button>
+                    <Button variant="secondary" size="sm" className="h-10" onClick={handleSignOut}>
+                      <LogOut className="mr-2 h-4 w-4" /> Sign out
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -663,6 +694,7 @@ function AdminDashboard() {
                 <StatCard icon={Unplug} label="Device Bound" value={boundAccounts} />
                 <StatCard icon={ShieldCheck} label="Active Vets" value={activeVets} />
                 <StatCard icon={ShieldPlus} label="Pending elevate" value={pendingElevate.length} />
+                <StatCard icon={Bell} label="Dashboard requests" value={dashboardRequests.length} />
                 <StatCard icon={PawPrint} label="Total Pets" value={totalPets} />
                 <StatCard icon={MessageSquare} label="Community Posts" value={totalPosts} />
                 <StatCard icon={Globe2} label="Services Listed" value={totalServices} />
@@ -677,7 +709,9 @@ function AdminDashboard() {
                       <p className="text-sm font-semibold text-amber-800">Approvals needed</p>
                       <h2 className="text-xl font-bold text-foreground">Practice dashboard requests</h2>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Pending vet accounts waiting for elevation. Approve to unlock Patients and Impact.
+                        {dashboardRequests.length
+                          ? `${dashboardRequests.length} request${dashboardRequests.length === 1 ? "" : "s"} waiting · ${pendingElevate.length} pending vet${pendingElevate.length === 1 ? "" : "s"} total.`
+                          : "Pending vet accounts waiting for elevation. Approve to unlock Patients and Impact."}
                       </p>
                     </div>
                     <Button
@@ -692,7 +726,7 @@ function AdminDashboard() {
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    {pendingElevate.slice(0, 5).map((account) => (
+                    {pendingElevate.slice(0, 8).map((account) => (
                       <div
                         key={account.id}
                         className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-white p-3"
@@ -703,7 +737,7 @@ function AdminDashboard() {
                             {account.phone}
                             {account.practiceName ? ` · ${account.practiceName}` : ""}
                             {account.dashboardRequestedAt
-                              ? ` · requested ${new Date(account.dashboardRequestedAt).toLocaleDateString()}`
+                              ? ` · requested ${new Date(account.dashboardRequestedAt).toLocaleString()}`
                               : " · pending verification"}
                           </p>
                         </div>
