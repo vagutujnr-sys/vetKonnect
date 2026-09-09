@@ -8,6 +8,7 @@ import {
   ImagePlus,
   LogOut,
   PawPrint,
+  Search,
   Settings,
   ShieldCheck,
   ShieldPlus,
@@ -15,8 +16,9 @@ import {
   Stethoscope,
   Lock,
   Unplug,
+  X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { VetSureCard } from "@/components/vetsure/VetSureCard";
@@ -48,6 +50,8 @@ function Profile() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [surgeries, setSurgeries] = useState<AdminVet[]>([]);
   const [surgeryBusy, setSurgeryBusy] = useState(false);
+  const [surgeryQuery, setSurgeryQuery] = useState("");
+  const [surgerySearchOpen, setSurgerySearchOpen] = useState(false);
 
   const initials = (user.fullName || "VC")
     .split(" ")
@@ -70,6 +74,19 @@ function Profile() {
         item.surgery.trim().toLowerCase() === (user.practiceName ?? "").trim().toLowerCase() ||
         item.name.trim().toLowerCase() === (user.practiceName ?? "").trim().toLowerCase(),
     );
+
+  const filteredSurgeries = useMemo(() => {
+    const query = surgeryQuery.trim().toLowerCase();
+    if (!query) return surgeries.slice(0, 8);
+    return surgeries
+      .filter((item) =>
+        [item.surgery, item.name, item.location, item.address ?? "", item.phone]
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+      )
+      .slice(0, 12);
+  }, [surgeries, surgeryQuery]);
 
   const changePhoto = async (file: File | null) => {
     if (!file) return;
@@ -99,6 +116,8 @@ function Profile() {
       const nextId = surgeryId || null;
       await alignWithSurgery(nextId);
       await refreshSession();
+      setSurgeryQuery("");
+      setSurgerySearchOpen(false);
       toast.success(nextId ? "Aligned with surgery" : "Surgery link cleared", {
         description: nextId
           ? "Your practice profile now matches the selected surgery."
@@ -262,25 +281,79 @@ function Profile() {
               <div className="min-w-0 flex-1">
                 <p className="font-bold">Align with a surgery</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  If you work at a listed surgery, link your account so your practice matches the directory.
+                  Search the directory and link the surgery where you work.
                 </p>
-                <label className="mt-3 grid gap-2 text-sm">
-                  <span className="font-medium text-foreground">Surgery</span>
-                  <select
-                    value={user.surgeryId || linkedSurgery?.id || ""}
+
+                {linkedSurgery || user.surgeryId ? (
+                  <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-border bg-background px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {linkedSurgery?.surgery || linkedSurgery?.name || user.practiceName || "Linked surgery"}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {linkedSurgery?.location || "Linked to directory surgery"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={surgeryBusy}
+                      onClick={() => void handleAlignSurgery("")}
+                      className="shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      aria-label="Clear surgery link"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="relative mt-3">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={surgeryQuery}
                     disabled={surgeryBusy || surgeries.length === 0}
-                    onChange={(event) => void handleAlignSurgery(event.target.value)}
-                    className="w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
-                  >
-                    <option value="">Not linked to a surgery</option>
-                    {surgeries.map((surgery) => (
-                      <option key={surgery.id} value={surgery.id}>
-                        {surgery.surgery || surgery.name}
-                        {surgery.location ? ` · ${surgery.location}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    onChange={(event) => {
+                      setSurgeryQuery(event.target.value);
+                      setSurgerySearchOpen(true);
+                    }}
+                    onFocus={() => setSurgerySearchOpen(true)}
+                    placeholder="Search surgery name or location"
+                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-60"
+                  />
+                </div>
+
+                {surgerySearchOpen && surgeries.length > 0 ? (
+                  <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-border bg-background shadow-[var(--shadow-card)]">
+                    {filteredSurgeries.length === 0 ? (
+                      <p className="px-3 py-4 text-center text-sm text-muted-foreground">No surgeries match that search.</p>
+                    ) : (
+                      filteredSurgeries.map((surgery) => {
+                        const selected = (user.surgeryId || linkedSurgery?.id) === surgery.id;
+                        return (
+                          <button
+                            key={surgery.id}
+                            type="button"
+                            disabled={surgeryBusy}
+                            onClick={() => void handleAlignSurgery(surgery.id)}
+                            className="flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left last:border-b-0 hover:bg-accent/50 disabled:opacity-60"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold">
+                                {surgery.surgery || surgery.name}
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                                {[surgery.location, surgery.address].filter(Boolean).join(" · ") || "Directory surgery"}
+                              </span>
+                            </span>
+                            {selected ? (
+                              <span className="shrink-0 text-xs font-semibold text-primary">Linked</span>
+                            ) : null}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : null}
+
                 {surgeries.length === 0 ? (
                   <p className="mt-2 text-xs text-muted-foreground">No active surgeries in the directory yet.</p>
                 ) : null}
