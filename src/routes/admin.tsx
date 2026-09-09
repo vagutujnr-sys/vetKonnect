@@ -498,21 +498,32 @@ function AdminDashboard() {
     try {
       const wasOwner = account.accountType !== "vet";
       const updated = await elevateAdminVet(account.id);
-      if (updated) {
-        syncAccount(updated);
-        toast.success(
-          wasOwner
-            ? `Promoted ${account.fullName || account.phone} to vet`
-            : `Elevated ${account.fullName || account.phone}`,
-          {
-            description: wasOwner
-              ? "Account is now a verified vet with practice access."
-              : "Verified practice access granted.",
-          },
-        );
+      if (!updated) {
+        toast.error("Could not elevate account", {
+          description: "No account was returned after the update. Refresh and try again.",
+        });
+        return;
       }
+      syncAccount(updated);
+      toast.success(
+        wasOwner
+          ? `Promoted ${account.fullName || account.phone} to vet`
+          : `Elevated ${account.fullName || account.phone}`,
+        {
+          description: wasOwner
+            ? "Account is now a verified vet with practice access."
+            : "Verified practice access granted.",
+        },
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not elevate account");
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error && "message" in error
+            ? String((error as { message: unknown }).message)
+            : "Could not elevate account";
+      console.error("Elevate vet failed", error);
+      toast.error(message || "Could not elevate account");
     }
   };
 

@@ -136,9 +136,32 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
     payload.device_bound_at = null;
   }
 
-  const { data, error } = await supabase.from("accounts").update(payload).eq("id", id).select("*").single();
-  if (error) throw error;
-  return mapAccountRow(data as Record<string, unknown>, patch.pets ?? 0);
+  const result = await updateAccountWithFallback(id, payload);
+  return mapAccountRow(result as Record<string, unknown>, patch.pets ?? 0);
+}
+
+/** Update accounts, retrying without optional columns missing from older databases. */
+async function updateAccountWithFallback(id: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const optionalColumns = ["dashboard_requested_at", "blocked", "latitude", "longitude", "avatar_url"] as const;
+  let nextPayload = { ...payload };
+  let lastError: { message?: string; code?: string; details?: string; hint?: string } | null = null;
+
+  for (let attempt = 0; attempt < optionalColumns.length + 1; attempt += 1) {
+    const { data, error } = await supabase.from("accounts").update(nextPayload).eq("id", id).select("*").single();
+    if (!error && data) return data as Record<string, unknown>;
+    lastError = error;
+
+    const message = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+    const missingColumn = optionalColumns.find(
+      (column) => nextPayload[column] !== undefined && message.includes(column),
+    );
+    if (!missingColumn) break;
+
+    const { [missingColumn]: _removed, ...rest } = nextPayload;
+    nextPayload = rest;
+  }
+
+  throw new Error(lastError?.message || "Could not update account.");
 }
 
 export async function unbindAdminAccount(id: string): Promise<AdminUser | undefined> {
@@ -162,32 +185,51 @@ export async function setAdminVetVerified(id: string, verified: boolean): Promis
 
 /** Elevate / promote an account to a verified vet (works for owners and pending vets). */
 export async function elevateAdminVet(id: string, options?: { practiceName?: string }): Promise<AdminUser | undefined> {
+  if (!id?.trim()) throw new Error("Missing account id.");
+
   const current = await getAdminUserById(id);
+  if (!current) throw new Error("Account not found. Refresh the admin list and try again.");
+
   const practiceName =
     options?.practiceName?.trim() ||
-    current?.practiceName?.trim() ||
-    `${current?.fullName?.trim() || "Vet"}'s Practice`;
+    current.practiceName?.trim() ||
+    `${current.fullName?.trim() || "Vet"}'s Practice`;
 
-  const updated = await updateAdminUser(id, {
-    accountType: "vet",
-    vetVerified: true,
-    blocked: false,
+  // Core elevation fields only — avoid optional columns that may not exist yet in production.
+  const corePayload: Record<string, unknown> = {
+    account_type: "vet",
+    vet_verified: true,
     onboarded: true,
-    practiceName,
-    dashboardRequestedAt: null,
-    modules: current?.modules?.length ? current.modules : ["community", "tips"],
-  });
+    practice_name: practiceName,
+    modules: current.modules?.length ? current.modules : ["community", "tips"],
+    updated_at: new Date().toISOString(),
+  };
 
-  if (updated) {
-    const notified = await notifyAccount({
-      accountId: id,
-      title: "Vet account elevated",
-      body: "Your practice access is unlocked. Open Patients to manage care and Impact to reach nearby owners.",
-      type: "security",
+  // Include blocked when supported; stripped automatically if the column is missing.
+  corePayload.blocked = false;
+
+  const row = await updateAccountWithFallback(id, corePayload);
+  const updated = mapAccountRow(row, current.pets);
+
+  // Best-effort clear of pending dashboard request (migration 010).
+  void supabase
+    .from("accounts")
+    .update({ dashboard_requested_at: null, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .then(({ error }) => {
+      if (error) {
+        console.warn("Could not clear dashboard_requested_at after elevate", error.message);
+      }
     });
-    if (!notified) {
-      console.error("Elevation saved but notification was not delivered for account", id);
-    }
+
+  const notified = await notifyAccount({
+    accountId: id,
+    title: "Vet account elevated",
+    body: "Your practice access is unlocked. Open Patients to manage care and Impact to reach nearby owners.",
+    type: "security",
+  });
+  if (!notified) {
+    console.error("Elevation saved but notification was not delivered for account", id);
   }
 
   return updated;
