@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Building2, Lock, Mail } from "lucide-react";
+import { ArrowRight, Lock, Mail } from "lucide-react";
 import { useState } from "react";
+import councilLogo from "@/assets/harare-council-logo.jpg";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,15 +40,18 @@ function CouncilLogin() {
   return (
     <div className="min-h-dvh bg-[radial-gradient(ellipse_at_top,_#ecfdf5_0%,_#f8fafc_45%,_#e2e8f0_100%)] px-4 py-10">
       <div className="mx-auto w-full max-w-md">
-        <div className="flex justify-center">
+        <div className="flex items-center justify-center gap-4 sm:gap-5">
           <Logo size="sm" stacked />
+          <span className="h-14 w-px bg-slate-300/80" aria-hidden />
+          <img
+            src={councilLogo}
+            alt="City of Harare"
+            className="h-16 w-auto object-contain opacity-[0.22] sm:h-[4.5rem]"
+          />
         </div>
+
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-teal-50 text-teal-800">
-            <Building2 className="size-6" />
-          </div>
-          <h1 className="mt-4 text-center text-2xl font-bold tracking-tight text-slate-900">Council access</h1>
-          <p className="mt-2 text-center text-sm text-slate-600">
+          <p className="text-center text-sm text-slate-600">
             Field portal on phone (scan, discover, community). Full municipal dashboard on desktop — same login.
           </p>
 
