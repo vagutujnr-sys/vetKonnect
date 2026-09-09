@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import councilLogo from "@/assets/harare-council-logo.jpg";
-import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginCouncilOfficial } from "@/services/councilService";
@@ -40,17 +39,15 @@ function CouncilLogin() {
   return (
     <div className="min-h-dvh bg-[radial-gradient(ellipse_at_top,_#ecfdf5_0%,_#f8fafc_45%,_#e2e8f0_100%)] px-4 py-10">
       <div className="mx-auto w-full max-w-md">
-        <div className="flex items-center justify-center gap-4 sm:gap-5">
-          <Logo size="sm" stacked />
-          <span className="h-14 w-px bg-slate-300/80" aria-hidden />
+        <div className="flex justify-center">
           <img
             src={councilLogo}
             alt="City of Harare"
-            className="h-16 w-auto object-contain opacity-[0.22] sm:h-[4.5rem]"
+            className="h-24 w-auto object-contain opacity-[0.22] sm:h-28"
           />
         </div>
 
-        <div className="mt-8 rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
           <p className="text-center text-sm text-slate-600">
             Field portal on phone (scan, discover, community). Full municipal dashboard on desktop — same login.
           </p>
@@ -99,6 +96,10 @@ function CouncilLogin() {
             {busy ? "Signing in…" : "Enter dashboard"}
             <ArrowRight className="size-5" />
           </Button>
+
+          <p className="mt-5 text-center text-xs tracking-wide text-slate-500">
+            In Association with <span className="font-semibold text-slate-700">VetKonnect</span>
+          </p>
         </div>
         <p className="mt-4 text-center text-xs text-slate-500">
           Officials are registered by VetKonnect admins under Admin → Council.
