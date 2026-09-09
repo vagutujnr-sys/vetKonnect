@@ -188,3 +188,95 @@ export type NewPetInput = Omit<
   Pet,
   "id" | "vetConnectId" | "healthStatus" | "timeline" | "vetSure" | "weightKg" | "nextVaccine" | "medicationToday" | "ownerId"
 >;
+
+export type LicenceStatus = "active" | "expired" | "revoked";
+export type AnimalCaseType = "lost" | "found" | "impound" | "incident";
+export type AnimalCaseStatus = "open" | "resolved" | "closed";
+
+export interface CouncilOfficial {
+  id: string;
+  email: string;
+  fullName: string;
+  title?: string;
+  active: boolean;
+  createdAt: string;
+  lastLoginAt?: string | null;
+}
+
+export interface PetLicence {
+  id: string;
+  petId?: string | null;
+  licenceNumber: string;
+  ownerName?: string;
+  petName?: string;
+  species?: string;
+  issuedAt: string;
+  expiresAt: string;
+  status: LicenceStatus;
+  notes?: string;
+}
+
+export interface AnimalControlCase {
+  id: string;
+  caseType: AnimalCaseType;
+  status: AnimalCaseStatus;
+  title: string;
+  description?: string;
+  species?: string;
+  petId?: string | null;
+  petName?: string;
+  locationLabel?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  reportedAt: string;
+  resolvedAt?: string | null;
+  reportedBy?: string;
+}
+
+export interface CouncilDashboardStats {
+  registeredDogs: number;
+  registeredPets: number;
+  activeLicences: number;
+  expiredLicences: number;
+  licenceCompliancePct: number;
+  dogsWithoutLicence: number;
+  rabiesRecorded: number;
+  rabiesMissing: number;
+  lostOpen: number;
+  foundOpen: number;
+  impoundedOpen: number;
+  incidentsOpen: number;
+}
+
+export interface CouncilMapPoint {
+  id: string;
+  label: string;
+  kind: AnimalCaseType | "registered";
+  latitude: number;
+  longitude: number;
+  detail?: string;
+}
+
+export interface CouncilPetOwner {
+  id: string;
+  fullName: string;
+  phone: string;
+  countryCode: string;
+}
+
+export interface CouncilPetLookup {
+  pet: Pet;
+  owner: CouncilPetOwner | null;
+  licence: PetLicence | null;
+  licenceStatus: "licensed" | "expired" | "revoked" | "unlicensed";
+  /** True when the scanned tag matches a pet in the VetKonnect registry. */
+  registered: true;
+  scannedCode: string;
+}
+
+export interface CouncilPetNotRegistered {
+  registered: false;
+  scannedCode: string;
+}
+
+export type CouncilTagScanResult = CouncilPetLookup | CouncilPetNotRegistered;

@@ -90,7 +90,18 @@ function PendingScreen() {
   );
 }
 
-const publicRoutes = new Set(["/", "/register", "/verify", "/modules", "/admin-login", "/admin", "/welcome"]);
+const publicRoutes = new Set([
+  "/",
+  "/register",
+  "/verify",
+  "/modules",
+  "/admin-login",
+  "/admin",
+  "/welcome",
+  "/council-login",
+  "/council",
+  "/city",
+]);
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   beforeLoad: async ({ location }) => {

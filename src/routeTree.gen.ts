@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AdminLoginRouteImport } from './routes/admin-login'
+import { Route as CityRouteImport } from './routes/city'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as CouncilRouteImport } from './routes/council'
+import { Route as CouncilLoginRouteImport } from './routes/council-login'
 import { Route as DiscoverRouteImport } from './routes/discover'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as ImpactRouteImport } from './routes/impact'
@@ -46,9 +49,24 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin-login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CityRoute = CityRouteImport.update({
+  id: '/city',
+  path: '/city',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CommunityRoute = CommunityRouteImport.update({
   id: '/community',
   path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CouncilRoute = CouncilRouteImport.update({
+  id: '/council',
+  path: '/council',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CouncilLoginRoute = CouncilLoginRouteImport.update({
+  id: '/council-login',
+  path: '/council-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiscoverRoute = DiscoverRouteImport.update({
@@ -141,7 +159,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
+  '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
+  '/council': typeof CouncilRoute
+  '/council-login': typeof CouncilLoginRoute
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
@@ -164,7 +185,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
+  '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
+  '/council': typeof CouncilRoute
+  '/council-login': typeof CouncilLoginRoute
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
@@ -188,7 +212,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
+  '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
+  '/council': typeof CouncilRoute
+  '/council-login': typeof CouncilLoginRoute
   '/discover': typeof DiscoverRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
@@ -213,7 +240,10 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/city'
     | '/community'
+    | '/council'
+    | '/council-login'
     | '/discover'
     | '/home'
     | '/impact'
@@ -236,7 +266,10 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/city'
     | '/community'
+    | '/council'
+    | '/council-login'
     | '/discover'
     | '/home'
     | '/impact'
@@ -259,7 +292,10 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/city'
     | '/community'
+    | '/council'
+    | '/council-login'
     | '/discover'
     | '/home'
     | '/impact'
@@ -283,7 +319,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  CityRoute: typeof CityRoute
   CommunityRoute: typeof CommunityRouteWithChildren
+  CouncilRoute: typeof CouncilRoute
+  CouncilLoginRoute: typeof CouncilLoginRoute
   DiscoverRoute: typeof DiscoverRoute
   HomeRoute: typeof HomeRoute
   ImpactRoute: typeof ImpactRoute
@@ -324,11 +363,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/city': {
+      id: '/city'
+      path: '/city'
+      fullPath: '/city'
+      preLoaderRoute: typeof CityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/community': {
       id: '/community'
       path: '/community'
       fullPath: '/community'
       preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/council': {
+      id: '/council'
+      path: '/council'
+      fullPath: '/council'
+      preLoaderRoute: typeof CouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/council-login': {
+      id: '/council-login'
+      path: '/council-login'
+      fullPath: '/council-login'
+      preLoaderRoute: typeof CouncilLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/discover': {
@@ -481,7 +541,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AdminLoginRoute: AdminLoginRoute,
+  CityRoute: CityRoute,
   CommunityRoute: CommunityRouteWithChildren,
+  CouncilRoute: CouncilRoute,
+  CouncilLoginRoute: CouncilLoginRoute,
   DiscoverRoute: DiscoverRoute,
   HomeRoute: HomeRoute,
   ImpactRoute: ImpactRoute,

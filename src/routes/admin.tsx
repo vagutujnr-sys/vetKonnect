@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { BarChart3, Bell, Ban, ClipboardList, Globe2, LogOut, MoreHorizontal, PawPrint, Plus, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
+import { BarChart3, Bell, Ban, Building2, ClipboardList, Globe2, LogOut, MoreHorizontal, PawPrint, Plus, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,10 +41,17 @@ import {
   broadcastNotification,
   deleteAdminNotification,
 } from "@/services/adminService";
+import {
+  createCouncilOfficial,
+  deleteCouncilOfficial,
+  listCouncilOfficials,
+  setCouncilOfficialActive,
+  syncCouncilMunicipalSample,
+} from "@/services/councilService";
 import { getAllPets, updatePet, deletePet } from "@/services/petService";
 import { getServices, updateService, deleteService } from "@/services/contentService";
 import { generateHerdTags, listHerdTags } from "@/services/herdTagService";
-import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, HerdTag, Pet, ServiceListing } from "@/types";
+import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, CouncilOfficial, HerdTag, Pet, ServiceListing } from "@/types";
 import { useApp } from "@/hooks/useApp";
 
 export const Route = createFileRoute("/admin")({
@@ -62,6 +69,7 @@ export const Route = createFileRoute("/admin")({
 const sections = [
   { id: "overview", label: "Overview", icon: Globe2 },
   { id: "users", label: "App Accounts", icon: Users },
+  { id: "council", label: "Council", icon: Building2 },
   { id: "vets", label: "Surgeries", icon: Stethoscope },
   { id: "pets", label: "Pets", icon: PawPrint },
   { id: "services", label: "Services", icon: ClipboardList },
@@ -113,6 +121,12 @@ function AdminDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [creatingSurgery, setCreatingSurgery] = useState(false);
+  const [councilOfficials, setCouncilOfficials] = useState<CouncilOfficial[]>([]);
+  const [councilName, setCouncilName] = useState("");
+  const [councilEmail, setCouncilEmail] = useState("");
+  const [councilPassword, setCouncilPassword] = useState("");
+  const [councilTitle, setCouncilTitle] = useState("");
+  const [councilBusy, setCouncilBusy] = useState(false);
   const pageSize = 5;
 
   useEffect(() => {
@@ -136,9 +150,10 @@ function AdminDashboard() {
         listHerdTags(),
         getAdminPosts(),
         getAdminNotifications(),
+        listCouncilOfficials(),
       ]);
 
-      const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult] = results;
+      const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult, councilResult] = results;
       const failures = results.filter((result) => result.status === "rejected");
 
       if (usersResult.status === "fulfilled") setUsers(usersResult.value);
@@ -148,6 +163,7 @@ function AdminDashboard() {
       if (herdResult.status === "fulfilled") setHerdTags(herdResult.value);
       if (postsResult.status === "fulfilled") setPosts(postsResult.value);
       if (notificationsResult.status === "fulfilled") setNotifications(notificationsResult.value);
+      if (councilResult.status === "fulfilled") setCouncilOfficials(councilResult.value);
 
       if (failures.length === results.length) {
         console.error("Failed to load admin data", failures);
@@ -1018,6 +1034,165 @@ function AdminDashboard() {
                 <Metric label="Total accounts" value={totalUsers} />
               </div>
             </Card>
+          ) : null}
+
+          {activeSection === "council" ? (
+            <div className="space-y-4">
+              <Card className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold">Council officials</h3>
+                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                      Register independent email/password accounts for City Council staff. They sign in at{" "}
+                      <span className="font-medium text-foreground">/council-login</span> (also{" "}
+                      <span className="font-medium text-foreground">/city</span> → dashboard).
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={councilBusy}
+                    onClick={async () => {
+                      setCouncilBusy(true);
+                      try {
+                        const result = await syncCouncilMunicipalSample();
+                        toast.success(
+                          `Municipal sync: ${result.licences} licences, ${result.cases} cases created (skipped if data already exists).`,
+                        );
+                      } catch (error) {
+                        console.error(error);
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Sync failed — apply migration 012_council_dashboard.sql in Supabase first.",
+                        );
+                      } finally {
+                        setCouncilBusy(false);
+                      }
+                    }}
+                  >
+                    Sync municipal sample
+                  </Button>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <Input placeholder="Full name" value={councilName} onChange={(e) => setCouncilName(e.target.value)} />
+                  <Input placeholder="Title (optional)" value={councilTitle} onChange={(e) => setCouncilTitle(e.target.value)} />
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={councilEmail}
+                    onChange={(e) => setCouncilEmail(e.target.value)}
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Password (min 8 chars)"
+                    value={councilPassword}
+                    onChange={(e) => setCouncilPassword(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="mt-4"
+                  disabled={councilBusy}
+                  onClick={async () => {
+                    setCouncilBusy(true);
+                    try {
+                      const created = await createCouncilOfficial({
+                        fullName: councilName,
+                        email: councilEmail,
+                        password: councilPassword,
+                        title: councilTitle || undefined,
+                      });
+                      setCouncilOfficials((prev) => [created, ...prev]);
+                      setCouncilName("");
+                      setCouncilEmail("");
+                      setCouncilPassword("");
+                      setCouncilTitle("");
+                      toast.success("Council official registered");
+                    } catch (error) {
+                      console.error(error);
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not create official — apply migration 012 in Supabase.",
+                      );
+                    } finally {
+                      setCouncilBusy(false);
+                    }
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Register official
+                </Button>
+              </Card>
+
+              <Card className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {councilOfficials.map((official) => (
+                      <TableRow key={official.id}>
+                        <TableCell className="font-medium">{official.fullName}</TableCell>
+                        <TableCell>{official.email}</TableCell>
+                        <TableCell>{official.title || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={official.active ? "default" : "secondary"}>
+                            {official.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await setCouncilOfficialActive(official.id, !official.active);
+                                  setCouncilOfficials((prev) =>
+                                    prev.map((item) =>
+                                      item.id === official.id ? { ...item, active: !item.active } : item,
+                                    ),
+                                  );
+                                } catch (error) {
+                                  toast.error(error instanceof Error ? error.message : "Update failed");
+                                }
+                              }}
+                            >
+                              {official.active ? "Deactivate" : "Activate"}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await deleteCouncilOfficial(official.id);
+                                  setCouncilOfficials((prev) => prev.filter((item) => item.id !== official.id));
+                                  toast.success("Official removed");
+                                } catch (error) {
+                                  toast.error(error instanceof Error ? error.message : "Delete failed");
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {councilOfficials.length === 0 ? (
+                  <p className="mt-3 text-sm text-muted-foreground">No council officials registered yet.</p>
+                ) : null}
+              </Card>
+            </div>
           ) : null}
 
           {activeSection === "users" || activeSection === "accounts" || activeSection === "vets" || activeSection === "pets" || activeSection === "services" || activeSection === "community" ? (
