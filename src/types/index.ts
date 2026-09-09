@@ -300,6 +300,8 @@ export interface ChatMessage {
   conversationId: string;
   senderAccountId: string;
   body: string;
+  mediaUrl?: string | null;
+  mediaType?: "none" | "image" | "video" | "audio";
   readByRecipient: boolean;
   createdAt: string;
   mine: boolean;

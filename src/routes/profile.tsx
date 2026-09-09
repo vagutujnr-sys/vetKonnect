@@ -317,7 +317,7 @@ function Profile() {
                     }}
                     onFocus={() => setSurgerySearchOpen(true)}
                     placeholder="Search surgery name or location"
-                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-60"
+                    className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-3 text-base outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-60"
                   />
                 </div>
 

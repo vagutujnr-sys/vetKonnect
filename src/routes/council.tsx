@@ -786,7 +786,7 @@ function CouncilPortal() {
                   onChange={(e) => setNoticeBody(e.target.value)}
                   placeholder="Message body"
                   rows={5}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-base outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <Button
                   className="bg-teal-800 hover:bg-teal-900"
@@ -819,7 +819,7 @@ function CouncilPortal() {
                   onChange={(e) => setPostBody(e.target.value)}
                   placeholder="Official update for the community…"
                   rows={5}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <div className="flex flex-wrap gap-2">
                   {(["Story", "Education", "Rescue", "Breeding"] as const).map((tag) => (

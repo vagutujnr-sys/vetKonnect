@@ -98,7 +98,7 @@ export function CouncilDiscoverPanel() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search services"
-          className="h-11 w-full rounded-2xl border border-border bg-card pl-10 pr-4 text-sm outline-none"
+          className="h-11 w-full rounded-2xl border border-border bg-card pl-10 pr-4 text-base outline-none"
         />
       </div>
 

@@ -997,7 +997,7 @@ function AdminDashboard() {
                   <p className="mt-1 text-sm text-muted-foreground">Creates in-app notifications for every VetKonnect account.</p>
                 </div>
                 <Input placeholder="Notice title" value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} />
-                <textarea value={noticeBody} onChange={(e) => setNoticeBody(e.target.value)} placeholder="Write the notice message…" className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+                <textarea value={noticeBody} onChange={(e) => setNoticeBody(e.target.value)} placeholder="Write the notice message…" className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-base" />
                 <Button onClick={() => void handleBroadcast()} disabled={noticeBusy}>{noticeBusy ? "Sending…" : "Send to all accounts"}</Button>
               </Card>
               <Card className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">

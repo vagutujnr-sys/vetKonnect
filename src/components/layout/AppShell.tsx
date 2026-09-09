@@ -5,18 +5,22 @@ import { MobileScreen } from "./MobileScreen";
 export function AppShell({
   children,
   immersive = false,
+  hideNav = false,
 }: {
   children: ReactNode;
   /** Full-bleed layouts (maps) — skip bottom nav padding so content fills the viewport. */
   immersive?: boolean;
+  /** Hide the bottom navigation entirely (e.g. chat thread). */
+  hideNav?: boolean;
 }) {
+  const showNav = !hideNav;
   return (
     <MobileScreen
-      withNavPadding={!immersive}
-      className={immersive ? "relative h-dvh max-h-dvh overflow-hidden" : undefined}
+      withNavPadding={showNav && !immersive}
+      className={immersive || hideNav ? "relative h-dvh max-h-dvh overflow-hidden" : undefined}
     >
       {children}
-      <BottomNav />
+      {showNav ? <BottomNav /> : null}
     </MobileScreen>
   );
 }

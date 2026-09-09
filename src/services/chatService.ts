@@ -343,18 +343,26 @@ export async function listMessages(conversationId: string): Promise<ChatMessage[
     throw error;
   }
 
-  return (data ?? []).map((row) => {
-    const r = row as Record<string, unknown>;
-    return {
-      id: String(r.id),
-      conversationId: String(r.conversation_id),
-      senderAccountId: String(r.sender_account_id),
-      body: String(r.body ?? ""),
-      readByRecipient: Boolean(r.read_by_recipient),
-      createdAt: String(r.created_at ?? ""),
-      mine: String(r.sender_account_id) === accountId,
-    };
-  });
+  return (data ?? []).map((row) => mapMessage(row as Record<string, unknown>, accountId));
+}
+
+function mapMessage(row: Record<string, unknown>, accountId: string): ChatMessage {
+  const mediaTypeRaw = String(row.media_type ?? "none");
+  const mediaType =
+    mediaTypeRaw === "image" || mediaTypeRaw === "video" || mediaTypeRaw === "audio"
+      ? mediaTypeRaw
+      : "none";
+  return {
+    id: String(row.id),
+    conversationId: String(row.conversation_id),
+    senderAccountId: String(row.sender_account_id),
+    body: String(row.body ?? ""),
+    mediaUrl: row.media_url ? String(row.media_url) : null,
+    mediaType,
+    readByRecipient: Boolean(row.read_by_recipient),
+    createdAt: String(row.created_at ?? ""),
+    mine: String(row.sender_account_id) === accountId,
+  };
 }
 
 export async function markConversationRead(conversationId: string): Promise<void> {
@@ -369,12 +377,60 @@ export async function markConversationRead(conversationId: string): Promise<void
     .neq("sender_account_id", accountId);
 }
 
-export async function sendChatMessage(conversationId: string, body: string): Promise<ChatMessage> {
+export type ChatMediaType = "image" | "video" | "audio";
+
+export async function uploadChatMedia(file: File): Promise<{ url: string; mediaType: ChatMediaType }> {
+  const isAudio = file.type.startsWith("audio/");
+  const isVideo = file.type.startsWith("video/");
+  const isImage = file.type.startsWith("image/");
+  if (!isAudio && !isVideo && !isImage) {
+    throw new Error("Only images, videos, or audio files are supported.");
+  }
+  if (file.size > 40 * 1024 * 1024) {
+    throw new Error("File must be under 40MB.");
+  }
+
+  const mediaType: ChatMediaType = isAudio ? "audio" : isVideo ? "video" : "image";
+  const ext =
+    file.name.split(".").pop()?.toLowerCase() ||
+    (isAudio ? "webm" : isVideo ? "mp4" : "jpg");
+  const accountId = getSessionAccountId() ?? "guest";
+  const path = `${accountId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+  const { error } = await supabase.storage.from("chat-media").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || undefined,
+  });
+  if (error) {
+    // Fallback if migration 016 bucket is not applied yet.
+    if (String(error.message ?? "").toLowerCase().includes("bucket") || error.message?.includes("not found")) {
+      const { error: fallbackError } = await supabase.storage.from("community-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+      if (fallbackError) throw fallbackError;
+      const { data } = supabase.storage.from("community-media").getPublicUrl(path);
+      return { url: data.publicUrl, mediaType };
+    }
+    throw error;
+  }
+
+  const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
+  return { url: data.publicUrl, mediaType };
+}
+
+export async function sendChatMessage(
+  conversationId: string,
+  body: string,
+  media?: { url: string; mediaType: ChatMediaType } | null,
+): Promise<ChatMessage> {
   const accountId = getSessionAccountId();
   if (!accountId) throw new Error("You must be signed in to send a message.");
 
   const text = body.trim();
-  if (!text) throw new Error("Message cannot be empty.");
+  if (!text && !media?.url) throw new Error("Add a message or attach media.");
 
   const { data: conversation, error: convError } = await supabase
     .from("conversations")
@@ -392,25 +448,57 @@ export async function sendChatMessage(conversationId: string, body: string): Pro
 
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("messages")
-    .insert({
-      id,
-      conversation_id: conversationId,
-      sender_account_id: accountId,
-      body: text,
-      read_by_recipient: false,
-      created_at: createdAt,
-    })
-    .select("*")
-    .single();
+  const mediaType = media?.mediaType ?? "none";
+  const mediaUrl = media?.url ?? null;
+
+  const insertRow: Record<string, unknown> = {
+    id,
+    conversation_id: conversationId,
+    sender_account_id: accountId,
+    body: text,
+    read_by_recipient: false,
+    created_at: createdAt,
+    media_url: mediaUrl,
+    media_type: mediaType,
+  };
+
+  let { data, error } = await supabase.from("messages").insert(insertRow).select("*").single();
+
+  // Retry without media columns if migration 016 is not applied.
+  if (error && (String(error.message ?? "").includes("media_") || error.code === "PGRST204")) {
+    if (!text) throw new Error("Media chat needs migration 016_chat_media.sql applied in Supabase.");
+    const retry = await supabase
+      .from("messages")
+      .insert({
+        id,
+        conversation_id: conversationId,
+        sender_account_id: accountId,
+        body: text,
+        read_by_recipient: false,
+        created_at: createdAt,
+      })
+      .select("*")
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
+
+  const preview =
+    text ||
+    (mediaType === "image"
+      ? "📷 Photo"
+      : mediaType === "video"
+        ? "🎬 Video"
+        : mediaType === "audio"
+          ? "🎤 Voice message"
+          : "");
 
   await supabase
     .from("conversations")
     .update({
       last_message_at: createdAt,
-      last_message_preview: text.length > 120 ? `${text.slice(0, 117)}…` : text,
+      last_message_preview: preview.length > 120 ? `${preview.slice(0, 117)}…` : preview,
     })
     .eq("id", conversationId);
 
@@ -422,20 +510,12 @@ export async function sendChatMessage(conversationId: string, body: string): Pro
     await createNotification({
       accountId: recipientId,
       title: `Message from ${senderName}`,
-      body: text.length > 100 ? `${text.slice(0, 97)}…` : text,
+      body: preview.length > 100 ? `${preview.slice(0, 97)}…` : preview,
       type: "chat",
     });
-  } catch (error) {
-    console.warn("Chat notification failed", error);
+  } catch (notifyError) {
+    console.warn("Chat notification failed", notifyError);
   }
 
-  return {
-    id: String(data.id),
-    conversationId,
-    senderAccountId: accountId,
-    body: text,
-    readByRecipient: false,
-    createdAt,
-    mine: true,
-  };
+  return mapMessage(data as Record<string, unknown>, accountId);
 }
