@@ -27,6 +27,7 @@ function mapAccountRow(row: Record<string, unknown>, petCount = 0): AdminUser {
     blocked: Boolean(row.blocked),
     avatarUrl: String(row.avatar_url ?? ""),
     dashboardRequestedAt: row.dashboard_requested_at ? String(row.dashboard_requested_at) : null,
+    surgeryId: row.surgery_id ? String(row.surgery_id) : null,
   };
 }
 
@@ -179,6 +180,9 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
   if (patch.dashboardRequestedAt !== undefined) {
     payload.dashboard_requested_at = patch.dashboardRequestedAt;
   }
+  if (patch.surgeryId !== undefined) {
+    payload.surgery_id = patch.surgeryId;
+  }
   if (patch.boundDeviceId === null) {
     payload.bound_device_id = null;
     payload.device_bound_at = null;
@@ -190,7 +194,7 @@ export async function updateAdminUser(id: string, patch: Partial<AdminUser>): Pr
 
 /** Update accounts, retrying without optional columns missing from older databases. */
 async function updateAccountWithFallback(id: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const optionalColumns = ["dashboard_requested_at", "blocked", "latitude", "longitude", "avatar_url"] as const;
+  const optionalColumns = ["dashboard_requested_at", "blocked", "latitude", "longitude", "avatar_url", "surgery_id"] as const;
   let nextPayload = { ...payload };
   let lastError: { message?: string; code?: string; details?: string; hint?: string } | null = null;
 
@@ -352,6 +356,41 @@ export async function getAdminVets(): Promise<AdminVet[]> {
   return (data ?? []).map((row) => mapVetRow(row as Record<string, unknown>));
 }
 
+export type CreateAdminVetInput = {
+  name: string;
+  surgery: string;
+  location: string;
+  phone: string;
+  status?: AdminVet["status"];
+  rating?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  address?: string;
+};
+
+export async function createAdminVet(input: CreateAdminVetInput): Promise<AdminVet> {
+  const surgeryName = input.surgery.trim() || input.name.trim();
+  if (!surgeryName) throw new Error("Enter a surgery name.");
+
+  const row = {
+    id: crypto.randomUUID(),
+    name: input.name.trim() || surgeryName,
+    surgery: surgeryName,
+    location: input.location.trim() || "Harare",
+    phone: input.phone.replace(/\s+/g, "").trim(),
+    status: input.status ?? "Active",
+    rating: Number.isFinite(input.rating) ? Number(input.rating) : 4.5,
+    latitude: input.latitude != null && !Number.isNaN(Number(input.latitude)) ? Number(input.latitude) : null,
+    longitude: input.longitude != null && !Number.isNaN(Number(input.longitude)) ? Number(input.longitude) : null,
+    address: input.address?.trim() || null,
+    created_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase.from("vets").insert(row).select("*").single();
+  if (error) throw error;
+  return mapVetRow(data as Record<string, unknown>);
+}
+
 export async function saveAdminVets(vets: AdminVet[]): Promise<void> {
   const { error } = await supabase.from("vets").upsert(
     vets.map((vet) => ({
@@ -372,19 +411,18 @@ export async function saveAdminVets(vets: AdminVet[]): Promise<void> {
 }
 
 export async function updateAdminVet(id: string, patch: Partial<AdminVet>): Promise<AdminVet | undefined> {
-  const { data, error } = await supabase
-    .from("vets")
-    .update({
-      ...(patch.name !== undefined ? { name: patch.name } : {}),
-      ...(patch.surgery !== undefined ? { surgery: patch.surgery } : {}),
-      ...(patch.location !== undefined ? { location: patch.location } : {}),
-      ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
-      ...(patch.status !== undefined ? { status: patch.status } : {}),
-      ...(patch.rating !== undefined ? { rating: patch.rating } : {}),
-    })
-    .eq("id", id)
-    .select("*")
-    .single();
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name;
+  if (patch.surgery !== undefined) payload.surgery = patch.surgery;
+  if (patch.location !== undefined) payload.location = patch.location;
+  if (patch.phone !== undefined) payload.phone = patch.phone;
+  if (patch.status !== undefined) payload.status = patch.status;
+  if (patch.rating !== undefined) payload.rating = patch.rating;
+  if (patch.latitude !== undefined) payload.latitude = patch.latitude;
+  if (patch.longitude !== undefined) payload.longitude = patch.longitude;
+  if (patch.address !== undefined) payload.address = patch.address;
+
+  const { data, error } = await supabase.from("vets").update(payload).eq("id", id).select("*").single();
   if (error) throw error;
   return mapVetRow(data as Record<string, unknown>);
 }

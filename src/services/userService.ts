@@ -57,6 +57,7 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     patientsServed: Number(row.patients_served ?? 0),
     blocked: Boolean(row.blocked),
     dashboardRequestedAt: row.dashboard_requested_at ? String(row.dashboard_requested_at) : null,
+    surgeryId: row.surgery_id ? String(row.surgery_id) : null,
   };
 }
 
@@ -206,6 +207,7 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
   if (patch.avatarUrl !== undefined) payload.avatar_url = next.avatarUrl ?? "";
   if (patch.practiceName !== undefined) payload.practice_name = next.practiceName ?? "";
   if (patch.patientsServed !== undefined) payload.patients_served = Number(next.patientsServed ?? 0);
+  if (patch.surgeryId !== undefined) payload.surgery_id = next.surgeryId || null;
 
   // Admin-controlled fields — only write when explicitly patched so stale client
   // cache cannot overwrite elevation / block status from the dashboard.
@@ -219,7 +221,17 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
     return next;
   }
 
-  const { error } = await supabase.from("accounts").update(payload).eq("id", current.id);
+  let { error } = await supabase.from("accounts").update(payload).eq("id", current.id);
+
+  // Retry without surgery_id when migration 011 is not applied yet.
+  if (error && payload.surgery_id !== undefined) {
+    const message = `${error.message ?? ""}`.toLowerCase();
+    if (message.includes("surgery_id")) {
+      const { surgery_id: _removed, ...rest } = payload;
+      const retry = await supabase.from("accounts").update(rest).eq("id", current.id);
+      error = retry.error;
+    }
+  }
 
   if (error) throw error;
 
@@ -231,8 +243,31 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
   merged.vetVerified = refreshed.vetVerified;
   merged.blocked = refreshed.blocked;
   merged.isAdmin = refreshed.isAdmin;
+  merged.surgeryId = refreshed.surgeryId ?? patch.surgeryId ?? null;
   cacheSessionProfile(merged);
   return merged;
+}
+
+/** Link a vet account to a directory surgery (or clear the link). */
+export async function alignWithSurgery(surgeryId: string | null): Promise<UserProfile> {
+  const user = await getUser();
+  if (!user.id || user.accountType !== "vet") {
+    throw new Error("Only vet accounts can align with a surgery.");
+  }
+
+  let practiceName = user.practiceName?.trim() || `${user.fullName?.trim() || "Vet"}'s Practice`;
+
+  if (surgeryId) {
+    const { data, error } = await supabase.from("vets").select("id,name,surgery,location").eq("id", surgeryId).maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error("Surgery not found.");
+    practiceName = String(data.surgery || data.name || "").trim() || practiceName;
+  }
+
+  return updateUser({
+    surgeryId: surgeryId || null,
+    practiceName,
+  });
 }
 
 export async function uploadProfilePhoto(file: File): Promise<string> {

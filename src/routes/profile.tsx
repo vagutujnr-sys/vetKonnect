@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Bell,
+  Building2,
   Camera,
   ChevronRight,
   HelpCircle,
@@ -15,13 +16,15 @@ import {
   Lock,
   Unplug,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { VetSureCard } from "@/components/vetsure/VetSureCard";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
-import { uploadProfilePhoto } from "@/services/userService";
+import { listSurgeries } from "@/services/contentService";
+import { alignWithSurgery, uploadProfilePhoto } from "@/services/userService";
+import type { AdminVet } from "@/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
@@ -37,12 +40,14 @@ export const Route = createFileRoute("/profile")({
 });
 
 function Profile() {
-  const { user, pets, signOut, unbindDevice, updateUser } = useApp();
+  const { user, pets, signOut, unbindDevice, updateUser, refreshSession } = useApp();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [surgeries, setSurgeries] = useState<AdminVet[]>([]);
+  const [surgeryBusy, setSurgeryBusy] = useState(false);
 
   const initials = (user.fullName || "VC")
     .split(" ")
@@ -50,6 +55,21 @@ function Profile() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  useEffect(() => {
+    if (!isVetAccount(user)) return;
+    void listSurgeries(true)
+      .then(setSurgeries)
+      .catch((error) => console.error("Failed to load surgeries", error));
+  }, [user.accountType]);
+
+  const linkedSurgery =
+    surgeries.find((item) => item.id === user.surgeryId) ||
+    surgeries.find(
+      (item) =>
+        item.surgery.trim().toLowerCase() === (user.practiceName ?? "").trim().toLowerCase() ||
+        item.name.trim().toLowerCase() === (user.practiceName ?? "").trim().toLowerCase(),
+    );
 
   const changePhoto = async (file: File | null) => {
     if (!file) return;
@@ -70,6 +90,24 @@ function Profile() {
       setUploading(false);
       if (galleryRef.current) galleryRef.current.value = "";
       if (cameraRef.current) cameraRef.current.value = "";
+    }
+  };
+
+  const handleAlignSurgery = async (surgeryId: string) => {
+    setSurgeryBusy(true);
+    try {
+      const nextId = surgeryId || null;
+      await alignWithSurgery(nextId);
+      await refreshSession();
+      toast.success(nextId ? "Aligned with surgery" : "Surgery link cleared", {
+        description: nextId
+          ? "Your practice profile now matches the selected surgery."
+          : "You can align with a surgery again anytime.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update surgery alignment.");
+    } finally {
+      setSurgeryBusy(false);
     }
   };
 
@@ -202,17 +240,55 @@ function Profile() {
           </section>
         </>
       ) : (
-        <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-center gap-3">
-            <Stethoscope className="size-6 text-primary" />
-            <div className="flex-1">
-              <p className="font-bold text-primary">{user.practiceName?.trim() || "Practice profile"}</p>
-              <p className="text-sm text-muted-foreground">
-                {user.vetVerified ? "Verified vet account" : "Pending admin verification"}
-              </p>
+        <>
+          <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center gap-3">
+              <Stethoscope className="size-6 text-primary" />
+              <div className="flex-1">
+                <p className="font-bold text-primary">
+                  {linkedSurgery?.surgery || user.practiceName?.trim() || "Practice profile"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {user.vetVerified ? "Verified vet account" : "Pending admin verification"}
+                  {linkedSurgery?.location ? ` · ${linkedSurgery.location}` : ""}
+                </p>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-start gap-3">
+              <Building2 className="mt-0.5 size-5 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold">Align with a surgery</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  If you work at a listed surgery, link your account so your practice matches the directory.
+                </p>
+                <label className="mt-3 grid gap-2 text-sm">
+                  <span className="font-medium text-foreground">Surgery</span>
+                  <select
+                    value={user.surgeryId || linkedSurgery?.id || ""}
+                    disabled={surgeryBusy || surgeries.length === 0}
+                    onChange={(event) => void handleAlignSurgery(event.target.value)}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+                  >
+                    <option value="">Not linked to a surgery</option>
+                    {surgeries.map((surgery) => (
+                      <option key={surgery.id} value={surgery.id}>
+                        {surgery.surgery || surgery.name}
+                        {surgery.location ? ` · ${surgery.location}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {surgeries.length === 0 ? (
+                  <p className="mt-2 text-xs text-muted-foreground">No active surgeries in the directory yet.</p>
+                ) : null}
+                {surgeryBusy ? <p className="mt-2 text-xs text-muted-foreground">Saving…</p> : null}
+              </div>
+            </div>
+          </section>
+        </>
       )}
 
       <div className="mx-5 mt-4 card-surface divide-y divide-border">

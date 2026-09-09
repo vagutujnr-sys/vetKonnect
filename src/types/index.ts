@@ -53,6 +53,8 @@ export interface UserProfile {
   blocked?: boolean;
   /** ISO timestamp when the vet asked for practice dashboard access. */
   dashboardRequestedAt?: string | null;
+  /** Linked directory surgery (`public.vets.id`). */
+  surgeryId?: string | null;
 }
 
 export interface AdminUser {
@@ -79,6 +81,7 @@ export interface AdminUser {
   blocked?: boolean;
   avatarUrl?: string;
   dashboardRequestedAt?: string | null;
+  surgeryId?: string | null;
 }
 
 export interface PotentialClient {

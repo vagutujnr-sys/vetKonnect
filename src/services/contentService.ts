@@ -1,4 +1,4 @@
-import type { CommunityComment, CommunityPost, MediaType, MappableVet, ServiceListing } from "@/types";
+import type { AdminVet, CommunityComment, CommunityPost, MediaType, MappableVet, ServiceListing } from "@/types";
 import { coordsFromPlace, haversineKm, type GeoPoint } from "@/lib/geo";
 import { withTimeout } from "@/lib/timeout";
 import { getSessionAccountId } from "./userService";
@@ -459,4 +459,31 @@ export async function updatePost(id: string, patch: Partial<CommunityPost>): Pro
 export async function deletePost(id: string): Promise<void> {
   const { error } = await supabase.from("community_posts").delete().eq("id", id);
   if (error) throw error;
+}
+
+/** Active surgeries from the directory (for vet profile alignment). */
+export async function listSurgeries(activeOnly = true): Promise<AdminVet[]> {
+  if (!isSupabaseConfigured) return [];
+
+  let query = supabase.from("vets").select("*").order("surgery", { ascending: true });
+  if (activeOnly) query = query.eq("status", "Active");
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data ?? []).map((row) => {
+    const item = row as Record<string, unknown>;
+    return {
+      id: String(item.id),
+      name: String(item.name ?? ""),
+      surgery: String(item.surgery ?? ""),
+      location: String(item.location ?? ""),
+      phone: String(item.phone ?? ""),
+      status: (item.status as AdminVet["status"]) || "Active",
+      rating: Number(item.rating ?? 0),
+      latitude: item.latitude != null ? Number(item.latitude) : undefined,
+      longitude: item.longitude != null ? Number(item.longitude) : undefined,
+      address: item.address ? String(item.address) : undefined,
+    } satisfies AdminVet;
+  });
 }

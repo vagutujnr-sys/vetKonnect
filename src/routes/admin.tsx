@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { BarChart3, Bell, Ban, ClipboardList, Globe2, LogOut, MoreHorizontal, PawPrint, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
+import { BarChart3, Bell, Ban, ClipboardList, Globe2, LogOut, MoreHorizontal, PawPrint, Plus, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   getAdminVets,
   updateAdminUser,
   deleteAdminUser,
+  createAdminVet,
   updateAdminVet,
   deleteAdminVet,
   unbindAdminAccount,
@@ -61,7 +62,7 @@ export const Route = createFileRoute("/admin")({
 const sections = [
   { id: "overview", label: "Overview", icon: Globe2 },
   { id: "users", label: "App Accounts", icon: Users },
-  { id: "vets", label: "Clinic Directory", icon: User },
+  { id: "vets", label: "Surgeries", icon: Stethoscope },
   { id: "pets", label: "Pets", icon: PawPrint },
   { id: "services", label: "Services", icon: ClipboardList },
   { id: "herd", label: "Tag Inventory", icon: Layers },
@@ -111,6 +112,7 @@ function AdminDashboard() {
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [creatingSurgery, setCreatingSurgery] = useState(false);
   const pageSize = 5;
 
   useEffect(() => {
@@ -333,8 +335,28 @@ function AdminDashboard() {
   }, [filteredPosts, page]);
 
   const startEdit = (row: EditableRow) => {
+    setCreatingSurgery(false);
     setEditingRow(row);
     setFormValues({ ...row.item });
+    setEditDialogOpen(true);
+  };
+
+  const startCreateSurgery = () => {
+    setCreatingSurgery(true);
+    const blank: AdminVet = {
+      id: "",
+      name: "",
+      surgery: "",
+      location: "Harare",
+      phone: "",
+      status: "Active",
+      rating: 4.5,
+      address: "",
+      latitude: undefined,
+      longitude: undefined,
+    };
+    setEditingRow({ section: "vets", item: blank });
+    setFormValues({ ...blank, latitude: "", longitude: "" });
     setEditDialogOpen(true);
   };
 
@@ -389,15 +411,42 @@ function AdminDashboard() {
       }
 
       if (editingRow.section === "vets") {
-        const updated = await updateAdminVet(editingRow.item.id, {
-          name: String(formValues.name ?? editingRow.item.name),
-          surgery: String(formValues.surgery ?? editingRow.item.surgery),
-          location: String(formValues.location ?? editingRow.item.location),
-          phone: String(formValues.phone ?? editingRow.item.phone),
-          status: String(formValues.status ?? editingRow.item.status) as AdminVet["status"],
-        });
-        if (updated) {
-          setVets((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        const surgeryName = String(formValues.surgery ?? editingRow.item.surgery ?? "").trim();
+        const contactName = String(formValues.name ?? editingRow.item.name ?? "").trim() || surgeryName;
+        const latitudeRaw = formValues.latitude;
+        const longitudeRaw = formValues.longitude;
+        const latitude =
+          latitudeRaw === "" || latitudeRaw == null ? undefined : Number(latitudeRaw);
+        const longitude =
+          longitudeRaw === "" || longitudeRaw == null ? undefined : Number(longitudeRaw);
+
+        if (creatingSurgery || !editingRow.item.id) {
+          const created = await createAdminVet({
+            name: contactName,
+            surgery: surgeryName,
+            location: String(formValues.location ?? "Harare"),
+            phone: String(formValues.phone ?? ""),
+            status: String(formValues.status ?? "Active") as AdminVet["status"],
+            rating: Number(formValues.rating ?? 4.5),
+            address: String(formValues.address ?? ""),
+            latitude: Number.isFinite(latitude) ? latitude : null,
+            longitude: Number.isFinite(longitude) ? longitude : null,
+          });
+          setVets((prev) => [...prev, created]);
+        } else {
+          const updated = await updateAdminVet(editingRow.item.id, {
+            name: contactName,
+            surgery: surgeryName,
+            location: String(formValues.location ?? editingRow.item.location),
+            phone: String(formValues.phone ?? editingRow.item.phone),
+            status: String(formValues.status ?? editingRow.item.status) as AdminVet["status"],
+            address: String(formValues.address ?? editingRow.item.address ?? ""),
+            latitude: Number.isFinite(latitude) ? latitude : editingRow.item.latitude,
+            longitude: Number.isFinite(longitude) ? longitude : editingRow.item.longitude,
+          });
+          if (updated) {
+            setVets((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+          }
         }
       }
 
@@ -441,13 +490,14 @@ function AdminDashboard() {
         }
       }
 
-      toast.success("Changes saved");
+      toast.success(creatingSurgery ? "Surgery added" : "Changes saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save changes");
     } finally {
       setIsSaving(false);
       setEditDialogOpen(false);
       setEditingRow(null);
+      setCreatingSurgery(false);
     }
   };
 
@@ -692,7 +742,8 @@ function AdminDashboard() {
                 <StatCard icon={Users} label="App Accounts" value={totalUsers} />
                 <StatCard icon={User} label="Onboarded" value={onboardedUsers} />
                 <StatCard icon={Unplug} label="Device Bound" value={boundAccounts} />
-                <StatCard icon={ShieldCheck} label="Active Vets" value={activeVets} />
+                <StatCard icon={Stethoscope} label="Surgeries" value={totalVets} />
+                <StatCard icon={ShieldCheck} label="Active surgeries" value={activeVets} />
                 <StatCard icon={ShieldPlus} label="Pending elevate" value={pendingElevate.length} />
                 <StatCard icon={Bell} label="Dashboard requests" value={dashboardRequests.length} />
                 <StatCard icon={PawPrint} label="Total Pets" value={totalPets} />
@@ -976,8 +1027,15 @@ function AdminDashboard() {
                   <p className="text-sm font-semibold text-muted-foreground">Search</p>
                   <Input placeholder="Filter by name, phone, device, category or ID" value={search} onChange={(event) => setSearch(event.target.value)} />
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  Showing {activeSection === "users" || activeSection === "accounts" ? pagedUsers.length : activeSection === "vets" ? pagedVets.length : activeSection === "pets" ? pagedPets.length : activeSection === "community" ? pagedPosts.length : pagedServices.length} of {sectionItems.length}
+                <div className="flex flex-wrap items-center gap-3">
+                  {activeSection === "vets" ? (
+                    <Button size="sm" onClick={startCreateSurgery}>
+                      <Plus className="mr-2 h-4 w-4" /> Add surgery
+                    </Button>
+                  ) : null}
+                  <div className="text-sm text-muted-foreground">
+                    Showing {activeSection === "users" || activeSection === "accounts" ? pagedUsers.length : activeSection === "vets" ? pagedVets.length : activeSection === "pets" ? pagedPets.length : activeSection === "community" ? pagedPosts.length : pagedServices.length} of {sectionItems.length}
+                  </div>
                 </div>
               </div>
               <Table>
@@ -1095,7 +1153,7 @@ function AdminDashboard() {
                       <TableCell className="w-[72px]">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Clinic actions">
+                            <Button variant="outline" size="icon" className="h-8 w-8" aria-label="Surgery actions">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1239,7 +1297,7 @@ function AdminDashboard() {
             <DialogTitle>
               {viewingRow?.section === "users" &&
                 ((viewingRow.item as AdminUser).accountType === "vet" ? "Vet profile" : "User profile")}
-              {viewingRow?.section === "vets" && "Clinic directory profile"}
+              {viewingRow?.section === "vets" && "Surgery profile"}
               {viewingRow?.section === "pets" && "Pet profile"}
               {viewingRow?.section === "services" && "Service profile"}
               {viewingRow?.section === "community" && "Community post"}
@@ -1635,11 +1693,34 @@ function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <Dialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) {
+            setCreatingSurgery(false);
+            setEditingRow(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingRow ? `Edit ${editingRow.section.slice(0, -1)}` : "Edit item"}</DialogTitle>
-            <DialogDescription>Update the selected record and save changes.</DialogDescription>
+            <DialogTitle>
+              {editingRow?.section === "vets"
+                ? creatingSurgery
+                  ? "Add surgery"
+                  : "Edit surgery"
+                : editingRow
+                  ? `Edit ${editingRow.section.slice(0, -1)}`
+                  : "Edit item"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingRow?.section === "vets"
+                ? creatingSurgery
+                  ? "Create a surgery for the directory and Map Vets."
+                  : "Update this surgery and save changes."
+                : "Update the selected record and save changes."}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4">
@@ -1704,12 +1785,20 @@ function AdminDashboard() {
             {editingRow?.section === "vets" && (
               <>
                 <label className="grid gap-2 text-sm">
-                  <span>Name</span>
-                  <Input value={String(formValues.name ?? "")} onChange={(event) => handleFormChange("name", event.target.value)} />
+                  <span>Surgery name</span>
+                  <Input
+                    value={String(formValues.surgery ?? "")}
+                    onChange={(event) => handleFormChange("surgery", event.target.value)}
+                    placeholder="e.g. Borrowdale Animal Hospital"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm">
-                  <span>Surgery</span>
-                  <Input value={String(formValues.surgery ?? "")} onChange={(event) => handleFormChange("surgery", event.target.value)} />
+                  <span>Contact / lead vet</span>
+                  <Input
+                    value={String(formValues.name ?? "")}
+                    onChange={(event) => handleFormChange("name", event.target.value)}
+                    placeholder="Optional — defaults to surgery name"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm">
                   <span>Location</span>
@@ -1719,6 +1808,30 @@ function AdminDashboard() {
                   <span>Phone</span>
                   <Input value={String(formValues.phone ?? "")} onChange={(event) => handleFormChange("phone", event.target.value)} />
                 </label>
+                <label className="grid gap-2 text-sm">
+                  <span>Address</span>
+                  <Input value={String(formValues.address ?? "")} onChange={(event) => handleFormChange("address", event.target.value)} />
+                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2 text-sm">
+                    <span>Latitude</span>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      value={formValues.latitude === undefined || formValues.latitude === "" ? "" : Number(formValues.latitude)}
+                      onChange={(event) => handleFormChange("latitude", event.target.value === "" ? "" : Number(event.target.value))}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm">
+                    <span>Longitude</span>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      value={formValues.longitude === undefined || formValues.longitude === "" ? "" : Number(formValues.longitude)}
+                      onChange={(event) => handleFormChange("longitude", event.target.value === "" ? "" : Number(event.target.value))}
+                    />
+                  </label>
+                </div>
                 <label className="grid gap-2 text-sm">
                   <span>Status</span>
                   <select
