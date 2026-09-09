@@ -11,6 +11,7 @@ import {
   markConversationRead,
   sendChatMessage,
   uploadChatMedia,
+  chatMediaLabel,
   type ChatMediaType,
 } from "@/services/chatService";
 import { supabase } from "@/services/supabaseClient";
@@ -350,15 +351,7 @@ function ChatThread() {
         prev
           ? {
               ...prev,
-              lastMessagePreview:
-                message.body ||
-                (message.mediaType === "image"
-                  ? "📷 Photo"
-                  : message.mediaType === "video"
-                    ? "🎬 Video"
-                    : message.mediaType === "audio"
-                      ? "🎤 Voice message"
-                      : ""),
+              lastMessagePreview: message.body || chatMediaLabel(message.mediaType),
               lastMessageAt: message.createdAt,
             }
           : prev,
@@ -491,14 +484,7 @@ function ChatThread() {
                   Replying to {replyTo.mine ? "yourself" : conversation?.peerName || "message"}
                 </p>
                 <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                  {replyTo.body ||
-                    (replyTo.mediaType === "image"
-                      ? "Photo"
-                      : replyTo.mediaType === "video"
-                        ? "Video"
-                        : replyTo.mediaType === "audio"
-                          ? "Voice message"
-                          : "Message")}
+                  {replyTo.body || chatMediaLabel(replyTo.mediaType)}
                 </p>
               </div>
               <button
@@ -525,7 +511,11 @@ function ChatThread() {
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">
-                  {pendingKind === "image" ? "Photo ready" : pendingKind === "video" ? "Video ready" : "Voice note ready"}
+                  {pendingKind === "image"
+                    ? "Photo ready"
+                    : pendingKind === "video"
+                      ? "Video ready"
+                      : "Voice note ready"}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{pendingFile?.name}</p>
               </div>

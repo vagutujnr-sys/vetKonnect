@@ -382,6 +382,14 @@ export async function markConversationRead(conversationId: string): Promise<void
 
 export type ChatMediaType = "image" | "video" | "audio";
 
+/** Plain labels only — no emoji (app icons stay Lucide). */
+export function chatMediaLabel(mediaType?: string | null): string {
+  if (mediaType === "image") return "Photo";
+  if (mediaType === "video") return "Video";
+  if (mediaType === "audio") return "Voice note";
+  return "Message";
+}
+
 export async function uploadChatMedia(file: File): Promise<{ url: string; mediaType: ChatMediaType }> {
   const isAudio = file.type.startsWith("audio/");
   const isVideo = file.type.startsWith("video/");
@@ -457,14 +465,7 @@ export async function sendChatMessage(
   const replyPreview =
     replyTo == null
       ? null
-      : replyTo.body.trim() ||
-        (replyTo.mediaType === "image"
-          ? "Photo"
-          : replyTo.mediaType === "video"
-            ? "Video"
-            : replyTo.mediaType === "audio"
-              ? "Voice message"
-              : "Message");
+      : replyTo.body.trim() || chatMediaLabel(replyTo.mediaType);
 
   const insertRow: Record<string, unknown> = {
     id,
@@ -538,15 +539,7 @@ export async function sendChatMessage(
   }
   if (error) throw error;
 
-  const preview =
-    text ||
-    (mediaType === "image"
-      ? "📷 Photo"
-      : mediaType === "video"
-        ? "🎬 Video"
-        : mediaType === "audio"
-          ? "🎤 Voice message"
-          : "");
+  const preview = text || chatMediaLabel(mediaType === "none" ? null : mediaType);
 
   await supabase
     .from("conversations")
