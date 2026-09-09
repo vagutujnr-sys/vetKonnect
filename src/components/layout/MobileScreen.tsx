@@ -12,10 +12,10 @@ export function MobileScreen({
   withNavPadding?: boolean;
 }) {
   return (
-    <div className="min-h-dvh w-full bg-surface">
+    <div className="min-h-dvh w-full bg-white">
       <div
         className={cn(
-          "mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-background",
+          "mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-white",
           withNavPadding && "pb-32",
           className,
         )}

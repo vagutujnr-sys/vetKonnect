@@ -101,7 +101,7 @@ function Register() {
   };
 
   return (
-    <MobileScreen className="px-6 soft-gradient">
+    <MobileScreen className="bg-white px-6">
       <div className="flex justify-center pt-12">
         <Logo size="md" stacked />
       </div>
