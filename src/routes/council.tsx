@@ -237,7 +237,7 @@ function CouncilPortal() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-800">Council field</p>
               <h1 className="text-xl font-extrabold text-slate-900">Animal control</h1>
             </div>
-            <Logo size="sm" />
+            <Logo size="sm" markOnly />
           </header>
 
           <div className="mx-5 mb-3 flex items-start gap-2 rounded-xl border border-teal-100 bg-teal-50/80 px-3 py-2.5 text-xs text-teal-900">
@@ -278,20 +278,20 @@ function CouncilPortal() {
 
   return (
     <div className="min-h-dvh bg-slate-100">
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-[260px] flex-col border-r border-slate-200 bg-[#0f3d3a] text-teal-50">
-        <div className="border-b border-white/10 px-5 py-5">
-          <Logo size="sm" />
+      <aside className="fixed inset-y-0 left-0 z-20 flex w-[240px] flex-col border-r border-white/10 bg-[#0f3d3a] text-teal-50">
+        <div className="border-b border-white/10 px-4 py-4">
+          <Logo size="sm" markOnly invert className="h-9" />
           <p className="mt-3 text-xs font-semibold uppercase tracking-[0.2em] text-teal-200/80">City Council</p>
           <h1 className="mt-1 text-lg font-semibold text-white">Animal Control</h1>
-          <p className="mt-2 text-xs text-teal-100/70">{official.fullName}</p>
+          <p className="mt-1 text-xs text-teal-100/70">{official.fullName}</p>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
           {desktopSections.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setSection(item.id)}
-              className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+              className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
                 section === item.id ? "bg-white/15 text-white" : "text-teal-100/80 hover:bg-white/10 hover:text-white"
               }`}
             >
@@ -299,30 +299,44 @@ function CouncilPortal() {
             </button>
           ))}
         </nav>
-        <div className="border-t border-white/10 p-4">
+        <div className="border-t border-white/10 p-3">
           <Button variant="secondary" size="sm" className="w-full" onClick={signOut}>
             <LogOut className="mr-2 size-4" /> Sign out
           </Button>
         </div>
       </aside>
 
-      <main className="ml-[260px] min-h-dvh px-6 py-8 lg:px-10">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">
-          <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {section === "map" ? (
+        <main className="relative ml-[240px] h-dvh overflow-hidden bg-slate-200">
+          <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-white/90 px-3 py-2 text-xs text-slate-700 shadow-sm backdrop-blur">
+            <p className="font-semibold text-slate-900">Geographic distribution</p>
+            <p className="mt-0.5">Teal registered · amber lost · blue found · purple impound · red incident</p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="absolute right-3 top-3 z-10"
+            disabled={loading}
+            onClick={() => void load()}
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+          <CouncilGeoMap points={mapPoints} className="h-full min-h-0 rounded-none" />
+        </main>
+      ) : (
+      <main className="ml-[240px] min-h-dvh px-4 py-4 lg:px-5">
+        <div className="flex w-full flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-800">
+              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-teal-800">
                 <Building2 className="size-3.5" /> Municipal planning
               </div>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">
                 Council animal-control dashboard
               </h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Desktop analytics, app-wide notices, and community publishing. Field officers use the same URL on
-                mobile for scan, discover, community, and profile.
-              </p>
             </div>
             {section !== "notify" && section !== "publish" && section !== "scan" ? (
-              <Button variant="secondary" disabled={loading} onClick={() => void load()}>
+              <Button variant="secondary" size="sm" disabled={loading} onClick={() => void load()}>
                 {loading ? "Refreshing…" : "Refresh"}
               </Button>
             ) : null}
@@ -473,18 +487,8 @@ function CouncilPortal() {
             </div>
           ) : null}
 
-          {section === "map" ? (
-            <Card className="overflow-hidden rounded-xl border-slate-200 shadow-sm">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <h3 className="font-semibold text-slate-900">Geographic distribution</h3>
-                <p className="text-xs text-slate-500">Teal = registered · amber lost · blue found · purple impound · red incident</p>
-              </div>
-              <CouncilGeoMap points={mapPoints} className="h-[520px] rounded-none" />
-            </Card>
-          ) : null}
-
           {section === "notify" ? (
-            <Card className="rounded-xl border-slate-200 p-6 shadow-sm">
+            <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-800">
                   <Bell className="size-5" />
@@ -522,7 +526,7 @@ function CouncilPortal() {
           ) : null}
 
           {section === "publish" ? (
-            <Card className="rounded-xl border-slate-200 p-6 shadow-sm">
+            <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-800">
                   <MessageSquarePlus className="size-5" />
@@ -590,6 +594,7 @@ function CouncilPortal() {
           ) : null}
         </div>
       </main>
+      )}
     </div>
   );
 }

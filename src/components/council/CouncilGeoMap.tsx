@@ -34,6 +34,7 @@ export function CouncilGeoMap({ points, className }: Props) {
 
     let cancelled = false;
     let map: import("mapbox-gl").Map | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     const markers: import("mapbox-gl").Marker[] = [];
 
     async function boot() {
@@ -52,6 +53,10 @@ export function CouncilGeoMap({ points, className }: Props) {
       });
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
       map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
+      map.on("load", () => map?.resize());
+
+      resizeObserver = new ResizeObserver(() => map?.resize());
+      resizeObserver.observe(el);
 
       const bounds = new mapboxgl.LngLatBounds();
       let hasBounds = false;
@@ -95,6 +100,7 @@ export function CouncilGeoMap({ points, className }: Props) {
 
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
       markers.forEach((m) => m.remove());
       map?.remove();
     };
@@ -103,12 +109,12 @@ export function CouncilGeoMap({ points, className }: Props) {
   if (!token) {
     return (
       <div
-        className={`flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600 ${className ?? ""}`}
+        className={`flex h-full min-h-[360px] items-center justify-center border border-dashed border-slate-300 bg-slate-50 p-8 text-sm text-slate-600 ${className ?? ""}`}
       >
         Add `VITE_MAPBOX_ACCESS_TOKEN` to enable the geographic distribution map.
       </div>
     );
   }
 
-  return <div ref={containerRef} className={`min-h-[360px] w-full overflow-hidden rounded-xl ${className ?? ""}`} />;
+  return <div ref={containerRef} className={`h-full min-h-[360px] w-full overflow-hidden ${className ?? ""}`} />;
 }
