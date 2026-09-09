@@ -16,7 +16,7 @@ import { getSessionAccountId } from "@/services/userService";
 import type { ChatConversation, ChatMessage } from "@/types";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/chats/$conversationId")({
+export const Route = createFileRoute("/chats_/$conversationId")({
   head: () => ({
     meta: [{ title: "Chat — VetKonnect" }],
   }),
@@ -170,9 +170,9 @@ function ChatThread() {
   let lastDay = "";
 
   return (
-    <AppShell>
-      <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(ellipse_at_top,_rgba(15,118,110,0.08),_transparent_55%)]">
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border/70 bg-background/90 px-3 py-3 backdrop-blur-md">
+    <AppShell immersive>
+      <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(ellipse_at_top,_rgba(15,118,110,0.08),_transparent_55%)]">
+        <header className="z-10 flex shrink-0 items-center gap-3 border-b border-border/70 bg-background/95 px-3 py-3 backdrop-blur-md">
           <Link to="/chats" className="rounded-full p-2 hover:bg-accent" aria-label="Back to chats">
             <ArrowLeft className="size-5" />
           </Link>
@@ -196,8 +196,8 @@ function ChatThread() {
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-3">
-          <div className="flex-1 space-y-1 overflow-y-auto pb-4">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-28 pt-3">
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pb-4">
             {messages.length === 0 ? (
               <div className="mx-auto mt-10 max-w-[16rem] text-center">
                 <p className="text-sm font-semibold text-foreground">You're connected</p>
@@ -249,7 +249,7 @@ function ChatThread() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="rounded-[1.35rem] border border-border/80 bg-card/95 p-2 shadow-[0_12px_30px_-20px_rgba(15,23,42,0.5)] backdrop-blur">
+          <div className="shrink-0 rounded-[1.35rem] border border-border/80 bg-card/95 p-2 shadow-[0_12px_30px_-20px_rgba(15,23,42,0.5)] backdrop-blur">
             <div className="flex items-end gap-2">
               <textarea
                 ref={composerRef}

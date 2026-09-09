@@ -30,7 +30,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as CallCallIdRouteImport } from './routes/call.$callId'
-import { Route as ChatsConversationIdRouteImport } from './routes/chats.$conversationId'
+import { Route as ChatsConversationIdRouteImport } from './routes/chats_.$conversationId'
 import { Route as CommunityPostIdRouteImport } from './routes/community.$postId'
 import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
 import { Route as PetsIndexRouteImport } from './routes/pets.index'
@@ -143,9 +143,9 @@ const CallCallIdRoute = CallCallIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatsConversationIdRoute = ChatsConversationIdRouteImport.update({
-  id: '/$conversationId',
-  path: '/$conversationId',
-  getParentRoute: () => ChatsRoute,
+  id: '/chats_/$conversationId',
+  path: '/chats/$conversationId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityPostIdRoute = CommunityPostIdRouteImport.update({
   id: '/$postId',
@@ -177,7 +177,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
-  '/chats': typeof ChatsRouteWithChildren
+  '/chats': typeof ChatsRoute
   '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
   '/council': typeof CouncilRoute
@@ -206,7 +206,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
-  '/chats': typeof ChatsRouteWithChildren
+  '/chats': typeof ChatsRoute
   '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
   '/council': typeof CouncilRoute
@@ -236,7 +236,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
-  '/chats': typeof ChatsRouteWithChildren
+  '/chats': typeof ChatsRoute
   '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
   '/council': typeof CouncilRoute
@@ -254,7 +254,7 @@ export interface FileRoutesById {
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
   '/call/$callId': typeof CallCallIdRoute
-  '/chats/$conversationId': typeof ChatsConversationIdRoute
+  '/chats_/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
@@ -343,7 +343,7 @@ export interface FileRouteTypes {
     | '/verify'
     | '/welcome'
     | '/call/$callId'
-    | '/chats/$conversationId'
+    | '/chats_/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
@@ -355,7 +355,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AdminLoginRoute: typeof AdminLoginRoute
-  ChatsRoute: typeof ChatsRouteWithChildren
+  ChatsRoute: typeof ChatsRoute
   CityRoute: typeof CityRoute
   CommunityRoute: typeof CommunityRouteWithChildren
   CouncilRoute: typeof CouncilRoute
@@ -373,6 +373,7 @@ export interface RootRouteChildren {
   VerifyRoute: typeof VerifyRoute
   WelcomeRoute: typeof WelcomeRoute
   CallCallIdRoute: typeof CallCallIdRoute
+  ChatsConversationIdRoute: typeof ChatsConversationIdRoute
   PetsPetIdRoute: typeof PetsPetIdRoute
   PetsNewRoute: typeof PetsNewRoute
   PetsIndexRoute: typeof PetsIndexRoute
@@ -527,12 +528,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CallCallIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/chats/$conversationId': {
-      id: '/chats/$conversationId'
-      path: '/$conversationId'
+    '/chats_/$conversationId': {
+      id: '/chats_/$conversationId'
+      path: '/chats/$conversationId'
       fullPath: '/chats/$conversationId'
       preLoaderRoute: typeof ChatsConversationIdRouteImport
-      parentRoute: typeof ChatsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/community/$postId': {
       id: '/community/$postId'
@@ -572,16 +573,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ChatsRouteChildren {
-  ChatsConversationIdRoute: typeof ChatsConversationIdRoute
-}
-
-const ChatsRouteChildren: ChatsRouteChildren = {
-  ChatsConversationIdRoute: ChatsConversationIdRoute,
-}
-
-const ChatsRouteWithChildren = ChatsRoute._addFileChildren(ChatsRouteChildren)
-
 interface CommunityRouteChildren {
   CommunityPostIdRoute: typeof CommunityPostIdRoute
 }
@@ -610,7 +601,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AdminLoginRoute: AdminLoginRoute,
-  ChatsRoute: ChatsRouteWithChildren,
+  ChatsRoute: ChatsRoute,
   CityRoute: CityRoute,
   CommunityRoute: CommunityRouteWithChildren,
   CouncilRoute: CouncilRoute,
@@ -628,6 +619,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyRoute: VerifyRoute,
   WelcomeRoute: WelcomeRoute,
   CallCallIdRoute: CallCallIdRoute,
+  ChatsConversationIdRoute: ChatsConversationIdRoute,
   PetsPetIdRoute: PetsPetIdRoute,
   PetsNewRoute: PetsNewRoute,
   PetsIndexRoute: PetsIndexRoute,
@@ -635,13 +627,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

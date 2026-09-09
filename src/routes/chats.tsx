@@ -128,52 +128,53 @@ function ChatsHub() {
   };
 
   return (
-    <AppShell>
-      <div className="relative overflow-hidden px-5 pb-3 pt-8">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-10 -top-8 size-40 rounded-full bg-primary/10 blur-2xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-8 top-16 size-28 rounded-full bg-teal-400/10 blur-2xl"
-        />
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">Inbox</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">Messages</h1>
-        <p className="mt-1.5 max-w-[20rem] text-sm text-muted-foreground">
-          Private chats and in-app calls with your care team.
-        </p>
+    <AppShell immersive>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <header className="relative z-10 shrink-0 border-b border-border/60 bg-background/95 px-5 pb-3 pt-8 backdrop-blur-md">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 -top-8 size-40 rounded-full bg-primary/10 blur-2xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-8 top-16 size-28 rounded-full bg-teal-400/10 blur-2xl"
+          />
+          <p className="relative text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">Inbox</p>
+          <h1 className="relative mt-1 text-3xl font-extrabold tracking-tight text-foreground">Messages</h1>
+          <p className="relative mt-1.5 max-w-[20rem] text-sm text-muted-foreground">
+            Private chats and in-app calls with your care team.
+          </p>
 
-        <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl bg-muted/80 p-1">
-          {(
-            [
-              { id: "messages" as const, label: "Chats", count: items.reduce((n, c) => n + c.unreadCount, 0) },
-              { id: "calls" as const, label: "Calls", count: 0 },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "relative rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
-                tab === item.id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item.label}
-              {item.id === "messages" && item.count > 0 ? (
-                <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                  {item.count}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="relative mt-5 grid grid-cols-2 gap-1 rounded-2xl bg-muted/80 p-1">
+            {(
+              [
+                { id: "messages" as const, label: "Chats", count: items.reduce((n, c) => n + c.unreadCount, 0) },
+                { id: "calls" as const, label: "Calls", count: 0 },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={cn(
+                  "relative rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
+                  tab === item.id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {item.label}
+                {item.id === "messages" && item.count > 0 ? (
+                  <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                    {item.count}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </header>
 
-      <div className="px-5 pb-10">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-32 pt-4">
         {tab === "messages" ? (
           <>
             {loadingChats ? (
@@ -317,6 +318,7 @@ function ChatsHub() {
             </div>
           </>
         )}
+        </div>
       </div>
     </AppShell>
   );
