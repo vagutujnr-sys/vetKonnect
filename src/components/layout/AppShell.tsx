@@ -11,7 +11,10 @@ export function AppShell({
   immersive?: boolean;
 }) {
   return (
-    <MobileScreen withNavPadding={!immersive}>
+    <MobileScreen
+      withNavPadding={!immersive}
+      className={immersive ? "relative h-dvh max-h-dvh overflow-hidden" : undefined}
+    >
       {children}
       <BottomNav />
     </MobileScreen>

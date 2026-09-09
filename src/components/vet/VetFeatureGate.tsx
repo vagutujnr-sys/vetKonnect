@@ -13,8 +13,8 @@ export function VetFeatureGate({
   if (verified) return <>{children}</>;
 
   return (
-    <div className="relative">
-      <div className="pointer-events-none select-none opacity-40 blur-[1px]" aria-hidden>
+    <div className="relative h-full min-h-dvh w-full">
+      <div className="pointer-events-none absolute inset-0 select-none opacity-40 blur-[1px]" aria-hidden>
         {children}
       </div>
       <div className="absolute inset-x-0 top-8 z-10 mx-5 rounded-2xl border border-border bg-card/95 p-5 shadow-[var(--shadow-card)] backdrop-blur">

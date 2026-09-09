@@ -17,7 +17,7 @@ export const Route = createFileRoute("/impact")({
       { title: "Impact — VetKonnect" },
       { name: "description", content: "Map nearby pet owners around your practice on VetKonnect." },
       { property: "og:title", content: "Impact — VetKonnect" },
-      { property: "og:description", content: "See pet owners near your practice on a full-screen map." },
+      { property: "og:description", content: "See the closest pet owners on a full-screen map." },
     ],
   }),
   component: ImpactScreen,
@@ -52,15 +52,20 @@ function ImpactScreen() {
   useEffect(() => {
     if (!verified) {
       setLoading(false);
+      setClients([]);
       return;
     }
     setLoading(true);
-    void getPotentialClients(origin)
+    void getPotentialClients(origin, 40)
       .then((rows) => {
+        // Closest first (service already sorts by distanceKm).
         setClients(rows);
         setSelected(null);
       })
-      .catch((error) => console.error("Failed to load potential clients", error))
+      .catch((error) => {
+        console.error("Failed to load closest owners", error);
+        setClients([]);
+      })
       .finally(() => setLoading(false));
   }, [verified, origin.latitude, origin.longitude]);
 
@@ -81,7 +86,7 @@ function ImpactScreen() {
   return (
     <AppShell immersive>
       <VetFeatureGate verified={verified} title="Impact">
-        <div className="relative h-dvh w-full overflow-hidden bg-muted">
+        <div className="absolute inset-0 overflow-hidden bg-muted">
           <ImpactOwnersMap
             vetLocation={origin}
             owners={clients}
@@ -94,10 +99,10 @@ function ImpactScreen() {
             <div className="pointer-events-auto flex items-start justify-between gap-3">
               <div>
                 <h1 className="text-2xl font-extrabold text-foreground">Impact</h1>
-                <p className="mt-0.5 text-sm text-muted-foreground">Owners near your practice</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">Closest owners · pets on each pin</p>
               </div>
               <span className="rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs font-semibold shadow-sm backdrop-blur">
-                {loading ? "…" : `${clients.length} on map`}
+                {loading ? "…" : `${clients.length} nearby`}
               </span>
             </div>
           </div>
@@ -105,9 +110,9 @@ function ImpactScreen() {
           {!loading && clients.length === 0 ? (
             <div className="absolute inset-x-4 top-1/3 z-10 rounded-2xl border border-border bg-card/95 p-5 text-center shadow-[var(--shadow-card)] backdrop-blur">
               <PawPrint className="mx-auto size-8 text-primary" />
-              <p className="mt-3 font-semibold">No owners on the map yet</p>
+              <p className="mt-3 font-semibold">No nearby owners yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                When pet owners join VetKonnect, they appear here around your practice.
+                Pet owners with registered pets will appear on this map around your practice.
               </p>
             </div>
           ) : null}
@@ -128,7 +133,13 @@ function ImpactScreen() {
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-extrabold">{selected.fullName}</h2>
+                    <div>
+                      <h2 className="font-extrabold">{selected.fullName}</h2>
+                      <p className="mt-0.5 text-xs font-semibold text-primary">
+                        {selected.distanceKm.toFixed(1)} km away
+                        {selected.approximate ? " · approx." : ""}
+                      </p>
+                    </div>
                     <button
                       type="button"
                       className="rounded-full p-1.5 text-muted-foreground hover:bg-accent"
@@ -138,15 +149,14 @@ function ImpactScreen() {
                       <X className="size-4" />
                     </button>
                   </div>
-                  <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
                     <PawPrint className="size-3.5 shrink-0 text-primary" />
-                    {selected.pets} pet{selected.pets === 1 ? "" : "s"}
-                    {selected.petNames.length ? ` · ${selected.petNames.slice(0, 3).join(", ")}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {selected.distanceKm.toFixed(1)} km away
-                    {selected.approximate ? " · approx. location" : ""}
-                    {selected.memberSince ? ` · since ${selected.memberSince}` : ""}
+                    <span className="font-semibold text-foreground">
+                      {selected.pets} pet{selected.pets === 1 ? "" : "s"}
+                    </span>
+                    {selected.petNames.length ? (
+                      <span className="truncate">· {selected.petNames.slice(0, 3).join(", ")}</span>
+                    ) : null}
                   </p>
                   {selected.phone ? (
                     <a

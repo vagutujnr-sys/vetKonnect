@@ -14,11 +14,19 @@ type Props = {
 
 const PAW_SVG = `<svg class="vk-owner-marker-paw" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 10.5c-1.8 0-3.4 1.2-3.9 2.9-.4 1.3.1 2.7 1.2 3.5.7.5 1.6.8 2.7.8s2-.3 2.7-.8c1.1-.8 1.6-2.2 1.2-3.5-.5-1.7-2.1-2.9-3.9-2.9zm-5.2-1.2c.9 0 1.7-.8 1.7-1.8S7.7 5.7 6.8 5.7 5.1 6.5 5.1 7.5s.8 1.8 1.7 1.8zm10.4 0c.9 0 1.7-.8 1.7-1.8s-.8-1.8-1.7-1.8-1.7.8-1.7 1.8.8 1.8 1.7 1.8zM8.4 4.8c.9 0 1.6-.8 1.6-1.7S9.3 1.4 8.4 1.4 6.8 2.2 6.8 3.1s.7 1.7 1.6 1.7zm7.2 0c.9 0 1.6-.8 1.6-1.7s-.7-1.7-1.6-1.7-1.6.8-1.6 1.7.7 1.7 1.6 1.7z"/></svg>`;
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function buildOwnerMarker(owner: PotentialClient, active: boolean): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className = active ? "vk-owner-marker vk-owner-marker-active" : "vk-owner-marker";
-  el.setAttribute("aria-label", `${owner.fullName}, ${owner.pets} pets`);
+  el.setAttribute("aria-label", `${owner.fullName}, ${owner.pets} pets, ${owner.distanceKm.toFixed(1)} km`);
 
   const face = document.createElement("span");
   face.className = "vk-owner-marker-face";
@@ -34,7 +42,7 @@ function buildOwnerMarker(owner: PotentialClient, active: boolean): HTMLButtonEl
 
   const count = document.createElement("span");
   count.className = "vk-owner-marker-count";
-  count.textContent = owner.pets > 9 ? "9+" : String(owner.pets);
+  count.innerHTML = `${PAW_SVG}<span>${owner.pets > 9 ? "9+" : String(owner.pets)}</span>`;
 
   el.appendChild(face);
   el.appendChild(count);
@@ -49,12 +57,17 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
 
   useEffect(() => {
     const token = getMapboxToken();
-    if (!token || !containerRef.current) return;
+    const container = containerRef.current;
+    if (!token || !container) return;
 
     let disposed = false;
     let map: import("mapbox-gl").Map | null = null;
     const markers: import("mapbox-gl").Marker[] = [];
     ownerElsRef.current = new Map();
+
+    const resizeMap = () => {
+      map?.resize();
+    };
 
     void (async () => {
       const mapboxgl = (await import("mapbox-gl")).default;
@@ -65,7 +78,7 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
         container: containerRef.current,
         style: "mapbox://styles/mapbox/streets-v12",
         center: [vetLocation.longitude, vetLocation.latitude],
-        zoom: 12,
+        zoom: 12.2,
         attributionControl: false,
       });
 
@@ -87,7 +100,10 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
         [vetLocation.longitude, vetLocation.latitude],
       );
 
-      owners.forEach((owner) => {
+      // Closest owners first for marker stacking / fit.
+      const closest = [...owners].sort((a, b) => a.distanceKm - b.distanceKm);
+
+      closest.forEach((owner) => {
         const el = buildOwnerMarker(owner, owner.id === selectedId);
         el.addEventListener("click", (event) => {
           event.stopPropagation();
@@ -96,14 +112,14 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
         ownerElsRef.current.set(owner.id, el);
 
         const petsLabel = `${owner.pets} pet${owner.pets === 1 ? "" : "s"}`;
-        const petNames = owner.petNames.slice(0, 3).join(", ");
+        const petNames = owner.petNames.slice(0, 3).map(escapeHtml).join(", ");
         const approx = owner.approximate ? "<br/><em>Approx. nearby</em>" : "";
         markers.push(
-          new mapboxgl.Marker({ element: el })
+          new mapboxgl.Marker({ element: el, anchor: "bottom" })
             .setLngLat([owner.longitude, owner.latitude])
             .setPopup(
-              new mapboxgl.Popup({ offset: 22 }).setHTML(
-                `<strong>${owner.fullName}</strong><br/>${petsLabel}${petNames ? ` · ${petNames}` : ""} · ${owner.distanceKm.toFixed(1)} km${approx}`,
+              new mapboxgl.Popup({ offset: 28 }).setHTML(
+                `<strong>${escapeHtml(owner.fullName)}</strong><br/>${petsLabel}${petNames ? ` · ${petNames}` : ""} · ${owner.distanceKm.toFixed(1)} km${approx}`,
               ),
             )
             .addTo(map!),
@@ -111,19 +127,24 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
         bounds.extend([owner.longitude, owner.latitude]);
       });
 
-      if (owners.length > 0) {
-        map.fitBounds(bounds, { padding: 72, maxZoom: 13.5, duration: 700 });
+      if (closest.length > 0) {
+        map.fitBounds(bounds, { padding: { top: 96, bottom: 140, left: 48, right: 48 }, maxZoom: 13.8, duration: 700 });
       }
 
       map.on("click", () => onSelectRef.current?.(null));
-
-      // Ensure tiles paint after full-bleed layout settles.
-      map.once("load", () => map?.resize());
-      requestAnimationFrame(() => map?.resize());
+      map.once("load", resizeMap);
+      requestAnimationFrame(resizeMap);
+      window.setTimeout(resizeMap, 120);
     })();
+
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resizeMap) : null;
+    observer?.observe(container);
+    window.addEventListener("resize", resizeMap);
 
     return () => {
       disposed = true;
+      observer?.disconnect();
+      window.removeEventListener("resize", resizeMap);
       markers.forEach((marker) => marker.remove());
       map?.remove();
       ownerElsRef.current = new Map();

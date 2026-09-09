@@ -183,8 +183,8 @@
 
 .vk-owner-marker {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 52px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -195,8 +195,8 @@
 .vk-owner-marker-face {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 999px;
   border: 2px solid white;
   background: oklch(0.55 0.12 145);
@@ -212,25 +212,32 @@
 }
 
 .vk-owner-marker-paw {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .vk-owner-marker-count {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  min-width: 20px;
-  height: 20px;
+  right: -4px;
+  bottom: 0;
+  min-width: 26px;
+  height: 22px;
   padding: 0 5px;
   border-radius: 999px;
   border: 2px solid white;
   background: var(--primary);
   color: white;
-  font: 700 10px/16px var(--font-sans);
-  display: grid;
-  place-items: center;
+  font: 700 11px/1 var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   box-shadow: var(--shadow-card);
+}
+
+.vk-owner-marker-count .vk-owner-marker-paw {
+  width: 11px;
+  height: 11px;
 }
 
 .vk-owner-marker-active .vk-owner-marker-face {
@@ -239,7 +246,7 @@
 }
 
 .vk-owner-marker-active .vk-owner-marker-count {
-  background: oklch(0.45 0.14 145);
+  background: oklch(0.42 0.12 145);
 }
 
 .mapboxgl-popup-content {
