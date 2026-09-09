@@ -66,14 +66,18 @@ export async function getCallSession(callId: string): Promise<CallSession | null
   return mapCall(row, await peerNameFor(peerId), me);
 }
 
-/** Owner starts an in-app voice call to a vet account (number never shown). */
+/** Owner (or either party) starts an in-app voice call — number never shown. */
 export async function startInAppCall(input: {
-  vetAccountId: string;
+  /** @deprecated Prefer calleeAccountId */
+  vetAccountId?: string;
+  calleeAccountId?: string;
   surgeryId?: string | null;
 }): Promise<CallSession> {
   const callerId = getSessionAccountId();
   if (!callerId) throw new Error("Sign in to place a call.");
-  if (callerId === input.vetAccountId) throw new Error("You cannot call yourself.");
+  const calleeId = input.calleeAccountId ?? input.vetAccountId;
+  if (!calleeId) throw new Error("Missing call recipient.");
+  if (callerId === calleeId) throw new Error("You cannot call yourself.");
 
   const id = crypto.randomUUID();
   const { data, error } = await supabase
@@ -81,7 +85,7 @@ export async function startInAppCall(input: {
     .insert({
       id,
       caller_account_id: callerId,
-      callee_account_id: input.vetAccountId,
+      callee_account_id: calleeId,
       surgery_id: input.surgeryId ?? null,
       status: "ringing",
       created_at: new Date().toISOString(),
@@ -91,14 +95,43 @@ export async function startInAppCall(input: {
 
   if (error) {
     if (isMissingRelation(error)) throw new Error("Calls are not set up yet. Apply migration 014_in_app_calls.sql in Supabase.");
+    // surgery_id may point at a services row — retry without it.
+    if (String(error.message ?? "").toLowerCase().includes("surgery_id") || error.code === "23503") {
+      const retry = await supabase
+        .from("call_sessions")
+        .insert({
+          id,
+          caller_account_id: callerId,
+          callee_account_id: calleeId,
+          surgery_id: null,
+          status: "ringing",
+          created_at: new Date().toISOString(),
+        })
+        .select("*")
+        .single();
+      if (retry.error) throw retry.error;
+      const peerName = await peerNameFor(calleeId);
+      const { data: caller } = await supabase.from("accounts").select("full_name").eq("id", callerId).maybeSingle();
+      try {
+        await createNotification({
+          accountId: calleeId,
+          title: "Incoming VetKonnect call",
+          body: `${String(caller?.full_name ?? "Someone")} is calling you in the app.`,
+          type: "call",
+        });
+      } catch (notifyError) {
+        console.warn("Call notification failed", notifyError);
+      }
+      return mapCall(retry.data as Record<string, unknown>, peerName, callerId);
+    }
     throw error;
   }
 
-  const peerName = await peerNameFor(input.vetAccountId);
+  const peerName = await peerNameFor(calleeId);
   const { data: caller } = await supabase.from("accounts").select("full_name").eq("id", callerId).maybeSingle();
   try {
     await createNotification({
-      accountId: input.vetAccountId,
+      accountId: calleeId,
       title: "Incoming VetKonnect call",
       body: `${String(caller?.full_name ?? "A pet owner")} is calling you in the app.`,
       type: "call",
@@ -169,6 +202,30 @@ export async function listRingingCallsForMe(): Promise<CallSession[]> {
   const rows = (data ?? []) as Record<string, unknown>[];
   return Promise.all(
     rows.map(async (row) => mapCall(row, await peerNameFor(String(row.caller_account_id)), me)),
+  );
+}
+
+/** Recent in-app calls for the signed-in user (caller or callee). */
+export async function listCallHistory(limit = 40): Promise<CallSession[]> {
+  const me = getSessionAccountId();
+  if (!me) return [];
+  const { data, error } = await supabase
+    .from("call_sessions")
+    .select("*")
+    .or(`caller_account_id.eq.${me},callee_account_id.eq.${me}`)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    if (isMissingRelation(error)) return [];
+    throw error;
+  }
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return Promise.all(
+    rows.map(async (row) => {
+      const peerId =
+        String(row.caller_account_id) === me ? String(row.callee_account_id) : String(row.caller_account_id);
+      return mapCall(row, await peerNameFor(peerId), me);
+    }),
   );
 }
 

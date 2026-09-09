@@ -207,23 +207,29 @@ export async function getOrCreateConversationWithVet(input: {
   if (existing) {
     const { data: peer } = await supabase
       .from("accounts")
-      .select("full_name")
+      .select("full_name, practice_name")
       .eq("id", input.vetAccountId)
       .maybeSingle();
     return mapConversationRow(
       existing as Record<string, unknown>,
-      String(peer?.full_name ?? "Veterinarian"),
+      String(peer?.practice_name || peer?.full_name || "Veterinarian"),
       "vet",
       0,
     );
   }
 
   const id = crypto.randomUUID();
+  let surgeryId: string | null = input.surgeryId ?? null;
+  if (surgeryId) {
+    const { data: vetRow } = await supabase.from("vets").select("id").eq("id", surgeryId).maybeSingle();
+    if (!vetRow) surgeryId = null;
+  }
+
   const row = {
     id,
     owner_account_id: ownerId,
     vet_account_id: input.vetAccountId,
-    surgery_id: input.surgeryId ?? null,
+    surgery_id: surgeryId,
     last_message_at: new Date().toISOString(),
     last_message_preview: "",
     created_at: new Date().toISOString(),
@@ -233,13 +239,13 @@ export async function getOrCreateConversationWithVet(input: {
 
   const { data: peer } = await supabase
     .from("accounts")
-    .select("full_name")
+    .select("full_name, practice_name")
     .eq("id", input.vetAccountId)
     .maybeSingle();
 
   return mapConversationRow(
     data as Record<string, unknown>,
-    String(peer?.full_name ?? "Veterinarian"),
+    String(peer?.practice_name || peer?.full_name || "Veterinarian"),
     "vet",
     0,
   );
@@ -271,9 +277,18 @@ export async function listConversations(): Promise<ChatConversation[]> {
     ),
   ];
 
-  const { data: peers } = await supabase.from("accounts").select("id, full_name, account_type").in("id", peerIds);
+  const { data: peers } = await supabase
+    .from("accounts")
+    .select("id, full_name, practice_name, account_type")
+    .in("id", peerIds);
   const peerMap = new Map(
-    (peers ?? []).map((p) => [String(p.id), { name: String(p.full_name ?? "User"), type: String(p.account_type ?? "") }]),
+    (peers ?? []).map((p) => [
+      String(p.id),
+      {
+        name: String(p.practice_name || p.full_name || "User"),
+        type: String(p.account_type ?? ""),
+      },
+    ]),
   );
 
   const conversationIds = rows.map((r) => String(r.id));

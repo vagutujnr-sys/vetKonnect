@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { MapPinned, MapPin, MessageSquare, Phone, Search, Siren, Star, X } from "lucide-react";
+import { LayoutList, MapPin, MessageSquare, Phone, Search, Siren, Star, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClosestVetsMap } from "@/components/discover/ClosestVetsMap";
@@ -35,14 +35,15 @@ function Discover() {
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
   const [query, setQuery] = useState("");
   const [servicesData, setServicesData] = useState<ServiceListing[]>([]);
-  const [mapOpen, setMapOpen] = useState(false);
-  const [mapLoading, setMapLoading] = useState(false);
+  const [mapOpen, setMapOpen] = useState(!isVet);
+  const [mapLoading, setMapLoading] = useState(!isVet);
   const [userLocation, setUserLocation] = useState<GeoPoint | null>(null);
   const [nearbyVets, setNearbyVets] = useState<MappableVet[]>([]);
   const [selectedVet, setSelectedVet] = useState<MappableVet | null>(null);
   const [locationNote, setLocationNote] = useState("");
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [callingId, setCallingId] = useState<string | null>(null);
+  const [mapBooted, setMapBooted] = useState(false);
 
   const startChatWithVet = async (vet: MappableVet) => {
     setMessagingId(vet.id);
@@ -108,16 +109,11 @@ function Discover() {
       setMapOpen(false);
       setNearbyVets([]);
       setSelectedVet(null);
+      setMapLoading(false);
     }
   }, [isVet, mapOpen]);
 
-  const services = servicesData.filter(
-    (s) =>
-      (category === "All" || s.category === category) &&
-      s.name.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-
-  const openMapVets = async () => {
+  const openMapVets = async (options?: { silentLocationToast?: boolean }) => {
     if (isVet) {
       toast.message("Map Vets is for pet owners", {
         description: "Use Impact to see nearby owners around your practice.",
@@ -137,9 +133,11 @@ function Discover() {
       } catch {
         origin = HARARE;
         setLocationNote("Location off — closest clinics around Harare");
-        toast.message("Using Harare as your location", {
-          description: "Allow location access for more accurate results.",
-        });
+        if (!options?.silentLocationToast) {
+          toast.message("Using Harare as your location", {
+            description: "Allow location access for more accurate results.",
+          });
+        }
       }
 
       const vets = await getNearbyVets(origin, 5);
@@ -153,8 +151,22 @@ function Discover() {
       setMapOpen(false);
     } finally {
       setMapLoading(false);
+      setMapBooted(true);
     }
   };
+
+  // Owners land on Map Vets by default.
+  useEffect(() => {
+    if (isVet || mapBooted) return;
+    void openMapVets({ silentLocationToast: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boot once for owners
+  }, [isVet, mapBooted]);
+
+  const services = servicesData.filter(
+    (s) =>
+      (category === "All" || s.category === category) &&
+      s.name.toLowerCase().includes(query.trim().toLowerCase()),
+  );
 
   if (mapOpen && !isVet) {
     return (
@@ -193,9 +205,10 @@ function Discover() {
                     setSelectedVet(null);
                   }}
                   className="flex size-9 items-center justify-center rounded-full border border-border bg-card/95 shadow-sm backdrop-blur"
-                  aria-label="Close map"
+                  aria-label="Browse services"
+                  title="Browse services"
                 >
-                  <X className="size-4" />
+                  <LayoutList className="size-4" />
                 </button>
               </div>
             </div>
@@ -331,10 +344,10 @@ function Discover() {
             onClick={() => void openMapVets()}
           >
             <span className="inline-flex items-center gap-2">
-              <MapPinned className="size-5" />
-              Map Vets
+              <MapPin className="size-5" />
+              Back to Map Vets
             </span>
-            <span className="text-sm font-medium opacity-90">Closest 5</span>
+            <span className="text-sm font-medium opacity-90">Default</span>
           </Button>
         ) : null}
       </div>
