@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AdminLoginRouteImport } from './routes/admin-login'
+import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CityRouteImport } from './routes/city'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CouncilRouteImport } from './routes/council'
@@ -28,6 +29,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as ChatsConversationIdRouteImport } from './routes/chats.$conversationId'
 import { Route as CommunityPostIdRouteImport } from './routes/community.$postId'
 import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
 import { Route as PetsIndexRouteImport } from './routes/pets.index'
@@ -47,6 +49,11 @@ const AdminRoute = AdminRouteImport.update({
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin-login',
   path: '/admin-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatsRoute = ChatsRouteImport.update({
+  id: '/chats',
+  path: '/chats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CityRoute = CityRouteImport.update({
@@ -129,6 +136,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
   path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatsConversationIdRoute = ChatsConversationIdRouteImport.update({
+  id: '/$conversationId',
+  path: '/$conversationId',
+  getParentRoute: () => ChatsRoute,
+} as any)
 const CommunityPostIdRoute = CommunityPostIdRouteImport.update({
   id: '/$postId',
   path: '/$postId',
@@ -159,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
+  '/chats': typeof ChatsRouteWithChildren
   '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
   '/council': typeof CouncilRoute
@@ -175,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
+  '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
@@ -185,6 +199,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
+  '/chats': typeof ChatsRouteWithChildren
   '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
   '/council': typeof CouncilRoute
@@ -201,6 +216,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
+  '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
@@ -212,6 +228,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/admin-login': typeof AdminLoginRoute
+  '/chats': typeof ChatsRouteWithChildren
   '/city': typeof CityRoute
   '/community': typeof CommunityRouteWithChildren
   '/council': typeof CouncilRoute
@@ -228,6 +245,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
+  '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
@@ -240,6 +258,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/chats'
     | '/city'
     | '/community'
     | '/council'
@@ -256,6 +275,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/verify'
     | '/welcome'
+    | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
@@ -266,6 +286,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/chats'
     | '/city'
     | '/community'
     | '/council'
@@ -282,6 +303,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/verify'
     | '/welcome'
+    | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
@@ -292,6 +314,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/chats'
     | '/city'
     | '/community'
     | '/council'
@@ -308,6 +331,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/verify'
     | '/welcome'
+    | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
@@ -319,6 +343,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  ChatsRoute: typeof ChatsRouteWithChildren
   CityRoute: typeof CityRoute
   CommunityRoute: typeof CommunityRouteWithChildren
   CouncilRoute: typeof CouncilRoute
@@ -361,6 +386,13 @@ declare module '@tanstack/react-router' {
       path: '/admin-login'
       fullPath: '/admin-login'
       preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chats': {
+      id: '/chats'
+      path: '/chats'
+      fullPath: '/chats'
+      preLoaderRoute: typeof ChatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/city': {
@@ -475,6 +507,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chats/$conversationId': {
+      id: '/chats/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/chats/$conversationId'
+      preLoaderRoute: typeof ChatsConversationIdRouteImport
+      parentRoute: typeof ChatsRoute
+    }
     '/community/$postId': {
       id: '/community/$postId'
       path: '/$postId'
@@ -513,6 +552,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ChatsRouteChildren {
+  ChatsConversationIdRoute: typeof ChatsConversationIdRoute
+}
+
+const ChatsRouteChildren: ChatsRouteChildren = {
+  ChatsConversationIdRoute: ChatsConversationIdRoute,
+}
+
+const ChatsRouteWithChildren = ChatsRoute._addFileChildren(ChatsRouteChildren)
+
 interface CommunityRouteChildren {
   CommunityPostIdRoute: typeof CommunityPostIdRoute
 }
@@ -541,6 +590,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AdminLoginRoute: AdminLoginRoute,
+  ChatsRoute: ChatsRouteWithChildren,
   CityRoute: CityRoute,
   CommunityRoute: CommunityRouteWithChildren,
   CouncilRoute: CouncilRoute,

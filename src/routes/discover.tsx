@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { MapPinned, MapPin, Phone, Search, Siren, Star, X } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { MapPinned, MapPin, MessageSquare, Phone, Search, Siren, Star, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClosestVetsMap } from "@/components/discover/ClosestVetsMap";
@@ -7,6 +7,7 @@ import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
+import { getOrCreateConversationWithVet, resolveVetAccountId } from "@/services/chatService";
 import { getNearbyVets, getServices } from "@/services/contentService";
 import type { MappableVet, ServiceListing } from "@/types";
 import { getCurrentPosition, HARARE, type GeoPoint } from "@/lib/geo";
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/discover")({
 const categories = ["All", "Veterinary Clinic", "Grooming", "Pet Store", "Emergency"] as const;
 
 function Discover() {
+  const navigate = useNavigate();
   const { user } = useApp();
   const isVet = isVetAccount(user);
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
@@ -38,6 +40,29 @@ function Discover() {
   const [nearbyVets, setNearbyVets] = useState<MappableVet[]>([]);
   const [selectedVet, setSelectedVet] = useState<MappableVet | null>(null);
   const [locationNote, setLocationNote] = useState("");
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+
+  const startChatWithVet = async (vet: MappableVet) => {
+    setMessagingId(vet.id);
+    try {
+      const resolved = await resolveVetAccountId({ surgeryId: vet.id, phone: vet.phone });
+      if (!resolved) {
+        toast.message("Chat unavailable for this clinic yet", {
+          description: "This surgery is not linked to a VetKonnect vet account. You can still call if a number is listed.",
+        });
+        return;
+      }
+      const conversation = await getOrCreateConversationWithVet({
+        vetAccountId: resolved.accountId,
+        surgeryId: vet.id,
+      });
+      void navigate({ to: "/chats/$conversationId", params: { conversationId: conversation.id } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start chat");
+    } finally {
+      setMessagingId(null);
+    }
+  };
 
   useEffect(() => {
     void getServices().then(setServicesData).catch((error) => console.error("Failed to load services", error));
@@ -159,14 +184,27 @@ function Discover() {
                       <Star className="size-3.5 fill-current" /> {selectedVet.rating.toFixed(1)}
                     </span>
                     {selectedVet.phone ? (
+                      <span className="font-medium text-muted-foreground">{selectedVet.phone}</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    {selectedVet.phone ? (
                       <a
                         href={`tel:${selectedVet.phone}`}
-                        className="inline-flex items-center gap-1 font-semibold text-foreground"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
                       >
-                        <Phone className="size-3.5 text-primary" />
-                        {selectedVet.phone}
+                        <Phone className="size-3.5" /> Call
                       </a>
                     ) : null}
+                    <button
+                      type="button"
+                      disabled={messagingId === selectedVet.id}
+                      onClick={() => void startChatWithVet(selectedVet)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold"
+                    >
+                      <MessageSquare className="size-3.5 text-primary" />
+                      {messagingId === selectedVet.id ? "Opening…" : "Message"}
+                    </button>
                   </div>
                 </div>
                 <button
@@ -180,24 +218,59 @@ function Discover() {
               </div>
             </div>
           ) : !mapLoading && nearbyVets.length > 0 ? (
-            <div className="absolute inset-x-3 bottom-28 z-20 max-h-40 overflow-y-auto rounded-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur">
+            <div className="absolute inset-x-3 bottom-28 z-20 max-h-48 overflow-y-auto rounded-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur">
               {nearbyVets.map((vet, index) => (
-                <button
+                <div
                   key={vet.id}
-                  type="button"
-                  onClick={() => setSelectedVet(vet)}
-                  className="flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left last:border-b-0"
+                  className="flex w-full items-center gap-2 border-b border-border px-3 py-2.5 last:border-b-0"
                 >
-                  <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{vet.name}</span>
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {vet.distanceKm.toFixed(1)} km · {vet.surgery}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVet(vet)}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                  >
+                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      {index + 1}
                     </span>
-                  </span>
-                </button>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">{vet.name}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {vet.distanceKm.toFixed(1)} km · {vet.surgery}
+                      </span>
+                    </span>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {vet.phone ? (
+                      <a
+                        href={`tel:${vet.phone}`}
+                        className="flex size-9 items-center justify-center rounded-full bg-accent text-primary"
+                        aria-label={`Call ${vet.name}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Phone className="size-4" />
+                      </a>
+                    ) : (
+                      <span
+                        className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground/50"
+                        title="No phone on file"
+                      >
+                        <Phone className="size-4" />
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      disabled={messagingId === vet.id}
+                      className="flex size-9 items-center justify-center rounded-full bg-accent text-primary disabled:opacity-60"
+                      aria-label={`Message ${vet.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void startChatWithVet(vet);
+                      }}
+                    >
+                      <MessageSquare className="size-4" />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           ) : null}

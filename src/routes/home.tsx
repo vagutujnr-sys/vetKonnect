@@ -1,26 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import {
-  Bell,
-  CalendarPlus,
-  CalendarDays,
-  FilePlus2,
-  HeartPulse,
-  MapPin,
-  MessageCircle,
-  Heart,
-  PawPrint,
-  Phone,
-  QrCode,
-  ShieldPlus,
-  Weight,
-  Pill,
-  ChevronRight,
-} from "lucide-react";
+import { CalendarPlus, CalendarDays, FilePlus2, HeartPulse, MapPin, MessageCircle, Heart, PawPrint, Phone, QrCode, ShieldPlus, Weight, Pill, ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { HeaderAlerts } from "@/components/layout/HeaderAlerts";
 import { Button } from "@/components/ui/button";
 import { getPosts, getServices } from "@/services/contentService";
-import { getNotifications } from "@/services/notificationService";
 import type { CommunityPost, ServiceListing } from "@/types";
 import { useApp } from "@/hooks/useApp";
 import { cn } from "@/lib/utils";
@@ -49,14 +33,12 @@ function HomeScreen() {
   const { user, pets, activePetId } = useApp();
   const [services, setServices] = useState<ServiceListing[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    void Promise.all([getServices(), getPosts(), getNotifications()])
-      .then(([servicesData, postsData, notes]) => {
+    void Promise.all([getServices(), getPosts()])
+      .then(([servicesData, postsData]) => {
         setServices(servicesData);
         setPosts(postsData);
-        setUnread(notes.filter((n) => !n.read).length);
       })
       .catch((error) => console.error("Failed to load home content", error));
   }, []);
@@ -73,14 +55,7 @@ function HomeScreen() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/notifications" className="relative" aria-label="Notifications">
-            <Bell className="size-6 text-foreground" />
-            {unread > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            ) : null}
-          </Link>
+          <HeaderAlerts />
           <Link
             to="/profile"
             className="flex size-10 items-center justify-center rounded-full bg-accent font-bold text-primary"

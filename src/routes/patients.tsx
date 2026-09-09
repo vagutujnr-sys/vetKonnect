@@ -1,14 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Bell, ClipboardList, HeartPulse, LayoutDashboard, PawPrint, Users } from "lucide-react";
+import { ClipboardList, HeartPulse, LayoutDashboard, PawPrint, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
+import { HeaderAlerts } from "@/components/layout/HeaderAlerts";
 import { TagScanPanel } from "@/components/vet/TagScanPanel";
 import { VetFeatureGate } from "@/components/vet/VetFeatureGate";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
-import { getNotifications } from "@/services/notificationService";
 import { getRecentPatients, lookupPatientByTag, requestPracticeDashboard } from "@/services/vetService";
 import type { Pet } from "@/types";
 
@@ -27,7 +27,6 @@ export const Route = createFileRoute("/patients")({
 function PatientsScreen() {
   const navigate = useNavigate();
   const { user, refreshSession } = useApp();
-  const [unread, setUnread] = useState(0);
   const [requesting, setRequesting] = useState(false);
   const [searching, setSearching] = useState(false);
   const [recent, setRecent] = useState<Pet[]>([]);
@@ -38,12 +37,6 @@ function PatientsScreen() {
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
-
-  useEffect(() => {
-    void getNotifications()
-      .then((notes) => setUnread(notes.filter((n) => !n.read).length))
-      .catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     if (!verified) return;
@@ -108,14 +101,7 @@ function PatientsScreen() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/notifications" className="relative" aria-label="Notifications">
-            <Bell className="size-6 text-foreground" />
-            {unread > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            ) : null}
-          </Link>
+          <HeaderAlerts />
         </div>
       </header>
 

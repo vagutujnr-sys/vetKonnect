@@ -280,3 +280,27 @@ export interface CouncilPetNotRegistered {
 }
 
 export type CouncilTagScanResult = CouncilPetLookup | CouncilPetNotRegistered;
+
+export interface ChatConversation {
+  id: string;
+  ownerAccountId: string;
+  vetAccountId: string;
+  surgeryId?: string | null;
+  lastMessageAt: string;
+  lastMessagePreview: string;
+  createdAt: string;
+  /** Display name of the other party for the current viewer. */
+  peerName: string;
+  peerRole: "owner" | "vet";
+  unreadCount: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderAccountId: string;
+  body: string;
+  readByRecipient: boolean;
+  createdAt: string;
+  mine: boolean;
+}
