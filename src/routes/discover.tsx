@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
 import { getOrCreateConversationWithVet, resolveVetAccountId } from "@/services/chatService";
+import { startInAppCall } from "@/services/callService";
 import { getNearbyVets, getServices } from "@/services/contentService";
 import type { MappableVet, ServiceListing } from "@/types";
 import { getCurrentPosition, HARARE, type GeoPoint } from "@/lib/geo";
@@ -41,6 +42,7 @@ function Discover() {
   const [selectedVet, setSelectedVet] = useState<MappableVet | null>(null);
   const [locationNote, setLocationNote] = useState("");
   const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [callingId, setCallingId] = useState<string | null>(null);
 
   const startChatWithVet = async (vet: MappableVet) => {
     setMessagingId(vet.id);
@@ -48,7 +50,7 @@ function Discover() {
       const resolved = await resolveVetAccountId({ surgeryId: vet.id, phone: vet.phone });
       if (!resolved) {
         toast.message("Chat unavailable for this clinic yet", {
-          description: "This surgery is not linked to a VetKonnect vet account. You can still call if a number is listed.",
+          description: "This surgery is not linked to a VetKonnect vet account yet.",
         });
         return;
       }
@@ -61,6 +63,28 @@ function Discover() {
       toast.error(error instanceof Error ? error.message : "Could not start chat");
     } finally {
       setMessagingId(null);
+    }
+  };
+
+  const startCallWithVet = async (vet: MappableVet) => {
+    setCallingId(vet.id);
+    try {
+      const resolved = await resolveVetAccountId({ surgeryId: vet.id, phone: vet.phone });
+      if (!resolved) {
+        toast.message("In-app call unavailable for this clinic yet", {
+          description: "This surgery is not linked to a VetKonnect vet account.",
+        });
+        return;
+      }
+      const call = await startInAppCall({
+        vetAccountId: resolved.accountId,
+        surgeryId: vet.id,
+      });
+      void navigate({ to: "/call/$callId", params: { callId: call.id } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start call");
+    } finally {
+      setCallingId(null);
     }
   };
 
@@ -183,19 +207,18 @@ function Discover() {
                     <span className="inline-flex items-center gap-1 font-semibold text-primary">
                       <Star className="size-3.5 fill-current" /> {selectedVet.rating.toFixed(1)}
                     </span>
-                    {selectedVet.phone ? (
-                      <span className="font-medium text-muted-foreground">{selectedVet.phone}</span>
-                    ) : null}
+                    <span className="font-medium text-muted-foreground">In-app voice · number hidden</span>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                    {selectedVet.phone ? (
-                      <a
-                        href={`tel:${selectedVet.phone}`}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-                      >
-                        <Phone className="size-3.5" /> Call
-                      </a>
-                    ) : null}
+                    <button
+                      type="button"
+                      disabled={callingId === selectedVet.id}
+                      onClick={() => void startCallWithVet(selectedVet)}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                    >
+                      <Phone className="size-3.5" />
+                      {callingId === selectedVet.id ? "Calling…" : "Call"}
+                    </button>
                     <button
                       type="button"
                       disabled={messagingId === selectedVet.id}
@@ -240,23 +263,18 @@ function Discover() {
                     </span>
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
-                    {vet.phone ? (
-                      <a
-                        href={`tel:${vet.phone}`}
-                        className="flex size-9 items-center justify-center rounded-full bg-accent text-primary"
-                        aria-label={`Call ${vet.name}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Phone className="size-4" />
-                      </a>
-                    ) : (
-                      <span
-                        className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground/50"
-                        title="No phone on file"
-                      >
-                        <Phone className="size-4" />
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      disabled={callingId === vet.id}
+                      className="flex size-9 items-center justify-center rounded-full bg-accent text-primary disabled:opacity-60"
+                      aria-label={`Call ${vet.name} in app`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void startCallWithVet(vet);
+                      }}
+                    >
+                      <Phone className="size-4" />
+                    </button>
                     <button
                       type="button"
                       disabled={messagingId === vet.id}

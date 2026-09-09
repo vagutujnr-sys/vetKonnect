@@ -29,6 +29,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as CallCallIdRouteImport } from './routes/call.$callId'
 import { Route as ChatsConversationIdRouteImport } from './routes/chats.$conversationId'
 import { Route as CommunityPostIdRouteImport } from './routes/community.$postId'
 import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
@@ -136,6 +137,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
   path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CallCallIdRoute = CallCallIdRouteImport.update({
+  id: '/call/$callId',
+  path: '/call/$callId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatsConversationIdRoute = ChatsConversationIdRouteImport.update({
   id: '/$conversationId',
   path: '/$conversationId',
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
+  '/call/$callId': typeof CallCallIdRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
@@ -216,6 +223,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
+  '/call/$callId': typeof CallCallIdRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
@@ -245,6 +253,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
   '/welcome': typeof WelcomeRoute
+  '/call/$callId': typeof CallCallIdRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
@@ -275,6 +284,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/verify'
     | '/welcome'
+    | '/call/$callId'
     | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
@@ -303,6 +313,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/verify'
     | '/welcome'
+    | '/call/$callId'
     | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/verify'
     | '/welcome'
+    | '/call/$callId'
     | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
@@ -360,6 +372,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   VerifyRoute: typeof VerifyRoute
   WelcomeRoute: typeof WelcomeRoute
+  CallCallIdRoute: typeof CallCallIdRoute
   PetsPetIdRoute: typeof PetsPetIdRoute
   PetsNewRoute: typeof PetsNewRoute
   PetsIndexRoute: typeof PetsIndexRoute
@@ -507,6 +520,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/call/$callId': {
+      id: '/call/$callId'
+      path: '/call/$callId'
+      fullPath: '/call/$callId'
+      preLoaderRoute: typeof CallCallIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chats/$conversationId': {
       id: '/chats/$conversationId'
       path: '/$conversationId'
@@ -607,6 +627,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   VerifyRoute: VerifyRoute,
   WelcomeRoute: WelcomeRoute,
+  CallCallIdRoute: CallCallIdRoute,
   PetsPetIdRoute: PetsPetIdRoute,
   PetsNewRoute: PetsNewRoute,
   PetsIndexRoute: PetsIndexRoute,
