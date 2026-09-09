@@ -1,5 +1,6 @@
 import { Camera, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import jsQR from "jsqr";
 import { Button } from "@/components/ui/button";
 
 type BarcodeDetectorLike = {
@@ -25,10 +26,13 @@ export function TagScanPanel({
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const activeRef = useRef(false);
 
   const stopCamera = () => {
+    activeRef.current = false;
     if (rafRef.current != null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -41,55 +45,111 @@ export function TagScanPanel({
 
   useEffect(() => () => stopCamera(), []);
 
+  const decodeFrame = async (
+    video: HTMLVideoElement,
+    detector: BarcodeDetectorLike | null,
+  ): Promise<string | null> => {
+    if (detector) {
+      try {
+        const codes = await detector.detect(video);
+        const value = codes.find((item) => item.rawValue)?.rawValue?.trim();
+        if (value) return value;
+      } catch {
+        // Fall through to jsQR
+      }
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) return null;
+
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement("canvas");
+    }
+    const canvas = canvasRef.current;
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, width, height);
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const result = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "dontInvert",
+    });
+    return result?.data?.trim() || null;
+  };
+
   const startCamera = async () => {
     setScanError(null);
-    const Detector = getBarcodeDetector();
-    if (!Detector) {
-      setScanError("Camera QR scan isn’t supported on this browser. Enter the tag ID instead.");
+
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setScanError("Camera scan needs HTTPS (or localhost). Open the secure app link and try again.");
       return;
     }
+
     if (!navigator.mediaDevices?.getUserMedia) {
-      setScanError("Camera access isn’t available on this device.");
+      setScanError("Camera access isn’t available on this device. Enter the tag ID instead.");
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
       });
       streamRef.current = stream;
+      activeRef.current = true;
       setScanning(true);
+
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+      if (!video) {
+        stopCamera();
+        setScanError("Could not start the camera preview.");
+        return;
       }
 
-      const detector = new Detector({ formats: ["qr_code", "code_128", "code_39", "ean_13"] });
+      video.srcObject = stream;
+      video.setAttribute("playsinline", "true");
+      video.muted = true;
+      await video.play();
+
+      const Detector = getBarcodeDetector();
+      const detector = Detector ? new Detector({ formats: ["qr_code"] }) : null;
+
       const tick = async () => {
-        if (!videoRef.current || videoRef.current.readyState < 2) {
-          rafRef.current = requestAnimationFrame(() => void tick());
-          return;
-        }
-        try {
-          const codes = await detector.detect(videoRef.current);
-          const value = codes.find((item) => item.rawValue)?.rawValue?.trim();
-          if (value) {
-            stopCamera();
-            setCode(value);
-            await onScan(value);
-            return;
+        if (!activeRef.current || !videoRef.current) return;
+        if (videoRef.current.readyState >= 2) {
+          try {
+            const value = await decodeFrame(videoRef.current, detector);
+            if (value && activeRef.current) {
+              stopCamera();
+              setCode(value);
+              await onScan(value);
+              return;
+            }
+          } catch {
+            // Keep scanning
           }
-        } catch {
-          // Keep scanning
         }
-        rafRef.current = requestAnimationFrame(() => void tick());
+        if (activeRef.current) {
+          rafRef.current = requestAnimationFrame(() => void tick());
+        }
       };
       rafRef.current = requestAnimationFrame(() => void tick());
-    } catch {
+    } catch (error) {
       stopCamera();
-      setScanError("Could not open the camera. Check permissions, or type the tag ID.");
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (message.includes("permission") || message.includes("denied") || message.includes("notallowed")) {
+        setScanError("Camera permission denied. Allow camera access, or type the tag ID.");
+      } else {
+        setScanError("Could not open the camera. Check permissions, or type the tag ID.");
+      }
     }
   };
 
@@ -135,7 +195,7 @@ export function TagScanPanel({
 
       {scanning ? (
         <div className="overflow-hidden rounded-2xl border border-border bg-black">
-          <video ref={videoRef} className="aspect-[4/3] w-full object-cover" muted playsInline />
+          <video ref={videoRef} className="aspect-[4/3] w-full object-cover" muted playsInline autoPlay />
           <p className="bg-black/80 px-3 py-2 text-center text-xs text-white/80">Point at a collar or pet tag QR</p>
         </div>
       ) : null}
