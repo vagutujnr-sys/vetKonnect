@@ -124,7 +124,7 @@ export async function getPotentialClients(
   const [{ data: accounts, error: accountsError }, { data: pets, error: petsError }] = await Promise.all([
     supabase
       .from("accounts")
-      .select("id,full_name,phone,created_at,account_type,latitude,longitude,avatar_url")
+      .select("id,full_name,created_at,account_type,latitude,longitude,avatar_url")
       .neq("account_type", "vet")
       .order("created_at", { ascending: false })
       .limit(200),
@@ -135,7 +135,7 @@ export async function getPotentialClients(
     // Fallback if lat/lng columns are not migrated yet.
     const { data: basicAccounts, error: basicError } = await supabase
       .from("accounts")
-      .select("id,full_name,phone,created_at,account_type,avatar_url")
+      .select("id,full_name,created_at,account_type,avatar_url")
       .neq("account_type", "vet")
       .order("created_at", { ascending: false })
       .limit(200);
@@ -178,7 +178,6 @@ function mapPotentialClients(
       return {
         id,
         fullName: String(row.full_name ?? "").trim() || "Pet owner",
-        phone: String(row.phone ?? ""),
         pets: petNames.length,
         petNames,
         memberSince: row.created_at

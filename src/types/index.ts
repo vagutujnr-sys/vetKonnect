@@ -84,7 +84,6 @@ export interface AdminUser {
 export interface PotentialClient {
   id: string;
   fullName: string;
-  phone: string;
   pets: number;
   petNames: string[];
   memberSince?: string;

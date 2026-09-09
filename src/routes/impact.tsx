@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { PawPrint, Phone, X } from "lucide-react";
+import { PawPrint, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ImpactOwnersMap } from "@/components/vet/ImpactOwnersMap";
@@ -158,15 +158,6 @@ function ImpactScreen() {
                       <span className="truncate">· {selected.petNames.slice(0, 3).join(", ")}</span>
                     ) : null}
                   </p>
-                  {selected.phone ? (
-                    <a
-                      href={`tel:${selected.phone}`}
-                      className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary"
-                    >
-                      <Phone className="size-4" />
-                      {selected.phone}
-                    </a>
-                  ) : null}
                 </div>
               </div>
             </div>
