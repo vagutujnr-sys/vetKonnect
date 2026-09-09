@@ -6,6 +6,8 @@ import {
   Building2,
   Compass,
   Dog,
+  FileSpreadsheet,
+  FileText,
   FileWarning,
   LogOut,
   MapPinned,
@@ -15,8 +17,10 @@ import {
   QrCode,
   ShieldCheck,
   Syringe,
+  TrendingUp,
   User,
   Users,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
@@ -31,6 +35,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
+import {
+  buildCouncilRevenueProjections,
+  buildCouncilRevenueSnapshot,
+  formatCouncilMoney,
+  type CouncilRevenueSnapshot,
+} from "@/lib/councilRevenue";
 import { cn } from "@/lib/utils";
 import {
   broadcastCouncilNotification,
@@ -40,6 +50,12 @@ import {
   getCouncilSessionOfficial,
   uploadCouncilCommunityMedia,
 } from "@/services/councilService";
+import {
+  buildCouncilSystemReport,
+  exportCouncilReportExcel,
+  exportCouncilReportPdf,
+  type CouncilSystemReport,
+} from "@/services/councilReportService";
 import type {
   AnimalControlCase,
   CommunityPost,
@@ -73,6 +89,9 @@ const mobileTabs = [
 
 const desktopSections = [
   { id: "overview", label: "Overview" },
+  { id: "revenue", label: "Revenue" },
+  { id: "projections", label: "Projections" },
+  { id: "reports", label: "Reports" },
   { id: "licences", label: "Licences" },
   { id: "cases", label: "Cases" },
   { id: "rabies", label: "Rabies" },
@@ -119,12 +138,13 @@ function CouncilPortal() {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("scan");
-  const [section, setSection] = useState<DesktopSection>("overview");
+  const [section, setSection] = useState<DesktopSection>("revenue");
   const [stats, setStats] = useState<CouncilDashboardStats | null>(null);
   const [licences, setLicences] = useState<PetLicence[]>([]);
   const [cases, setCases] = useState<AnimalControlCase[]>([]);
   const [rabiesMissing, setRabiesMissing] = useState<Pet[]>([]);
   const [mapPoints, setMapPoints] = useState<CouncilMapPoint[]>([]);
+  const [dogs, setDogs] = useState<Pet[]>([]);
 
   const [noticeTitle, setNoticeTitle] = useState("");
   const [noticeBody, setNoticeBody] = useState("");
@@ -136,6 +156,15 @@ function CouncilPortal() {
   const [postBusy, setPostBusy] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
 
+  const [reportFrom, setReportFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportPreview, setReportPreview] = useState<CouncilSystemReport | null>(null);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -145,6 +174,7 @@ function CouncilPortal() {
       setCases(snap.cases);
       setRabiesMissing(snap.rabiesMissingDogs);
       setMapPoints(snap.mapPoints);
+      setDogs(snap.dogs);
     } catch (error) {
       console.error(error);
       toast.error(error instanceof Error ? error.message : "Could not load council data");
@@ -173,6 +203,16 @@ function CouncilPortal() {
   const openCases = useMemo(() => cases.filter((c) => c.status === "open"), [cases]);
   const activeLicences = useMemo(() => licences.filter((l) => l.status === "active"), [licences]);
   const expiredLicences = useMemo(() => licences.filter((l) => l.status === "expired"), [licences]);
+
+  const revenue: CouncilRevenueSnapshot | null = useMemo(() => {
+    if (!isDesktop) return null;
+    return buildCouncilRevenueSnapshot({ dogs, licences, cases });
+  }, [cases, dogs, isDesktop, licences]);
+
+  const projections = useMemo(
+    () => (revenue ? buildCouncilRevenueProjections(revenue) : []),
+    [revenue],
+  );
 
   const signOut = () => {
     clearCouncilSession();
@@ -335,28 +375,43 @@ function CouncilPortal() {
                 Council animal-control dashboard
               </h2>
             </div>
-            {section !== "notify" && section !== "publish" && section !== "scan" ? (
+            {section !== "notify" && section !== "publish" && section !== "scan" && section !== "reports" ? (
               <Button variant="secondary" size="sm" disabled={loading} onClick={() => void load()}>
                 {loading ? "Refreshing…" : "Refresh"}
               </Button>
             ) : null}
           </div>
 
-          {section === "overview" && stats ? (
+          {section === "overview" && stats && revenue ? (
             <>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  icon={Wallet}
+                  label="Licence run-rate (annual)"
+                  value={formatCouncilMoney(revenue.activeLicenceRevenueAnnual)}
+                  hint={`${revenue.activeLicenceCount} active licences`}
+                />
+                <StatCard
+                  icon={TrendingUp}
+                  label="Full-compliance potential"
+                  value={formatCouncilMoney(revenue.fullComplianceDogRevenueAnnual)}
+                  hint={`${revenue.captureRatePct}% capture rate`}
+                />
+                <StatCard
+                  icon={FileWarning}
+                  label="Unlicensed opportunity"
+                  value={formatCouncilMoney(revenue.unlicensedDogsOpportunity)}
+                  hint={`${revenue.unlicensedDogCount} dogs without licence`}
+                />
+                <StatCard
+                  icon={Wallet}
+                  label="Open recoverable fees"
+                  value={formatCouncilMoney(revenue.openImpoundRecoverable + revenue.openIncidentFees)}
+                  hint="Impound + incident admin"
+                />
                 <StatCard icon={Dog} label="Registered dogs" value={stats.registeredDogs} hint={`${stats.registeredPets} pets total`} />
                 <StatCard icon={ShieldCheck} label="Active licences" value={stats.activeLicences} />
-                <StatCard icon={FileWarning} label="Expired licences" value={stats.expiredLicences} />
-                <StatCard
-                  icon={PawPrint}
-                  label="Licence compliance"
-                  value={`${stats.licenceCompliancePct}%`}
-                  hint={`${stats.dogsWithoutLicence} dogs without a licence`}
-                />
-                <StatCard icon={Syringe} label="Rabies on record" value={stats.rabiesRecorded} hint={`${stats.rabiesMissing} dogs missing record`} />
-                <StatCard icon={AlertTriangle} label="Lost animals" value={stats.lostOpen} hint="Open cases" />
-                <StatCard icon={PawPrint} label="Found animals" value={stats.foundOpen} hint="Open cases" />
+                <StatCard icon={AlertTriangle} label="Lost / found open" value={`${stats.lostOpen} / ${stats.foundOpen}`} />
                 <StatCard icon={MapPinned} label="Impounded / incidents" value={`${stats.impoundedOpen} / ${stats.incidentsOpen}`} />
               </div>
 
@@ -389,6 +444,224 @@ function CouncilPortal() {
                 </Card>
               </div>
             </>
+          ) : null}
+
+          {section === "revenue" && revenue ? (
+            <div className="space-y-4">
+              <Card className="rounded-xl border-teal-200 bg-teal-50/50 p-4 shadow-sm">
+                <p className="text-sm text-teal-950">
+                  Revenue figures use a <span className="font-semibold">proposed municipal fee schedule</span> until Council
+                  finalises official rates. Licence fees are annualised; open cases show recoverable / admin fees.
+                </p>
+              </Card>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <StatCard
+                  icon={Wallet}
+                  label="Active licence revenue (annual)"
+                  value={formatCouncilMoney(revenue.activeLicenceRevenueAnnual)}
+                  hint={`${revenue.activeLicenceCount} active`}
+                />
+                <StatCard
+                  icon={FileWarning}
+                  label="Expired licence value"
+                  value={formatCouncilMoney(revenue.expiredLicenceRevenueAnnual)}
+                  hint={`${revenue.expiredLicenceCount} expired — renewals`}
+                />
+                <StatCard
+                  icon={TrendingUp}
+                  label="Unlicensed dogs opportunity"
+                  value={formatCouncilMoney(revenue.unlicensedDogsOpportunity)}
+                  hint={`${revenue.unlicensedDogCount} of ${revenue.registeredDogs} dogs`}
+                />
+                <StatCard
+                  icon={ShieldCheck}
+                  label="Full dog-licence compliance"
+                  value={formatCouncilMoney(revenue.fullComplianceDogRevenueAnnual)}
+                  hint={`${revenue.captureRatePct}% currently captured`}
+                />
+                <StatCard
+                  icon={PawPrint}
+                  label="Open impound recoverable"
+                  value={formatCouncilMoney(revenue.openImpoundRecoverable)}
+                  hint={`@ ${formatCouncilMoney(revenue.feeSchedule.impoundFee)} each`}
+                />
+                <StatCard
+                  icon={AlertTriangle}
+                  label="Open incident admin fees"
+                  value={formatCouncilMoney(revenue.openIncidentFees)}
+                  hint={`@ ${formatCouncilMoney(revenue.feeSchedule.incidentAdminFee)} each`}
+                />
+              </div>
+              <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
+                <h3 className="font-semibold text-slate-900">Proposed fee schedule</h3>
+                <Table className="mt-3">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>Dog licence (annual)</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.dogLicenceAnnual)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Cat licence (annual)</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.catLicenceAnnual)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Other species licence (annual)</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.otherLicenceAnnual)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Impound reclaim fee</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.impoundFee)}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>Incident admin fee</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.incidentAdminFee)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </Card>
+            </div>
+          ) : null}
+
+          {section === "projections" && revenue ? (
+            <div className="space-y-4">
+              <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
+                <h3 className="font-semibold text-slate-900">Expected & proposed revenue</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Scaled from current licence performance as the user base grows. <strong>Expected</strong> = today’s
+                  active licences. <strong>Growth case</strong> = midway to full dog-licence compliance.{" "}
+                  <strong>Full compliance</strong> = every registered dog licensed.
+                </p>
+                <Table className="mt-4">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Period</TableHead>
+                      <TableHead className="text-right">Expected</TableHead>
+                      <TableHead className="text-right">Growth case</TableHead>
+                      <TableHead className="text-right">Full compliance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {projections.map((row) => (
+                      <TableRow key={row.period}>
+                        <TableCell className="font-medium">{row.label}</TableCell>
+                        <TableCell className="text-right">{formatCouncilMoney(row.expected)}</TableCell>
+                        <TableCell className="text-right">{formatCouncilMoney(row.proposedGrowth)}</TableCell>
+                        <TableCell className="text-right font-semibold text-teal-900">
+                          {formatCouncilMoney(row.proposedFullCompliance)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {projections.map((row) => (
+                  <Card key={row.period} className="rounded-xl border-slate-200 p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{row.label}</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900">{formatCouncilMoney(row.expected)}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Up to {formatCouncilMoney(row.proposedFullCompliance)} at full compliance
+                    </p>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {section === "reports" ? (
+            <div className="space-y-4">
+              <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
+                <h3 className="font-semibold text-slate-900">Generate system report</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Export licences, cases, new pet registrations, and estimated revenue for a chosen period as PDF or
+                  Excel.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="text-sm font-medium text-slate-700">
+                    From
+                    <Input
+                      type="date"
+                      className="mt-1.5"
+                      value={reportFrom}
+                      onChange={(e) => setReportFrom(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm font-medium text-slate-700">
+                    To
+                    <Input
+                      type="date"
+                      className="mt-1.5"
+                      value={reportTo}
+                      onChange={(e) => setReportTo(e.target.value)}
+                    />
+                  </label>
+                  <div className="flex items-end gap-2 sm:col-span-2">
+                    <Button
+                      className="bg-teal-800 hover:bg-teal-900"
+                      disabled={reportBusy}
+                      onClick={async () => {
+                        setReportBusy(true);
+                        try {
+                          const report = await buildCouncilSystemReport({ from: reportFrom, to: reportTo });
+                          setReportPreview(report);
+                          toast.success("Report ready — download PDF or Excel");
+                        } catch (error) {
+                          toast.error(error instanceof Error ? error.message : "Could not build report");
+                        } finally {
+                          setReportBusy(false);
+                        }
+                      }}
+                    >
+                      {reportBusy ? "Building…" : "Build report"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!reportPreview || reportBusy}
+                      onClick={() => {
+                        if (!reportPreview) return;
+                        exportCouncilReportPdf(reportPreview);
+                      }}
+                    >
+                      <FileText className="mr-2 size-4" /> PDF
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!reportPreview || reportBusy}
+                      onClick={() => {
+                        if (!reportPreview) return;
+                        exportCouncilReportExcel(reportPreview);
+                      }}
+                    >
+                      <FileSpreadsheet className="mr-2 size-4" /> Excel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {reportPreview ? (
+                <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
+                  <h3 className="font-semibold text-slate-900">
+                    Preview · {reportPreview.period.from} → {reportPreview.period.to}
+                  </h3>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <StatCard icon={PawPrint} label="Pets registered" value={reportPreview.summary.petsRegisteredInPeriod} />
+                    <StatCard icon={ShieldCheck} label="Licences issued" value={reportPreview.summary.licencesIssuedInPeriod} />
+                    <StatCard icon={AlertTriangle} label="Cases logged" value={reportPreview.summary.casesInPeriod} />
+                    <StatCard
+                      icon={Wallet}
+                      label="Est. revenue (period)"
+                      value={formatCouncilMoney(reportPreview.summary.estimatedTotalRevenueInPeriod)}
+                    />
+                  </div>
+                </Card>
+              ) : null}
+            </div>
           ) : null}
 
           {section === "licences" ? (
