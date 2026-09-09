@@ -33,8 +33,7 @@ export type CouncilSystemReport = {
     impoundInPeriod: number;
     incidentsInPeriod: number;
     estimatedLicenceRevenueInPeriod: number;
-    estimatedImpoundRevenueInPeriod: number;
-    estimatedIncidentFeesInPeriod: number;
+    estimatedUnlicensedPenaltyExposure: number;
     estimatedTotalRevenueInPeriod: number;
   };
   licencesInPeriod: PetLicence[];
@@ -79,11 +78,11 @@ export async function buildCouncilSystemReport(period: CouncilReportPeriod): Pro
   const dogs = pets.filter((p) => String(p.species).toLowerCase() === "dog");
   const revenue = buildCouncilRevenueSnapshot({ dogs, licences, cases });
 
-  const estimatedLicenceRevenueInPeriod = estimatePeriodLicenceRevenue(licences, from, to);
-  const estimatedImpoundRevenueInPeriod =
-    casesInPeriod.filter((c) => c.caseType === "impound").length * COUNCIL_FEE_SCHEDULE.impoundFee;
-  const estimatedIncidentFeesInPeriod =
-    casesInPeriod.filter((c) => c.caseType === "incident").length * COUNCIL_FEE_SCHEDULE.incidentAdminFee;
+  const estimatedLicenceRevenueInPeriod = estimatePeriodLicenceRevenue(licences, dogs, from, to);
+  const unlicensedInPeriodPenalty =
+    Math.max(0, dogs.length - licences.filter((l) => l.status === "active").length) *
+    0; // penalty is exposure, not period booking — keep licence revenue as primary
+  const estimatedUnlicensedPenaltyExposure = revenue.unlicensedPenaltyExposure;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -101,10 +100,8 @@ export async function buildCouncilSystemReport(period: CouncilReportPeriod): Pro
       impoundInPeriod: casesInPeriod.filter((c) => c.caseType === "impound").length,
       incidentsInPeriod: casesInPeriod.filter((c) => c.caseType === "incident").length,
       estimatedLicenceRevenueInPeriod,
-      estimatedImpoundRevenueInPeriod,
-      estimatedIncidentFeesInPeriod,
-      estimatedTotalRevenueInPeriod:
-        estimatedLicenceRevenueInPeriod + estimatedImpoundRevenueInPeriod + estimatedIncidentFeesInPeriod,
+      estimatedUnlicensedPenaltyExposure,
+      estimatedTotalRevenueInPeriod: estimatedLicenceRevenueInPeriod + unlicensedInPeriodPenalty,
     },
     licencesInPeriod,
     casesInPeriod,
@@ -144,9 +141,8 @@ export function exportCouncilReportExcel(report: CouncilSystemReport): void {
     ["Impound in period", report.summary.impoundInPeriod],
     ["Incidents in period", report.summary.incidentsInPeriod],
     ["Est. licence revenue (period)", money(report.summary.estimatedLicenceRevenueInPeriod)],
-    ["Est. impound fees (period)", money(report.summary.estimatedImpoundRevenueInPeriod)],
-    ["Est. incident fees (period)", money(report.summary.estimatedIncidentFeesInPeriod)],
-    ["Est. total revenue (period)", money(report.summary.estimatedTotalRevenueInPeriod)],
+    ["Unlicensed penalty exposure", money(report.summary.estimatedUnlicensedPenaltyExposure)],
+    ["Est. total licence revenue (period)", money(report.summary.estimatedTotalRevenueInPeriod)],
     ["Active licence annual run-rate", money(report.revenue.activeLicenceRevenueAnnual)],
     ["Full compliance dog annual", money(report.revenue.fullComplianceDogRevenueAnnual)],
     ["Revenue capture rate %", `${report.revenue.captureRatePct}%`],
@@ -181,12 +177,11 @@ export function exportCouncilReportExcel(report: CouncilSystemReport): void {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(petSheet), "New pets");
 
   const fees = [
-    ["Fee schedule (proposed)", "Amount USD"],
-    ["Dog licence (annual)", COUNCIL_FEE_SCHEDULE.dogLicenceAnnual],
-    ["Cat licence (annual)", COUNCIL_FEE_SCHEDULE.catLicenceAnnual],
-    ["Other licence (annual)", COUNCIL_FEE_SCHEDULE.otherLicenceAnnual],
-    ["Impound fee", COUNCIL_FEE_SCHEDULE.impoundFee],
-    ["Incident admin fee", COUNCIL_FEE_SCHEDULE.incidentAdminFee],
+    ["Official fee schedule (Harare by-laws)", "Amount USD"],
+    ["Dog (male) — annual licence", COUNCIL_FEE_SCHEDULE.dogMaleLicence],
+    ["Bitch (female) — annual licence", COUNCIL_FEE_SCHEDULE.dogFemaleLicence],
+    ["Replacement badge", COUNCIL_FEE_SCHEDULE.replacementBadge],
+    ["Penalty for an unlicensed dog", COUNCIL_FEE_SCHEDULE.unlicensedDogPenalty],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(fees), "Fee schedule");
 

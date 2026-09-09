@@ -406,8 +406,8 @@ function CouncilPortal() {
                 <StatCard
                   icon={Wallet}
                   label="Open recoverable fees"
-                  value={formatCouncilMoney(revenue.openImpoundRecoverable + revenue.openIncidentFees)}
-                  hint="Impound + incident admin"
+                  value={formatCouncilMoney(revenue.unlicensedPenaltyExposure)}
+                  hint="Unlicensed dog penalties"
                 />
                 <StatCard icon={Dog} label="Registered dogs" value={stats.registeredDogs} hint={`${stats.registeredPets} pets total`} />
                 <StatCard icon={ShieldCheck} label="Active licences" value={stats.activeLicences} />
@@ -450,8 +450,10 @@ function CouncilPortal() {
             <div className="space-y-4">
               <Card className="rounded-xl border-teal-200 bg-teal-50/50 p-4 shadow-sm">
                 <p className="text-sm text-teal-950">
-                  Revenue figures use a <span className="font-semibold">proposed municipal fee schedule</span> until Council
-                  finalises official rates. Licence fees are annualised; open cases show recoverable / admin fees.
+                  Figures follow the official{" "}
+                  <span className="font-semibold">Harare City Council (Dog Licensing and Control) By-laws</span> —
+                  USD-indexed (or local currency at the interbank rate). A valid rabies vaccination certificate is
+                  required for a licence badge.
                 </p>
               </Card>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -463,64 +465,63 @@ function CouncilPortal() {
                 />
                 <StatCard
                   icon={FileWarning}
-                  label="Expired licence value"
+                  label="Expired licence renewals"
                   value={formatCouncilMoney(revenue.expiredLicenceRevenueAnnual)}
-                  hint={`${revenue.expiredLicenceCount} expired — renewals`}
+                  hint={`${revenue.expiredLicenceCount} expired`}
                 />
                 <StatCard
                   icon={TrendingUp}
-                  label="Unlicensed dogs opportunity"
+                  label="Unlicensed licence opportunity"
                   value={formatCouncilMoney(revenue.unlicensedDogsOpportunity)}
                   hint={`${revenue.unlicensedDogCount} of ${revenue.registeredDogs} dogs`}
                 />
                 <StatCard
                   icon={ShieldCheck}
-                  label="Full dog-licence compliance"
+                  label="Full licence compliance"
                   value={formatCouncilMoney(revenue.fullComplianceDogRevenueAnnual)}
-                  hint={`${revenue.captureRatePct}% currently captured`}
-                />
-                <StatCard
-                  icon={PawPrint}
-                  label="Open impound recoverable"
-                  value={formatCouncilMoney(revenue.openImpoundRecoverable)}
-                  hint={`@ ${formatCouncilMoney(revenue.feeSchedule.impoundFee)} each`}
+                  hint={`${revenue.captureRatePct}% currently captured · ${revenue.maleDogs}♂ / ${revenue.femaleDogs}♀`}
                 />
                 <StatCard
                   icon={AlertTriangle}
-                  label="Open incident admin fees"
-                  value={formatCouncilMoney(revenue.openIncidentFees)}
-                  hint={`@ ${formatCouncilMoney(revenue.feeSchedule.incidentAdminFee)} each`}
+                  label="Unlicensed penalty exposure"
+                  value={formatCouncilMoney(revenue.unlicensedPenaltyExposure)}
+                  hint={`@ ${formatCouncilMoney(revenue.feeSchedule.unlicensedDogPenalty)} per dog`}
+                />
+                <StatCard
+                  icon={PawPrint}
+                  label="Replacement badges"
+                  value={formatCouncilMoney(revenue.feeSchedule.replacementBadge)}
+                  hint="No charge under current by-laws"
                 />
               </div>
               <Card className="rounded-xl border-slate-200 p-4 shadow-sm">
-                <h3 className="font-semibold text-slate-900">Proposed fee schedule</h3>
+                <h3 className="font-semibold text-slate-900">Official fee schedule</h3>
+                <p className="mt-1 text-xs text-slate-500">{revenue.feeSchedule.source}</p>
                 <Table className="mt-3">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Item</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="text-right">Amount (USD)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow>
-                      <TableCell>Dog licence (annual)</TableCell>
-                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.dogLicenceAnnual)}</TableCell>
+                      <TableCell>Dog (male) — annual licence</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.dogMaleLicence)}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Cat licence (annual)</TableCell>
-                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.catLicenceAnnual)}</TableCell>
+                      <TableCell>Bitch (female) — annual licence</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.dogFemaleLicence)}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Other species licence (annual)</TableCell>
-                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.otherLicenceAnnual)}</TableCell>
+                      <TableCell>Replacement badge</TableCell>
+                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.replacementBadge)}</TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell>Impound reclaim fee</TableCell>
-                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.impoundFee)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Incident admin fee</TableCell>
-                      <TableCell className="text-right">{formatCouncilMoney(revenue.feeSchedule.incidentAdminFee)}</TableCell>
+                      <TableCell>Penalty for an unlicensed dog</TableCell>
+                      <TableCell className="text-right">
+                        {formatCouncilMoney(revenue.feeSchedule.unlicensedDogPenalty)}
+                      </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>

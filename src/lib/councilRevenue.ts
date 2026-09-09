@@ -1,38 +1,43 @@
 import type { AnimalControlCase, Pet, PetLicence } from "@/types";
 
-/** Proposed municipal fee schedule (USD). Adjust when Council finalises rates. */
+/**
+ * Official Harare City Council (Dog Licensing and Control) By-laws fees.
+ * Indexed to USD (or local currency at the prevailing interbank rate).
+ * Licence badges require a valid Rabies Vaccination Certificate.
+ */
 export const COUNCIL_FEE_SCHEDULE = {
   currency: "USD",
-  dogLicenceAnnual: 25,
-  catLicenceAnnual: 15,
-  otherLicenceAnnual: 10,
-  impoundFee: 40,
-  incidentAdminFee: 50,
-  newRegistrationFee: 10,
+  /** Dog (male) — annual licence */
+  dogMaleLicence: 5,
+  /** Bitch (female) — annual licence */
+  dogFemaleLicence: 10,
+  /** Replacement badge — no charge */
+  replacementBadge: 0,
+  /** Penalty for an unlicensed dog */
+  unlicensedDogPenalty: 20,
+  source: "Harare City Council (Dog Licensing and Control) By-laws",
 } as const;
 
 export type RevenuePeriod = "monthly" | "quarterly" | "biannual" | "annual";
 
 export type CouncilRevenueSnapshot = {
   currency: string;
-  /** Realised / booked from active licences (annual fee run-rate). */
+  /** Realised from active dog licences (annual fee run-rate). */
   activeLicenceRevenueAnnual: number;
-  /** Lost / at risk from expired licences. */
+  /** Value of expired licences (renewal opportunity). */
   expiredLicenceRevenueAnnual: number;
-  /** Gap if every registered dog were licensed. */
+  /** Licence fees if every registered dog were licensed. */
   unlicensedDogsOpportunity: number;
   /** Full compliance dog-licence revenue (all dogs licensed). */
   fullComplianceDogRevenueAnnual: number;
-  /** Open impound cases × impound fee (recoverable). */
-  openImpoundRecoverable: number;
-  /** Open incidents × admin fee (proposed). */
-  openIncidentFees: number;
-  /** Active licence count used in calc. */
+  /** Potential penalties if unlicensed dogs were enforced. */
+  unlicensedPenaltyExposure: number;
   activeLicenceCount: number;
   expiredLicenceCount: number;
   unlicensedDogCount: number;
   registeredDogs: number;
-  /** Share of dog-licence opportunity currently captured. */
+  maleDogs: number;
+  femaleDogs: number;
   captureRatePct: number;
   feeSchedule: typeof COUNCIL_FEE_SCHEDULE;
 };
@@ -40,20 +45,34 @@ export type CouncilRevenueSnapshot = {
 export type CouncilRevenueProjection = {
   period: RevenuePeriod;
   label: string;
-  /** Based on current active licences (run-rate). */
   expected: number;
-  /** If compliance rises to 100% of registered dogs. */
   proposedFullCompliance: number;
-  /** Mid case: halfway between expected and full compliance. */
   proposedGrowth: number;
   months: number;
 };
 
-function licenceAnnualFee(species?: string | null): number {
-  const key = String(species ?? "").toLowerCase();
-  if (key.includes("dog")) return COUNCIL_FEE_SCHEDULE.dogLicenceAnnual;
-  if (key.includes("cat")) return COUNCIL_FEE_SCHEDULE.catLicenceAnnual;
-  return COUNCIL_FEE_SCHEDULE.otherLicenceAnnual;
+function isFemaleDog(sex?: string | null): boolean {
+  const key = String(sex ?? "").toLowerCase();
+  return key === "female" || key.includes("bitch");
+}
+
+/** Official annual dog licence fee by sex. */
+export function dogLicenceFee(sex?: string | null): number {
+  return isFemaleDog(sex) ? COUNCIL_FEE_SCHEDULE.dogFemaleLicence : COUNCIL_FEE_SCHEDULE.dogMaleLicence;
+}
+
+function dogsById(dogs: Pet[]): Map<string, Pet> {
+  return new Map(dogs.map((dog) => [dog.id, dog]));
+}
+
+function licenceFeeForRow(licence: PetLicence, pets: Map<string, Pet>): number {
+  if (licence.petId && pets.has(licence.petId)) {
+    return dogLicenceFee(pets.get(licence.petId)!.sex);
+  }
+  // Dog licences without a linked pet: use male rate as the conservative base fee.
+  const species = String(licence.species ?? "").toLowerCase();
+  if (species && !species.includes("dog")) return 0;
+  return COUNCIL_FEE_SCHEDULE.dogMaleLicence;
 }
 
 export function formatCouncilMoney(amount: number, currency: string = COUNCIL_FEE_SCHEDULE.currency): string {
@@ -69,24 +88,27 @@ export function buildCouncilRevenueSnapshot(input: {
   licences: PetLicence[];
   cases: AnimalControlCase[];
 }): CouncilRevenueSnapshot {
-  const { dogs, licences, cases } = input;
+  const { dogs, licences } = input;
+  const petMap = dogsById(dogs);
   const licensedPetIds = new Set(licences.filter((l) => l.petId).map((l) => l.petId as string));
   const active = licences.filter((l) => l.status === "active");
   const expired = licences.filter((l) => l.status === "expired");
   const unlicensedDogs = dogs.filter((d) => !licensedPetIds.has(d.id));
+  const maleDogs = dogs.filter((d) => !isFemaleDog(d.sex)).length;
+  const femaleDogs = dogs.filter((d) => isFemaleDog(d.sex)).length;
 
-  const activeLicenceRevenueAnnual = active.reduce((sum, l) => sum + licenceAnnualFee(l.species), 0);
-  const expiredLicenceRevenueAnnual = expired.reduce((sum, l) => sum + licenceAnnualFee(l.species), 0);
-  const fullComplianceDogRevenueAnnual = dogs.length * COUNCIL_FEE_SCHEDULE.dogLicenceAnnual;
-  const unlicensedDogsOpportunity = unlicensedDogs.length * COUNCIL_FEE_SCHEDULE.dogLicenceAnnual;
-
-  const openImpound = cases.filter((c) => c.caseType === "impound" && c.status === "open").length;
-  const openIncidents = cases.filter((c) => c.caseType === "incident" && c.status === "open").length;
+  const activeLicenceRevenueAnnual = active.reduce((sum, l) => sum + licenceFeeForRow(l, petMap), 0);
+  const expiredLicenceRevenueAnnual = expired.reduce((sum, l) => sum + licenceFeeForRow(l, petMap), 0);
+  const fullComplianceDogRevenueAnnual = dogs.reduce((sum, dog) => sum + dogLicenceFee(dog.sex), 0);
+  const unlicensedDogsOpportunity = unlicensedDogs.reduce((sum, dog) => sum + dogLicenceFee(dog.sex), 0);
+  const unlicensedPenaltyExposure = unlicensedDogs.length * COUNCIL_FEE_SCHEDULE.unlicensedDogPenalty;
 
   const captureRatePct =
     fullComplianceDogRevenueAnnual <= 0
       ? 100
-      : Math.round((Math.min(activeLicenceRevenueAnnual, fullComplianceDogRevenueAnnual) / fullComplianceDogRevenueAnnual) * 100);
+      : Math.round(
+          (Math.min(activeLicenceRevenueAnnual, fullComplianceDogRevenueAnnual) / fullComplianceDogRevenueAnnual) * 100,
+        );
 
   return {
     currency: COUNCIL_FEE_SCHEDULE.currency,
@@ -94,12 +116,13 @@ export function buildCouncilRevenueSnapshot(input: {
     expiredLicenceRevenueAnnual,
     unlicensedDogsOpportunity,
     fullComplianceDogRevenueAnnual,
-    openImpoundRecoverable: openImpound * COUNCIL_FEE_SCHEDULE.impoundFee,
-    openIncidentFees: openIncidents * COUNCIL_FEE_SCHEDULE.incidentAdminFee,
+    unlicensedPenaltyExposure,
     activeLicenceCount: active.length,
     expiredLicenceCount: expired.length,
     unlicensedDogCount: unlicensedDogs.length,
     registeredDogs: dogs.length,
+    maleDogs,
+    femaleDogs,
     captureRatePct,
     feeSchedule: COUNCIL_FEE_SCHEDULE,
   };
@@ -132,12 +155,14 @@ export function buildCouncilRevenueProjections(snapshot: CouncilRevenueSnapshot)
 
 export function estimatePeriodLicenceRevenue(
   licences: PetLicence[],
+  dogs: Pet[],
   fromIso: string,
   toIso: string,
 ): number {
   const from = fromIso.slice(0, 10);
   const to = toIso.slice(0, 10);
+  const petMap = dogsById(dogs);
   return licences
     .filter((l) => l.issuedAt >= from && l.issuedAt <= to)
-    .reduce((sum, l) => sum + licenceAnnualFee(l.species), 0);
+    .reduce((sum, l) => sum + licenceFeeForRow(l, petMap), 0);
 }
