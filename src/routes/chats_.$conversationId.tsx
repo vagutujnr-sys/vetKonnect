@@ -1,9 +1,29 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Check, ImagePlus, Mic, PawPrint, Phone, Reply, Send, Square, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  HeartPulse,
+  ImagePlus,
+  Mic,
+  PawPrint,
+  Phone,
+  Reply,
+  Send,
+  Square,
+  Syringe,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
 import { startInAppCall } from "@/services/callService";
@@ -17,11 +37,17 @@ import {
   chatMediaLabel,
   type ChatMediaType,
 } from "@/services/chatService";
+import { getPetRecordById } from "@/services/petService";
 import { rememberPatientId } from "@/services/vetService";
 import { supabase } from "@/services/supabaseClient";
 import { getSessionAccountId } from "@/services/userService";
-import type { ChatConversation, ChatMessage } from "@/types";
+import type { ChatConversation, ChatMessage, Pet } from "@/types";
 import { cn } from "@/lib/utils";
+
+function displayValue(value: string | number | null | undefined, fallback = "—") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
 
 export const Route = createFileRoute("/chats_/$conversationId")({
   head: () => ({
@@ -164,6 +190,9 @@ function ChatThread() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [petPickerOpen, setPetPickerOpen] = useState(false);
   const [aligningPet, setAligningPet] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
+  const [recordsPet, setRecordsPet] = useState<Pet | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<ChatMediaType | null>(null);
@@ -415,7 +444,23 @@ function ChatThread() {
     if (!conversation?.petId) return;
     if (isVet) {
       rememberPatientId(conversation.petId);
-      void navigate({ to: "/patients/$petId", params: { petId: conversation.petId } });
+      setRecordsOpen(true);
+      setRecordsLoading(true);
+      setRecordsPet(null);
+      void getPetRecordById(conversation.petId)
+        .then((record) => {
+          if (!record) {
+            toast.error("Patient not found.");
+            setRecordsOpen(false);
+            return;
+          }
+          setRecordsPet(record);
+        })
+        .catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Could not load health card.");
+          setRecordsOpen(false);
+        })
+        .finally(() => setRecordsLoading(false));
       return;
     }
     void navigate({ to: "/pets/$petId", params: { petId: conversation.petId } });
@@ -490,7 +535,7 @@ function ChatThread() {
                 <p className="truncate text-sm font-bold">{conversation.petName}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {linkedPetMeta || "Linked pet"} ·{" "}
-                  {isVet ? "Open health records" : "View passport"}
+                  {isVet ? "Health card summary" : "View passport"}
                 </p>
               </button>
               {isOwner ? (
@@ -541,7 +586,7 @@ function ChatThread() {
                 <p className="text-sm font-semibold text-foreground">You're connected</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {isOwner
-                    ? "Align a pet so the vet can open their records. Swipe messages to reply."
+                    ? "Align a pet so the vet can review their health card. Swipe messages to reply."
                     : "Once a pet is aligned, open their records from the header."}
                 </p>
               </div>
@@ -731,7 +776,7 @@ function ChatThread() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="font-extrabold">Align a pet</p>
-              <p className="text-xs text-muted-foreground">The vet can open this pet’s records from the chat</p>
+              <p className="text-xs text-muted-foreground">The vet can review this pet’s health card from the chat</p>
             </div>
             <button
               type="button"
@@ -797,6 +842,119 @@ function ChatThread() {
           </div>
         </div>
       ) : null}
+
+      <Drawer
+        open={recordsOpen}
+        onOpenChange={(open) => {
+          setRecordsOpen(open);
+          if (!open) {
+            setRecordsPet(null);
+            setRecordsLoading(false);
+          }
+        }}
+        shouldScaleBackground={false}
+      >
+        <DrawerContent className="max-h-[88vh]">
+          <DrawerHeader className="border-b border-border/70 text-left">
+            <DrawerTitle>Health card</DrawerTitle>
+            <DrawerDescription>
+              Quick summary while you stay in this chat.
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div className="scrollbar-none overflow-y-auto px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
+            {recordsLoading ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">Loading health card…</p>
+            ) : recordsPet ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  {recordsPet.photoUrl ? (
+                    <img
+                      src={recordsPet.photoUrl}
+                      alt=""
+                      className="size-16 shrink-0 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <PawPrint className="size-7" />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xl font-extrabold">{displayValue(recordsPet.name)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {displayValue(recordsPet.breed)} · {displayValue(recordsPet.sex)} ·{" "}
+                          {displayValue(recordsPet.ageYears)} years
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {displayValue(recordsPet.vetConnectId)}
+                          {recordsPet.collarId ? ` · Tag ${recordsPet.collarId}` : ""}
+                        </p>
+                      </div>
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground">
+                        <HeartPulse className="size-3.5" />
+                        {displayValue(recordsPet.healthStatus)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl bg-surface p-3 text-center">
+                    <p className="text-[11px] text-muted-foreground">Weight</p>
+                    <p className="mt-1 truncate text-sm font-semibold">
+                      {Number(recordsPet.weightKg || 0).toFixed(1)} kg
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-surface p-3 text-center">
+                    <p className="text-[11px] text-muted-foreground">Meds today</p>
+                    <p className="mt-1 truncate text-sm font-semibold">
+                      {displayValue(recordsPet.medicationToday)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-surface p-3 text-center">
+                    <p className="text-[11px] text-muted-foreground">Next vaccine</p>
+                    <p className="mt-1 truncate text-sm font-semibold">
+                      {displayValue(recordsPet.nextVaccine)}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold">Recent history</p>
+                  <ol className="mt-2 space-y-3 border-l border-border pl-4">
+                    {(recordsPet.timeline?.length ? recordsPet.timeline.slice(0, 5) : []).map((event) => (
+                      <li key={event.id} className="relative">
+                        <span className="absolute -left-[23px] top-1 flex size-3.5 items-center justify-center rounded-full bg-primary">
+                          <Syringe className="size-2 text-primary-foreground" />
+                        </span>
+                        <p className="text-[11px] text-muted-foreground">{displayValue(event.date)}</p>
+                        <p className="text-sm font-semibold">{displayValue(event.title)}</p>
+                        <p className="text-xs text-muted-foreground">{displayValue(event.detail)}</p>
+                      </li>
+                    ))}
+                    {!recordsPet.timeline?.length ? (
+                      <li className="text-sm text-muted-foreground">No history events yet.</li>
+                    ) : null}
+                  </ol>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setRecordsOpen(false)}
+                >
+                  Back to chat
+                </Button>
+              </div>
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">No health card available.</p>
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
     </AppShell>
   );
 }
