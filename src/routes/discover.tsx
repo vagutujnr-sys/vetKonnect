@@ -30,7 +30,7 @@ const categories = ["All", "Veterinary Clinic", "Grooming", "Pet Store", "Emerge
 
 function Discover() {
   const navigate = useNavigate();
-  const { user } = useApp();
+  const { user, activePetId } = useApp();
   const isVet = isVetAccount(user);
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
   const [query, setQuery] = useState("");
@@ -63,6 +63,7 @@ function Discover() {
       const conversation = await getOrCreateConversationWithVet({
         vetAccountId: resolved.accountId,
         surgeryId: vet.id,
+        petId: activePetId,
       });
       void navigate({ to: "/chats/$conversationId", params: { conversationId: conversation.id } });
     } catch (error) {

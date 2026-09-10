@@ -1,19 +1,23 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ImagePlus, Mic, Phone, Reply, Send, Square, X } from "lucide-react";
+import { ArrowLeft, Check, ImagePlus, Mic, PawPrint, Phone, Reply, Send, Square, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import { useApp } from "@/hooks/useApp";
+import { isVetAccount } from "@/lib/account";
 import { startInAppCall } from "@/services/callService";
 import {
   getConversationById,
   listMessages,
   markConversationRead,
   sendChatMessage,
+  setConversationPet,
   uploadChatMedia,
   chatMediaLabel,
   type ChatMediaType,
 } from "@/services/chatService";
+import { rememberPatientId } from "@/services/vetService";
 import { supabase } from "@/services/supabaseClient";
 import { getSessionAccountId } from "@/services/userService";
 import type { ChatConversation, ChatMessage } from "@/types";
@@ -149,12 +153,17 @@ function SwipeToReply({
 function ChatThread() {
   const { conversationId } = Route.useParams();
   const navigate = useNavigate();
+  const { pets, user } = useApp();
+  const isVet = isVetAccount(user);
+  const isOwner = !isVet;
   const [conversation, setConversation] = useState<ChatConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [calling, setCalling] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [petPickerOpen, setPetPickerOpen] = useState(false);
+  const [aligningPet, setAligningPet] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [pendingKind, setPendingKind] = useState<ChatMediaType | null>(null);
@@ -365,6 +374,53 @@ function ChatThread() {
     }
   };
 
+  useEffect(() => {
+    const channel = supabase
+      .channel(`chat-meta:${conversationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "conversations",
+          filter: `id=eq.${conversationId}`,
+        },
+        () => {
+          void getConversationById(conversationId).then((conv) => {
+            if (conv) setConversation(conv);
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [conversationId]);
+
+  const alignPet = async (petId: string | null) => {
+    setAligningPet(true);
+    try {
+      const next = await setConversationPet(conversationId, petId);
+      setConversation(next);
+      setPetPickerOpen(false);
+      toast.success(petId ? `Chat aligned to ${next.petName}` : "Pet reference cleared");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update pet reference");
+    } finally {
+      setAligningPet(false);
+    }
+  };
+
+  const openPetRecords = () => {
+    if (!conversation?.petId) return;
+    if (isVet) {
+      rememberPatientId(conversation.petId);
+      void navigate({ to: "/patients/$petId", params: { petId: conversation.petId } });
+      return;
+    }
+    void navigate({ to: "/pets/$petId", params: { petId: conversation.petId } });
+  };
+
   const callPeer = async () => {
     if (!conversation) return;
     const me = getSessionAccountId();
@@ -387,32 +443,95 @@ function ChatThread() {
 
   let lastDay = "";
   const canSend = Boolean(draft.trim() || pendingFile) && !busy && !recording;
+  const linkedPetMeta = [conversation?.petSpecies, conversation?.petBreed].filter(Boolean).join(" · ");
 
   return (
     <AppShell immersive hideNav>
       <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(ellipse_at_top,_rgba(15,118,110,0.08),_transparent_55%)]">
-        <header className="z-10 flex shrink-0 items-center gap-3 border-b border-border/70 bg-background/95 px-3 py-3 backdrop-blur-md">
-          <Link to="/chats" className="rounded-full p-2 hover:bg-accent" aria-label="Back to chats">
-            <ArrowLeft className="size-5" />
-          </Link>
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-teal-700 text-sm font-bold text-primary-foreground">
-            {(conversation?.peerName ?? "?").charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-extrabold tracking-tight">{conversation?.peerName ?? "Chat"}</p>
-            <p className="text-xs capitalize text-muted-foreground">
-              {conversation ? `${conversation.peerRole} · secure chat` : "Connecting…"}
-            </p>
+        <header className="z-10 shrink-0 border-b border-border/70 bg-background/95 backdrop-blur-md">
+          <div className="flex items-center gap-3 px-3 py-3">
+            <Link to="/chats" className="rounded-full p-2 hover:bg-accent" aria-label="Back to chats">
+              <ArrowLeft className="size-5" />
+            </Link>
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-teal-700 text-sm font-bold text-primary-foreground">
+              {(conversation?.peerName ?? "?").charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-extrabold tracking-tight">{conversation?.peerName ?? "Chat"}</p>
+              <p className="text-xs capitalize text-muted-foreground">
+                {conversation ? `${conversation.peerRole} · secure chat` : "Connecting…"}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={!conversation || calling}
+              onClick={() => void callPeer()}
+              className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+              aria-label="Start in-app call"
+            >
+              <Phone className="size-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={!conversation || calling}
-            onClick={() => void callPeer()}
-            className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
-            aria-label="Start in-app call"
-          >
-            <Phone className="size-4" />
-          </button>
+
+          {conversation?.petId && conversation.petName ? (
+            <div className="flex items-center gap-3 border-t border-border/60 bg-accent/40 px-3 py-2.5">
+              {conversation.petPhotoUrl ? (
+                <img
+                  src={conversation.petPhotoUrl}
+                  alt=""
+                  className="size-11 shrink-0 rounded-xl object-cover"
+                />
+              ) : (
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <PawPrint className="size-5" />
+                </span>
+              )}
+              <button type="button" onClick={openPetRecords} className="min-w-0 flex-1 text-left">
+                <p className="truncate text-sm font-bold">{conversation.petName}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {linkedPetMeta || "Linked pet"} ·{" "}
+                  {isVet ? "Open health records" : "View passport"}
+                </p>
+              </button>
+              {isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => setPetPickerOpen(true)}
+                  className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold"
+                >
+                  Change
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openPetRecords}
+                  className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                >
+                  Records
+                </button>
+              )}
+            </div>
+          ) : isOwner ? (
+            <button
+              type="button"
+              onClick={() => setPetPickerOpen(true)}
+              className="flex w-full items-center gap-3 border-t border-border/60 bg-muted/40 px-3 py-2.5 text-left"
+            >
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-dashed border-primary/40 bg-background text-primary">
+                <PawPrint className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-bold">Align a pet</span>
+                <span className="block text-xs text-muted-foreground">
+                  Help the vet know which pet this chat is about
+                </span>
+              </span>
+            </button>
+          ) : (
+            <div className="border-t border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Waiting for the owner to align a pet to this chat.
+            </div>
+          )}
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
@@ -421,7 +540,9 @@ function ChatThread() {
               <div className="mx-auto mt-10 max-w-[16rem] text-center">
                 <p className="text-sm font-semibold text-foreground">You're connected</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Send text, photos, video, or voice notes. Swipe a message to reply.
+                  {isOwner
+                    ? "Align a pet so the vet can open their records. Swipe messages to reply."
+                    : "Once a pet is aligned, open their records from the header."}
                 </p>
               </div>
             ) : null}
@@ -604,6 +725,78 @@ function ChatThread() {
           </div>
         </div>
       </div>
+
+      {petPickerOpen ? (
+        <div className="absolute inset-0 z-40 flex flex-col bg-background/95 backdrop-blur-sm">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div>
+              <p className="font-extrabold">Align a pet</p>
+              <p className="text-xs text-muted-foreground">The vet can open this pet’s records from the chat</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPetPickerOpen(false)}
+              className="rounded-full p-2 hover:bg-accent"
+              aria-label="Close"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+          <div className="scrollbar-none flex-1 space-y-2 overflow-y-auto px-4 py-4">
+            {pets.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+                <PawPrint className="mx-auto size-8 text-muted-foreground" />
+                <p className="mt-3 font-semibold">No pets yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">Add a pet first, then align this chat.</p>
+                <Link to="/pets/new" className="mt-4 inline-block text-sm font-semibold text-primary">
+                  Add a pet
+                </Link>
+              </div>
+            ) : (
+              pets.map((pet) => {
+                const selected = conversation?.petId === pet.id;
+                return (
+                  <button
+                    key={pet.id}
+                    type="button"
+                    disabled={aligningPet}
+                    onClick={() => void alignPet(pet.id)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left",
+                      selected ? "border-primary bg-accent/50" : "border-border bg-card",
+                    )}
+                  >
+                    {pet.photoUrl ? (
+                      <img src={pet.photoUrl} alt="" className="size-12 rounded-xl object-cover" />
+                    ) : (
+                      <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <PawPrint className="size-5" />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-bold">{pet.name}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {[pet.species, pet.breed].filter(Boolean).join(" · ") || "Pet"}
+                      </span>
+                    </span>
+                    {selected ? <Check className="size-5 shrink-0 text-primary" /> : null}
+                  </button>
+                );
+              })
+            )}
+            {conversation?.petId ? (
+              <button
+                type="button"
+                disabled={aligningPet}
+                onClick={() => void alignPet(null)}
+                className="mt-2 w-full rounded-2xl border border-border px-3 py-3 text-sm font-semibold text-muted-foreground"
+              >
+                Clear pet reference
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

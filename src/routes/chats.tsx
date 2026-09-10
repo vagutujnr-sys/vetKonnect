@@ -224,6 +224,12 @@ function ChatsHub() {
                         {chat.peerRole}
                       </span>
                     </span>
+                    {chat.petName ? (
+                      <span className="mt-0.5 block truncate text-xs font-medium text-primary">
+                        About {chat.petName}
+                        {chat.petSpecies ? ` · ${chat.petSpecies}` : ""}
+                      </span>
+                    ) : null}
                     <span
                       className={cn(
                         "mt-0.5 block truncate text-sm",

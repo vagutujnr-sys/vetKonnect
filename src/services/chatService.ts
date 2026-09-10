@@ -18,12 +18,24 @@ function mapConversationRow(
   peerName: string,
   peerRole: "owner" | "vet",
   unreadCount: number,
+  pet?: {
+    id: string;
+    name: string;
+    photoUrl?: string | null;
+    species?: string | null;
+    breed?: string | null;
+  } | null,
 ): ChatConversation {
   return {
     id: String(row.id),
     ownerAccountId: String(row.owner_account_id),
     vetAccountId: String(row.vet_account_id),
     surgeryId: row.surgery_id ? String(row.surgery_id) : null,
+    petId: pet?.id ?? (row.pet_id ? String(row.pet_id) : null),
+    petName: pet?.name ?? null,
+    petPhotoUrl: pet?.photoUrl ?? null,
+    petSpecies: pet?.species ?? null,
+    petBreed: pet?.breed ?? null,
     lastMessageAt: String(row.last_message_at ?? row.created_at ?? ""),
     lastMessagePreview: String(row.last_message_preview ?? ""),
     createdAt: String(row.created_at ?? ""),
@@ -183,12 +195,47 @@ export async function resolveVetAccountId(input: {
   return null;
 }
 
+async function loadPetMap(petIds: string[]): Promise<
+  Map<string, { id: string; name: string; photoUrl?: string | null; species?: string | null; breed?: string | null }>
+> {
+  const unique = [...new Set(petIds.filter(Boolean))];
+  if (!unique.length) return new Map();
+  const { data } = await supabase
+    .from("pets")
+    .select("id, name, photo_url, species, breed")
+    .in("id", unique);
+  return new Map(
+    (data ?? []).map((p) => [
+      String(p.id),
+      {
+        id: String(p.id),
+        name: String(p.name ?? "Pet"),
+        photoUrl: p.photo_url ? String(p.photo_url) : null,
+        species: p.species ? String(p.species) : null,
+        breed: p.breed ? String(p.breed) : null,
+      },
+    ]),
+  );
+}
+
 export async function getOrCreateConversationWithVet(input: {
   vetAccountId: string;
   surgeryId?: string | null;
+  petId?: string | null;
 }): Promise<ChatConversation> {
   const ownerId = getSessionAccountId();
   if (!ownerId) throw new Error("Sign in as an owner to message a vet.");
+
+  let petId: string | null = input.petId ?? null;
+  if (petId) {
+    const { data: petRow } = await supabase
+      .from("pets")
+      .select("id")
+      .eq("id", petId)
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    if (!petRow) petId = null;
+  }
 
   const { data: existing, error: existingError } = await supabase
     .from("conversations")
@@ -205,16 +252,24 @@ export async function getOrCreateConversationWithVet(input: {
   }
 
   if (existing) {
+    // Optionally align pet when starting from Discover with an active pet.
+    if (petId && !existing.pet_id) {
+      await supabase.from("conversations").update({ pet_id: petId }).eq("id", existing.id);
+      (existing as Record<string, unknown>).pet_id = petId;
+    }
     const { data: peer } = await supabase
       .from("accounts")
       .select("full_name, practice_name")
       .eq("id", input.vetAccountId)
       .maybeSingle();
+    const petMap = await loadPetMap([String((existing as Record<string, unknown>).pet_id ?? "")]);
+    const pet = petMap.get(String((existing as Record<string, unknown>).pet_id ?? "")) ?? null;
     return mapConversationRow(
       existing as Record<string, unknown>,
       String(peer?.practice_name || peer?.full_name || "Veterinarian"),
       "vet",
       0,
+      pet,
     );
   }
 
@@ -225,16 +280,24 @@ export async function getOrCreateConversationWithVet(input: {
     if (!vetRow) surgeryId = null;
   }
 
-  const row = {
+  const row: Record<string, unknown> = {
     id,
     owner_account_id: ownerId,
     vet_account_id: input.vetAccountId,
     surgery_id: surgeryId,
+    pet_id: petId,
     last_message_at: new Date().toISOString(),
     last_message_preview: "",
     created_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase.from("conversations").insert(row).select("*").single();
+
+  let { data, error } = await supabase.from("conversations").insert(row).select("*").single();
+  if (error && (String(error.message ?? "").includes("pet_id") || error.code === "PGRST204")) {
+    const { pet_id: _removed, ...withoutPet } = row;
+    const retry = await supabase.from("conversations").insert(withoutPet).select("*").single();
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
 
   const { data: peer } = await supabase
@@ -242,12 +305,96 @@ export async function getOrCreateConversationWithVet(input: {
     .select("full_name, practice_name")
     .eq("id", input.vetAccountId)
     .maybeSingle();
+  const petMap = await loadPetMap(petId ? [petId] : []);
+  const pet = petId ? petMap.get(petId) ?? null : null;
 
   return mapConversationRow(
     data as Record<string, unknown>,
     String(peer?.practice_name || peer?.full_name || "Veterinarian"),
     "vet",
     0,
+    pet,
+  );
+}
+
+/** Owner aligns (or clears) which pet this chat is about. */
+export async function setConversationPet(conversationId: string, petId: string | null): Promise<ChatConversation> {
+  const accountId = getSessionAccountId();
+  if (!accountId) throw new Error("Sign in to update this chat.");
+
+  const { data: conversation, error: convError } = await supabase
+    .from("conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (convError) throw convError;
+  if (!conversation) throw new Error("Conversation not found.");
+  if (String(conversation.owner_account_id) !== accountId) {
+    throw new Error("Only the pet owner can align this chat to a pet.");
+  }
+
+  let nextPetId: string | null = petId;
+  let petName = "a pet";
+  if (nextPetId) {
+    const { data: petRow } = await supabase
+      .from("pets")
+      .select("id, name")
+      .eq("id", nextPetId)
+      .eq("owner_id", accountId)
+      .maybeSingle();
+    if (!petRow) throw new Error("Choose one of your pets.");
+    nextPetId = String(petRow.id);
+    petName = String(petRow.name ?? "a pet");
+  }
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .update({ pet_id: nextPetId })
+    .eq("id", conversationId)
+    .eq("owner_account_id", accountId)
+    .select("*")
+    .single();
+
+  if (error) {
+    if (String(error.message ?? "").includes("pet_id") || error.code === "PGRST204") {
+      throw new Error("Pet alignment needs migration 018_conversation_pet_reference.sql in Supabase.");
+    }
+    throw error;
+  }
+
+  const vetId = String(conversation.vet_account_id);
+  const { data: owner } = await supabase
+    .from("accounts")
+    .select("full_name, avatar_url")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  try {
+    await createNotification({
+      accountId: vetId,
+      title: nextPetId ? `Chat aligned to ${petName}` : "Pet reference cleared",
+      body: nextPetId
+        ? `${String(owner?.full_name ?? "A pet owner")} linked ${petName} so you can open their health records.`
+        : `${String(owner?.full_name ?? "A pet owner")} removed the pet reference from this chat.`,
+      type: "chat",
+      actorAccountId: accountId,
+      imageUrl: owner?.avatar_url ? String(owner.avatar_url) : null,
+    });
+  } catch (notifyError) {
+    console.warn("Pet align notification failed", notifyError);
+  }
+
+  const list = await listConversations();
+  const updated = list.find((c) => c.id === conversationId);
+  if (updated) return updated;
+
+  const petMap = await loadPetMap(nextPetId ? [nextPetId] : []);
+  return mapConversationRow(
+    data as Record<string, unknown>,
+    "Veterinarian",
+    "vet",
+    0,
+    nextPetId ? petMap.get(nextPetId) ?? null : null,
   );
 }
 
@@ -305,15 +452,19 @@ export async function listConversations(): Promise<ChatConversation[]> {
     unreadMap.set(cid, (unreadMap.get(cid) ?? 0) + 1);
   }
 
+  const petMap = await loadPetMap(rows.map((row) => String(row.pet_id ?? "")).filter(Boolean));
+
   return rows.map((row) => {
     const isOwner = String(row.owner_account_id) === accountId;
     const peerId = isOwner ? String(row.vet_account_id) : String(row.owner_account_id);
     const peer = peerMap.get(peerId);
+    const pet = row.pet_id ? petMap.get(String(row.pet_id)) ?? null : null;
     return mapConversationRow(
       row,
       peer?.name ?? (isOwner ? "Veterinarian" : "Pet owner"),
       isOwner ? "vet" : "owner",
       unreadMap.get(String(row.id)) ?? 0,
+      pet,
     );
   });
 }

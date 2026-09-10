@@ -288,6 +288,12 @@ export interface ChatConversation {
   ownerAccountId: string;
   vetAccountId: string;
   surgeryId?: string | null;
+  /** Pet this thread is aligned to (owner-set reference for the vet). */
+  petId?: string | null;
+  petName?: string | null;
+  petPhotoUrl?: string | null;
+  petSpecies?: string | null;
+  petBreed?: string | null;
   lastMessageAt: string;
   lastMessagePreview: string;
   createdAt: string;
