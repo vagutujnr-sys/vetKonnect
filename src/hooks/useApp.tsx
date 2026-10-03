@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -17,6 +18,7 @@ interface AppState {
   pets: Pet[];
   activePetId: string | null;
   setActivePet: (id: string) => void;
+  acceptAuthenticatedUser: (user: UserProfile) => void;
   refreshSession: () => Promise<void>;
   updateUser: (patch: Partial<UserProfile>) => Promise<void>;
   addPet: (input: NewPetInput) => Promise<Pet>;
@@ -36,24 +38,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile>(userService.defaultUser);
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePetId, setActivePetId] = useState<string | null>(null);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
 
   const refreshSession = useCallback(async () => {
-    try {
-      const u = await userService.getUser();
-      setUser(u);
-      if (u.id) {
-        const p = await petService.getPets(u.id);
-        setPets(p);
-        setActivePetId((prev) =>
-          prev && p.some((pet) => pet.id === prev) ? prev : (p[0]?.id ?? null),
-        );
-      } else {
-        setPets([]);
-        setActivePetId(null);
+    if (refreshInFlight.current) return refreshInFlight.current;
+    refreshInFlight.current = (async () => {
+      try {
+        const u = await userService.getUser();
+        setUser(u);
+        if (u.id) {
+          const p = await petService.getPets(u.id);
+          setPets(p);
+          setActivePetId((prev) =>
+            prev && p.some((pet) => pet.id === prev) ? prev : (p[0]?.id ?? null),
+          );
+        } else {
+          setPets([]);
+          setActivePetId(null);
+        }
+      } catch (error) {
+        console.error("Failed to refresh session", error);
+      } finally {
+        refreshInFlight.current = null;
       }
-    } catch (error) {
-      console.error("Failed to refresh session", error);
-    }
+    })();
+    return refreshInFlight.current;
+  }, []);
+
+  const acceptAuthenticatedUser = useCallback((authenticatedUser: UserProfile) => {
+    setUser(authenticatedUser);
+    setPets([]);
+    setActivePetId(null);
+    if (!authenticatedUser.id) return;
+    void petService.getPets(authenticatedUser.id).then((nextPets) => {
+      setPets(nextPets);
+      setActivePetId((prev) =>
+        prev && nextPets.some((pet) => pet.id === prev) ? prev : (nextPets[0]?.id ?? null),
+      );
+    });
   }, []);
 
   useEffect(() => {
@@ -80,11 +102,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
-    const timer = window.setInterval(() => void refreshSession(), 30000);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
-      window.clearInterval(timer);
     };
   }, [refreshSession]);
 
@@ -160,6 +180,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       pets,
       activePetId,
       setActivePet: setActivePetId,
+      acceptAuthenticatedUser,
       refreshSession,
       updateUser,
       addPet,
@@ -176,6 +197,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       user,
       pets,
       activePetId,
+      acceptAuthenticatedUser,
       refreshSession,
       updateUser,
       addPet,

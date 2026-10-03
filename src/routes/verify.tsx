@@ -34,7 +34,7 @@ export const Route = createFileRoute("/verify")({
 
 function Verify() {
   const navigate = useNavigate();
-  const { refreshSession } = useApp();
+  const { acceptAuthenticatedUser } = useApp();
   const [pending, setPending] = useState<PendingAuth | null>(null);
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
@@ -74,7 +74,7 @@ function Verify() {
             fullName: name.trim() || pending.fullName,
           });
       sessionStorage.removeItem("vetkonnect:pending_auth");
-      await refreshSession();
+      acceptAuthenticatedUser(user);
       try {
         await createNotification({
           accountId: user.id,
