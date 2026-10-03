@@ -23,14 +23,14 @@ import {
   findCountryByIso,
 } from "@/lib/countryDialCodes";
 import { cn } from "@/lib/utils";
-import { getUser, hasActiveSession, requestAccessCode } from "@/services/userService";
+import { getCachedUser, getUser, hasActiveSession, requestAccessCode } from "@/services/userService";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
     const session = await hasActiveSession();
     if (!session) return;
-    const user = await getUser();
+    const user = getCachedUser() ?? (await getUser());
     throw redirect({ to: getAppHomePath(user) });
   },
   head: () => ({

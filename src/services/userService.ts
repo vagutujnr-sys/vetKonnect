@@ -117,6 +117,13 @@ function isAdminSession(): boolean {
   return window.localStorage.getItem(ADMIN_SESSION_KEY) === "1";
 }
 
+export function getCachedUser(): UserProfile | null {
+  const sessionId = getSessionAccountId();
+  if (!sessionId) return null;
+  const cached = getCachedSessionProfile(sessionId);
+  return cached ? { ...cached, isAdmin: cached.isAdmin || isAdminSession() } : null;
+}
+
 export function setAdminSession(active: boolean) {
   if (typeof window === "undefined" || !window.localStorage) return;
   if (active) window.localStorage.setItem(ADMIN_SESSION_KEY, "1");

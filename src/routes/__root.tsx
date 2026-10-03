@@ -18,7 +18,7 @@ import { AppProvider } from "../hooks/useApp";
 import { getAppHomePath, isAppReadyUser } from "@/lib/account";
 import { IncomingCallWatcher } from "@/components/calls/IncomingCallWatcher";
 import { NotificationSoundWatcher } from "@/components/notifications/NotificationSoundWatcher";
-import { getUser, hasActiveSession } from "../services/userService";
+import { getCachedUser, getUser, hasActiveSession } from "../services/userService";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -125,7 +125,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       if (pathname === "/" || pathname === "/welcome") {
         const session = await hasActiveSession();
         if (session) {
-          const user = await getUser();
+          const user = getCachedUser() ?? (await getUser());
           throw redirect({ to: getAppHomePath(user) });
         }
         throw redirect({ to: "/register" });
@@ -135,7 +135,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         return;
       }
 
-      const user = await getUser();
+      const user = getCachedUser() ?? (await getUser());
       if (!isAppReadyUser(user)) {
         throw redirect({ to: "/register" });
       }
