@@ -13,7 +13,7 @@ const ownerItems = [
 ] as const;
 
 const vetItems = [
-  { to: "/patients", label: "Patients", icon: Stethoscope },
+  { to: "/vet", label: "Dashboard", icon: Stethoscope },
   { to: "/impact", label: "Impact", icon: HeartHandshake },
   { to: "/discover", label: "Discover", icon: Compass },
   { to: "/community", label: "Community", icon: Users },
@@ -26,8 +26,8 @@ export function BottomNav() {
   const items = isVetAccount(user) ? vetItems : ownerItems;
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-5">
-      <div className="pointer-events-auto flex w-full max-w-[398px] items-center justify-between rounded-full bg-primary px-2 py-2 shadow-[var(--shadow-float)]">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur-sm">
+      <div className="pointer-events-auto grid w-full grid-cols-5 items-stretch">
         {items.map(({ to, label, icon: Icon }) => {
           const active = pathname === to || pathname.startsWith(`${to}/`);
           return (
@@ -35,12 +35,14 @@ export function BottomNav() {
               key={to}
               to={to}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] font-medium transition-colors",
-                active ? "text-primary-foreground" : "text-primary-foreground/70 hover:text-primary-foreground",
+                "flex flex-col items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className={cn("size-6", active ? "stroke-[2.5] text-primary-foreground" : "stroke-[1.5] text-primary-foreground/90")} />
-              {active ? label : null}
+              <Icon className={cn("size-5", active ? "stroke-[2.5]" : "stroke-[1.5]")} />
+              <span className={cn(active ? "opacity-100" : "opacity-80")}>{label}</span>
             </Link>
           );
         })}

@@ -3,6 +3,7 @@ import { ArrowLeft, HeartPulse, Pill, Syringe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
+import { DvsPetCertificates } from "@/components/dvs/DvsPetCertificates";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
@@ -242,6 +243,8 @@ function PatientDetail() {
             {saving ? "Saving…" : "Save treatment & update card"}
           </Button>
         </section>
+
+        <DvsPetCertificates petId={pet.id} />
 
         <h2 className="mt-7 text-lg font-bold">Patient history</h2>
         <ol className="mt-3 space-y-4 border-l border-border pl-5">

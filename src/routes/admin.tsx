@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { BarChart3, Bell, Ban, Building2, ClipboardList, Globe2, LogOut, MoreHorizontal, PawPrint, Plus, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
+import { BarChart3, Bell, Ban, Building2, ClipboardList, Globe2, Landmark, LogOut, MoreHorizontal, PawPrint, Plus, ShieldCheck, ShieldPlus, Stethoscope, Users, User, MessageSquare, Megaphone, CreditCard, Unplug, Layers, Pencil, Trash2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,10 +48,17 @@ import {
   setCouncilOfficialActive,
   syncCouncilMunicipalSample,
 } from "@/services/councilService";
+import {
+  createDvsOfficer,
+  deleteDvsOfficer,
+  listDvsOfficers,
+  setDvsOfficerActive,
+  syncDvsRegistryFromPets,
+} from "@/services/dvsService";
 import { getAllPets, updatePet, deletePet } from "@/services/petService";
 import { getServices, updateService, deleteService } from "@/services/contentService";
 import { generateHerdTags, listHerdTags } from "@/services/herdTagService";
-import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, CouncilOfficial, HerdTag, Pet, ServiceListing } from "@/types";
+import type { AdminUser, AdminVet, AppNotification, CommunityComment, CommunityPost, CouncilOfficial, DvsOfficer, HerdTag, Pet, ServiceListing } from "@/types";
 import { useApp } from "@/hooks/useApp";
 
 export const Route = createFileRoute("/admin")({
@@ -70,6 +77,7 @@ const sections = [
   { id: "overview", label: "Overview", icon: Globe2 },
   { id: "users", label: "App Accounts", icon: Users },
   { id: "council", label: "Council", icon: Building2 },
+  { id: "dvs", label: "DVS", icon: Landmark },
   { id: "vets", label: "Surgeries", icon: Stethoscope },
   { id: "pets", label: "Pets", icon: PawPrint },
   { id: "services", label: "Services", icon: ClipboardList },
@@ -127,6 +135,12 @@ function AdminDashboard() {
   const [councilPassword, setCouncilPassword] = useState("");
   const [councilTitle, setCouncilTitle] = useState("");
   const [councilBusy, setCouncilBusy] = useState(false);
+  const [dvsOfficials, setDvsOfficials] = useState<DvsOfficer[]>([]);
+  const [dvsName, setDvsName] = useState("");
+  const [dvsEmail, setDvsEmail] = useState("");
+  const [dvsPassword, setDvsPassword] = useState("");
+  const [dvsTitle, setDvsTitle] = useState("");
+  const [dvsBusy, setDvsBusy] = useState(false);
   const pageSize = 5;
 
   useEffect(() => {
@@ -151,9 +165,10 @@ function AdminDashboard() {
         getAdminPosts(),
         getAdminNotifications(),
         listCouncilOfficials(),
+        listDvsOfficers(),
       ]);
 
-      const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult, councilResult] = results;
+      const [usersResult, vetsResult, petsResult, servicesResult, herdResult, postsResult, notificationsResult, councilResult, dvsResult] = results;
       const failures = results.filter((result) => result.status === "rejected");
 
       if (usersResult.status === "fulfilled") setUsers(usersResult.value);
@@ -164,6 +179,7 @@ function AdminDashboard() {
       if (postsResult.status === "fulfilled") setPosts(postsResult.value);
       if (notificationsResult.status === "fulfilled") setNotifications(notificationsResult.value);
       if (councilResult.status === "fulfilled") setCouncilOfficials(councilResult.value);
+      if (dvsResult.status === "fulfilled") setDvsOfficials(dvsResult.value);
 
       if (failures.length === results.length) {
         console.error("Failed to load admin data", failures);
@@ -1190,6 +1206,160 @@ function AdminDashboard() {
                 </Table>
                 {councilOfficials.length === 0 ? (
                   <p className="mt-3 text-sm text-muted-foreground">No council officials registered yet.</p>
+                ) : null}
+              </Card>
+            </div>
+          ) : null}
+
+          {activeSection === "dvs" ? (
+            <div className="space-y-4">
+              <Card className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-bold">DVS officers</h3>
+                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                      Register independent email/password accounts for Department of Veterinary Services staff. They sign in at{" "}
+                      <span className="font-medium text-foreground">/dvs-login</span> then use the national dashboard at{" "}
+                      <span className="font-medium text-foreground">/dvs</span>.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={dvsBusy}
+                    onClick={async () => {
+                      setDvsBusy(true);
+                      try {
+                        const result = await syncDvsRegistryFromPets();
+                        toast.success(
+                          `DVS sync: ${result.certificates} certificates, ${result.vaccinations} vaccinations, ${result.batches} batches, ${result.cases} cases (skipped if data already exists).`,
+                        );
+                      } catch (error) {
+                        console.error(error);
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Sync failed — apply migration 019_dvs_dashboard.sql in Supabase first.",
+                        );
+                      } finally {
+                        setDvsBusy(false);
+                      }
+                    }}
+                  >
+                    Sync live pet registry
+                  </Button>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  <Input placeholder="Full name" value={dvsName} onChange={(e) => setDvsName(e.target.value)} />
+                  <Input placeholder="Title (optional)" value={dvsTitle} onChange={(e) => setDvsTitle(e.target.value)} />
+                  <Input type="email" placeholder="Email" value={dvsEmail} onChange={(e) => setDvsEmail(e.target.value)} />
+                  <Input
+                    type="password"
+                    placeholder="Password (min 8 chars)"
+                    value={dvsPassword}
+                    onChange={(e) => setDvsPassword(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="mt-4"
+                  disabled={dvsBusy}
+                  onClick={async () => {
+                    setDvsBusy(true);
+                    try {
+                      const created = await createDvsOfficer({
+                        fullName: dvsName,
+                        email: dvsEmail,
+                        password: dvsPassword,
+                        title: dvsTitle || undefined,
+                      });
+                      setDvsOfficials((prev) => [created, ...prev]);
+                      setDvsName("");
+                      setDvsEmail("");
+                      setDvsPassword("");
+                      setDvsTitle("");
+                      toast.success("DVS officer registered");
+                    } catch (error) {
+                      console.error(error);
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not create officer — apply migration 019 in Supabase.",
+                      );
+                    } finally {
+                      setDvsBusy(false);
+                    }
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Register officer
+                </Button>
+              </Card>
+
+              <Card className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dvsOfficials.map((official) => (
+                      <TableRow key={official.id}>
+                        <TableCell className="font-medium">{official.fullName}</TableCell>
+                        <TableCell>{official.email}</TableCell>
+                        <TableCell>{official.title || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={official.active ? "default" : "secondary"}>
+                            {official.active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await setDvsOfficerActive(official.id, !official.active);
+                                  setDvsOfficials((prev) =>
+                                    prev.map((item) =>
+                                      item.id === official.id ? { ...item, active: !item.active } : item,
+                                    ),
+                                  );
+                                } catch (error) {
+                                  toast.error(error instanceof Error ? error.message : "Update failed");
+                                }
+                              }}
+                            >
+                              {official.active ? "Deactivate" : "Activate"}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await deleteDvsOfficer(official.id);
+                                  setDvsOfficials((prev) => prev.filter((item) => item.id !== official.id));
+                                  toast.success("Officer removed");
+                                } catch (error) {
+                                  toast.error(error instanceof Error ? error.message : "Delete failed");
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {dvsOfficials.length === 0 ? (
+                  <p className="mt-3 text-sm text-muted-foreground">No DVS officers registered yet.</p>
                 ) : null}
               </Card>
             </div>

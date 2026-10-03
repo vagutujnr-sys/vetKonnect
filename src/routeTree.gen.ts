@@ -18,24 +18,33 @@ import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CouncilRouteImport } from './routes/council'
 import { Route as CouncilLoginRouteImport } from './routes/council-login'
 import { Route as DiscoverRouteImport } from './routes/discover'
+import { Route as DvsRouteImport } from './routes/dvs'
+import { Route as DvsLoginRouteImport } from './routes/dvs-login'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as ImpactRouteImport } from './routes/impact'
+import { Route as LicenceReturnRouteImport } from './routes/licence-return'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PatientsRouteImport } from './routes/patients'
+import { Route as PresentationRouteImport } from './routes/presentation'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as VerifyRouteImport } from './routes/verify'
+import { Route as VetRouteImport } from './routes/vet'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as CallCallIdRouteImport } from './routes/call.$callId'
+import { Route as CertificateCodeRouteImport } from './routes/certificate.$code'
 import { Route as ChatsConversationIdRouteImport } from './routes/chats_.$conversationId'
 import { Route as CommunityPostIdRouteImport } from './routes/community.$postId'
 import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
 import { Route as PetsIndexRouteImport } from './routes/pets.index'
 import { Route as PetsPetIdRouteImport } from './routes/pets.$petId'
 import { Route as PetsNewRouteImport } from './routes/pets.new'
+import { Route as ApiPaynowInitiateRouteImport } from './routes/api.paynow.initiate'
+import { Route as ApiPaynowPollRouteImport } from './routes/api.paynow.poll'
+import { Route as ApiPaynowResultRouteImport } from './routes/api.paynow.result'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +91,16 @@ const DiscoverRoute = DiscoverRouteImport.update({
   path: '/discover',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DvsRoute = DvsRouteImport.update({
+  id: '/dvs',
+  path: '/dvs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DvsLoginRoute = DvsLoginRouteImport.update({
+  id: '/dvs-login',
+  path: '/dvs-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -90,6 +109,11 @@ const HomeRoute = HomeRouteImport.update({
 const ImpactRoute = ImpactRouteImport.update({
   id: '/impact',
   path: '/impact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LicenceReturnRoute = LicenceReturnRouteImport.update({
+  id: '/licence-return',
+  path: '/licence-return',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ModulesRoute = ModulesRouteImport.update({
@@ -105,6 +129,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
 const PatientsRoute = PatientsRouteImport.update({
   id: '/patients',
   path: '/patients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PresentationRoute = PresentationRouteImport.update({
+  id: '/presentation',
+  path: '/presentation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -132,6 +161,11 @@ const VerifyRoute = VerifyRouteImport.update({
   path: '/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VetRoute = VetRouteImport.update({
+  id: '/vet',
+  path: '/vet',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
@@ -140,6 +174,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const CallCallIdRoute = CallCallIdRouteImport.update({
   id: '/call/$callId',
   path: '/call/$callId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CertificateCodeRoute = CertificateCodeRouteImport.update({
+  id: '/certificate/$code',
+  path: '/certificate/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatsConversationIdRoute = ChatsConversationIdRouteImport.update({
@@ -172,6 +211,21 @@ const PetsNewRoute = PetsNewRouteImport.update({
   path: '/pets/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaynowInitiateRoute = ApiPaynowInitiateRouteImport.update({
+  id: '/api/paynow/initiate',
+  path: '/api/paynow/initiate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaynowPollRoute = ApiPaynowPollRouteImport.update({
+  id: '/api/paynow/poll',
+  path: '/api/paynow/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaynowResultRoute = ApiPaynowResultRouteImport.update({
+  id: '/api/paynow/result',
+  path: '/api/paynow/result',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -183,24 +237,33 @@ export interface FileRoutesByFullPath {
   '/council': typeof CouncilRoute
   '/council-login': typeof CouncilLoginRoute
   '/discover': typeof DiscoverRoute
+  '/dvs': typeof DvsRoute
+  '/dvs-login': typeof DvsLoginRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
+  '/licence-return': typeof LicenceReturnRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/patients': typeof PatientsRouteWithChildren
+  '/presentation': typeof PresentationRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
+  '/vet': typeof VetRoute
   '/welcome': typeof WelcomeRoute
   '/call/$callId': typeof CallCallIdRoute
+  '/certificate/$code': typeof CertificateCodeRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
   '/pets/': typeof PetsIndexRoute
+  '/api/paynow/initiate': typeof ApiPaynowInitiateRoute
+  '/api/paynow/poll': typeof ApiPaynowPollRoute
+  '/api/paynow/result': typeof ApiPaynowResultRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -212,24 +275,33 @@ export interface FileRoutesByTo {
   '/council': typeof CouncilRoute
   '/council-login': typeof CouncilLoginRoute
   '/discover': typeof DiscoverRoute
+  '/dvs': typeof DvsRoute
+  '/dvs-login': typeof DvsLoginRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
+  '/licence-return': typeof LicenceReturnRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/patients': typeof PatientsRouteWithChildren
+  '/presentation': typeof PresentationRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
+  '/vet': typeof VetRoute
   '/welcome': typeof WelcomeRoute
   '/call/$callId': typeof CallCallIdRoute
+  '/certificate/$code': typeof CertificateCodeRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
   '/pets': typeof PetsIndexRoute
+  '/api/paynow/initiate': typeof ApiPaynowInitiateRoute
+  '/api/paynow/poll': typeof ApiPaynowPollRoute
+  '/api/paynow/result': typeof ApiPaynowResultRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -242,24 +314,33 @@ export interface FileRoutesById {
   '/council': typeof CouncilRoute
   '/council-login': typeof CouncilLoginRoute
   '/discover': typeof DiscoverRoute
+  '/dvs': typeof DvsRoute
+  '/dvs-login': typeof DvsLoginRoute
   '/home': typeof HomeRoute
   '/impact': typeof ImpactRoute
+  '/licence-return': typeof LicenceReturnRoute
   '/modules': typeof ModulesRoute
   '/notifications': typeof NotificationsRoute
   '/patients': typeof PatientsRouteWithChildren
+  '/presentation': typeof PresentationRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/settings': typeof SettingsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/verify': typeof VerifyRoute
+  '/vet': typeof VetRoute
   '/welcome': typeof WelcomeRoute
   '/call/$callId': typeof CallCallIdRoute
+  '/certificate/$code': typeof CertificateCodeRoute
   '/chats_/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
   '/pets/': typeof PetsIndexRoute
+  '/api/paynow/initiate': typeof ApiPaynowInitiateRoute
+  '/api/paynow/poll': typeof ApiPaynowPollRoute
+  '/api/paynow/result': typeof ApiPaynowResultRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -273,24 +354,33 @@ export interface FileRouteTypes {
     | '/council'
     | '/council-login'
     | '/discover'
+    | '/dvs'
+    | '/dvs-login'
     | '/home'
     | '/impact'
+    | '/licence-return'
     | '/modules'
     | '/notifications'
     | '/patients'
+    | '/presentation'
     | '/profile'
     | '/register'
     | '/settings'
     | '/sitemap.xml'
     | '/verify'
+    | '/vet'
     | '/welcome'
     | '/call/$callId'
+    | '/certificate/$code'
     | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
     | '/pets/'
+    | '/api/paynow/initiate'
+    | '/api/paynow/poll'
+    | '/api/paynow/result'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -302,24 +392,33 @@ export interface FileRouteTypes {
     | '/council'
     | '/council-login'
     | '/discover'
+    | '/dvs'
+    | '/dvs-login'
     | '/home'
     | '/impact'
+    | '/licence-return'
     | '/modules'
     | '/notifications'
     | '/patients'
+    | '/presentation'
     | '/profile'
     | '/register'
     | '/settings'
     | '/sitemap.xml'
     | '/verify'
+    | '/vet'
     | '/welcome'
     | '/call/$callId'
+    | '/certificate/$code'
     | '/chats/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
     | '/pets'
+    | '/api/paynow/initiate'
+    | '/api/paynow/poll'
+    | '/api/paynow/result'
   id:
     | '__root__'
     | '/'
@@ -331,24 +430,33 @@ export interface FileRouteTypes {
     | '/council'
     | '/council-login'
     | '/discover'
+    | '/dvs'
+    | '/dvs-login'
     | '/home'
     | '/impact'
+    | '/licence-return'
     | '/modules'
     | '/notifications'
     | '/patients'
+    | '/presentation'
     | '/profile'
     | '/register'
     | '/settings'
     | '/sitemap.xml'
     | '/verify'
+    | '/vet'
     | '/welcome'
     | '/call/$callId'
+    | '/certificate/$code'
     | '/chats_/$conversationId'
     | '/community/$postId'
     | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
     | '/pets/'
+    | '/api/paynow/initiate'
+    | '/api/paynow/poll'
+    | '/api/paynow/result'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -361,22 +469,31 @@ export interface RootRouteChildren {
   CouncilRoute: typeof CouncilRoute
   CouncilLoginRoute: typeof CouncilLoginRoute
   DiscoverRoute: typeof DiscoverRoute
+  DvsRoute: typeof DvsRoute
+  DvsLoginRoute: typeof DvsLoginRoute
   HomeRoute: typeof HomeRoute
   ImpactRoute: typeof ImpactRoute
+  LicenceReturnRoute: typeof LicenceReturnRoute
   ModulesRoute: typeof ModulesRoute
   NotificationsRoute: typeof NotificationsRoute
   PatientsRoute: typeof PatientsRouteWithChildren
+  PresentationRoute: typeof PresentationRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
   SettingsRoute: typeof SettingsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   VerifyRoute: typeof VerifyRoute
+  VetRoute: typeof VetRoute
   WelcomeRoute: typeof WelcomeRoute
   CallCallIdRoute: typeof CallCallIdRoute
+  CertificateCodeRoute: typeof CertificateCodeRoute
   ChatsConversationIdRoute: typeof ChatsConversationIdRoute
   PetsPetIdRoute: typeof PetsPetIdRoute
   PetsNewRoute: typeof PetsNewRoute
   PetsIndexRoute: typeof PetsIndexRoute
+  ApiPaynowInitiateRoute: typeof ApiPaynowInitiateRoute
+  ApiPaynowPollRoute: typeof ApiPaynowPollRoute
+  ApiPaynowResultRoute: typeof ApiPaynowResultRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -444,6 +561,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DiscoverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dvs': {
+      id: '/dvs'
+      path: '/dvs'
+      fullPath: '/dvs'
+      preLoaderRoute: typeof DvsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dvs-login': {
+      id: '/dvs-login'
+      path: '/dvs-login'
+      fullPath: '/dvs-login'
+      preLoaderRoute: typeof DvsLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home': {
       id: '/home'
       path: '/home'
@@ -456,6 +587,13 @@ declare module '@tanstack/react-router' {
       path: '/impact'
       fullPath: '/impact'
       preLoaderRoute: typeof ImpactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/licence-return': {
+      id: '/licence-return'
+      path: '/licence-return'
+      fullPath: '/licence-return'
+      preLoaderRoute: typeof LicenceReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/modules': {
@@ -477,6 +615,13 @@ declare module '@tanstack/react-router' {
       path: '/patients'
       fullPath: '/patients'
       preLoaderRoute: typeof PatientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/presentation': {
+      id: '/presentation'
+      path: '/presentation'
+      fullPath: '/presentation'
+      preLoaderRoute: typeof PresentationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -514,6 +659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vet': {
+      id: '/vet'
+      path: '/vet'
+      fullPath: '/vet'
+      preLoaderRoute: typeof VetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/welcome': {
       id: '/welcome'
       path: '/welcome'
@@ -526,6 +678,13 @@ declare module '@tanstack/react-router' {
       path: '/call/$callId'
       fullPath: '/call/$callId'
       preLoaderRoute: typeof CallCallIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/certificate/$code': {
+      id: '/certificate/$code'
+      path: '/certificate/$code'
+      fullPath: '/certificate/$code'
+      preLoaderRoute: typeof CertificateCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chats_/$conversationId': {
@@ -570,6 +729,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PetsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/paynow/initiate': {
+      id: '/api/paynow/initiate'
+      path: '/api/paynow/initiate'
+      fullPath: '/api/paynow/initiate'
+      preLoaderRoute: typeof ApiPaynowInitiateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/paynow/poll': {
+      id: '/api/paynow/poll'
+      path: '/api/paynow/poll'
+      fullPath: '/api/paynow/poll'
+      preLoaderRoute: typeof ApiPaynowPollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/paynow/result': {
+      id: '/api/paynow/result'
+      path: '/api/paynow/result'
+      fullPath: '/api/paynow/result'
+      preLoaderRoute: typeof ApiPaynowResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -607,23 +787,42 @@ const rootRouteChildren: RootRouteChildren = {
   CouncilRoute: CouncilRoute,
   CouncilLoginRoute: CouncilLoginRoute,
   DiscoverRoute: DiscoverRoute,
+  DvsRoute: DvsRoute,
+  DvsLoginRoute: DvsLoginRoute,
   HomeRoute: HomeRoute,
   ImpactRoute: ImpactRoute,
+  LicenceReturnRoute: LicenceReturnRoute,
   ModulesRoute: ModulesRoute,
   NotificationsRoute: NotificationsRoute,
   PatientsRoute: PatientsRouteWithChildren,
+  PresentationRoute: PresentationRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
   SettingsRoute: SettingsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   VerifyRoute: VerifyRoute,
+  VetRoute: VetRoute,
   WelcomeRoute: WelcomeRoute,
   CallCallIdRoute: CallCallIdRoute,
+  CertificateCodeRoute: CertificateCodeRoute,
   ChatsConversationIdRoute: ChatsConversationIdRoute,
   PetsPetIdRoute: PetsPetIdRoute,
   PetsNewRoute: PetsNewRoute,
   PetsIndexRoute: PetsIndexRoute,
+  ApiPaynowInitiateRoute: ApiPaynowInitiateRoute,
+  ApiPaynowPollRoute: ApiPaynowPollRoute,
+  ApiPaynowResultRoute: ApiPaynowResultRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

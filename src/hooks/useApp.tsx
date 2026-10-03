@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import * as petService from "@/services/petService";
 import * as userService from "@/services/userService";
 import type { NewPetInput, Pet, UserProfile } from "@/types";
@@ -14,6 +22,9 @@ interface AppState {
   addPet: (input: NewPetInput) => Promise<Pet>;
   updatePet: (id: string, patch: Partial<Pet>) => Promise<Pet | undefined>;
   joinVetSure: () => void;
+  joinBreedersClub: () => Promise<void>;
+  setBreederShowcasePet: (petId: string | null) => Promise<void>;
+  activateBreedersClub: () => Promise<void>;
   signOut: () => Promise<void>;
   unbindDevice: () => Promise<void>;
 }
@@ -33,7 +44,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (u.id) {
         const p = await petService.getPets(u.id);
         setPets(p);
-        setActivePetId((prev) => (prev && p.some((pet) => pet.id === prev) ? prev : p[0]?.id ?? null));
+        setActivePetId((prev) =>
+          prev && p.some((pet) => pet.id === prev) ? prev : (p[0]?.id ?? null),
+        );
       } else {
         setPets([]);
         setActivePetId(null);
@@ -105,6 +118,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [updateUser]);
 
+  const joinBreedersClub = useCallback(async () => {
+    await updateUser({
+      breedersClubMember: true,
+      breedersClubStatus: "pending",
+    });
+  }, [updateUser]);
+
+  const activateBreedersClub = useCallback(async () => {
+    await updateUser({
+      breedersClubMember: true,
+      breedersClubStatus: "active",
+    });
+  }, [updateUser]);
+
+  const setBreederShowcasePet = useCallback(
+    async (petId: string | null) => {
+      await updateUser({ breederShowcasePetId: petId });
+    },
+    [updateUser],
+  );
+
   const signOut = useCallback(async () => {
     await userService.resetUser();
     setUser(userService.defaultUser);
@@ -131,10 +165,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addPet,
       updatePet,
       joinVetSure,
+      joinBreedersClub,
+      activateBreedersClub,
+      setBreederShowcasePet,
       signOut,
       unbindDevice,
     }),
-    [ready, user, pets, activePetId, refreshSession, updateUser, addPet, updatePet, joinVetSure, signOut, unbindDevice],
+    [
+      ready,
+      user,
+      pets,
+      activePetId,
+      refreshSession,
+      updateUser,
+      addPet,
+      updatePet,
+      joinVetSure,
+      joinBreedersClub,
+      activateBreedersClub,
+      setBreederShowcasePet,
+      signOut,
+      unbindDevice,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

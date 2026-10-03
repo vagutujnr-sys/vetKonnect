@@ -1,3 +1,4 @@
+import "@/lib/sessionScope";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -102,6 +103,10 @@ const publicRoutes = new Set([
   "/council-login",
   "/council",
   "/city",
+  "/dvs-login",
+  "/dvs",
+  "/licence-return",
+  "/presentation",
 ]);
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -126,7 +131,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         throw redirect({ to: "/register" });
       }
 
-      if (publicRoutes.has(pathname)) {
+      if (publicRoutes.has(pathname) || pathname.startsWith("/certificate/") || pathname.startsWith("/api/")) {
         return;
       }
 

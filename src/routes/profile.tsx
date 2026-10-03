@@ -11,19 +11,16 @@ import {
   Search,
   Settings,
   ShieldCheck,
-  ShieldPlus,
   SlidersHorizontal,
   Stethoscope,
   Lock,
-  Unplug,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
-import { VetSureCard } from "@/components/vetsure/VetSureCard";
 import { useApp } from "@/hooks/useApp";
-import { isVetAccount } from "@/lib/account";
+import { isBreedersClubActive, isVetAccount } from "@/lib/account";
 import { listSurgeries } from "@/services/contentService";
 import { alignWithSurgery, uploadProfilePhoto } from "@/services/userService";
 import type { AdminVet } from "@/types";
@@ -33,7 +30,10 @@ export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
       { title: "Profile — VetKonnect" },
-      { name: "description", content: "Manage your account, pets, VetSure membership and app preferences." },
+      {
+        name: "description",
+        content: "Manage your account, pets, VetSure membership and app preferences.",
+      },
       { property: "og:title", content: "Profile — VetKonnect" },
       { property: "og:description", content: "Your VetKonnect account and settings." },
     ],
@@ -42,7 +42,15 @@ export const Route = createFileRoute("/profile")({
 });
 
 function Profile() {
-  const { user, pets, signOut, unbindDevice, updateUser, refreshSession } = useApp();
+  const {
+    user,
+    pets,
+    signOut,
+    updateUser,
+    refreshSession,
+    joinBreedersClub,
+    setBreederShowcasePet,
+  } = useApp();
   const navigate = useNavigate();
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -87,6 +95,28 @@ function Profile() {
       )
       .slice(0, 12);
   }, [surgeries, surgeryQuery]);
+
+  const activeBreedersClub = isBreedersClubActive(user);
+  const showcasePet = pets.find((pet) => pet.id === user.breederShowcasePetId) ?? pets[0] ?? null;
+
+  const handleJoinBreedersClub = async () => {
+    if (!pets.length) {
+      toast.error("Add a pet to your profile before joining the Breeders Club.");
+      return;
+    }
+
+    await joinBreedersClub();
+    toast.success("Application submitted", {
+      description: showcasePet
+        ? `Your ${showcasePet.name} profile is ready for review.`
+        : "Your breeder application is ready for review.",
+    });
+  };
+
+  const handleShowcasePet = async (petId: string) => {
+    await setBreederShowcasePet(petId);
+    toast.success("Breeding showcase updated");
+  };
 
   const changePhoto = async (file: File | null) => {
     if (!file) return;
@@ -144,13 +174,28 @@ function Profile() {
           value: user.vetVerified ? "Verified" : "Awaiting admin",
           to: "/patients" as const,
         },
-        { icon: Bell, label: "Notifications", value: user.notificationsEnabled === false ? "Off" : "On", to: "/notifications" as const },
+        {
+          icon: Bell,
+          label: "Notifications",
+          value: user.notificationsEnabled === false ? "Off" : "On",
+          to: "/notifications" as const,
+        },
         { icon: Settings, label: "Settings", value: "", to: "/settings" as const },
       ]
     : [
         { icon: PawPrint, label: "My pets", value: `${pets.length}`, to: "/pets" as const },
-        { icon: SlidersHorizontal, label: "Customize modules", value: `${user.modules.length} active`, to: "/modules" as const },
-        { icon: Bell, label: "Notifications", value: user.notificationsEnabled === false ? "Off" : "On", to: "/notifications" as const },
+        {
+          icon: SlidersHorizontal,
+          label: "Customize modules",
+          value: `${user.modules.length} active`,
+          to: "/modules" as const,
+        },
+        {
+          icon: Bell,
+          label: "Notifications",
+          value: user.notificationsEnabled === false ? "Off" : "On",
+          to: "/notifications" as const,
+        },
         { icon: Settings, label: "Settings", value: "", to: "/settings" as const },
       ];
 
@@ -242,20 +287,72 @@ function Profile() {
 
       {!isVetAccount(user) ? (
         <>
-          <div className="mx-5 mt-4">
-            <VetSureCard />
-          </div>
-
-          <section className="mx-5 mt-4 rounded-2xl border border-accent bg-accent/40 p-5">
-            <div className="flex items-center gap-3">
-              {user.vetSureMember ? <ShieldCheck className="size-6 text-primary" /> : <ShieldPlus className="size-6 text-primary" />}
-              <div className="flex-1">
-                <p className="font-bold text-primary">Membership overview</p>
-                <p className="text-sm text-muted-foreground">
-                  {user.vetSureMember ? "Active · all pets covered" : "Join VetSure from the card above"}
+          <section className="mx-5 mt-4 border border-border bg-card p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Breeders Club
                 </p>
+                <h3 className="mt-1 text-xl font-black text-primary">Premium Breeders Club</h3>
               </div>
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-800">
+                {activeBreedersClub ? "Active" : "Open"}
+              </span>
             </div>
+
+            <p className="mt-3 text-sm text-muted-foreground">
+              Private breeder community · genetics & bloodline discussions · find breeding partners
+              · maintain breeding records.
+            </p>
+
+            <div className="mt-4 flex items-end gap-2">
+              <span className="text-3xl font-black text-foreground">$2.00</span>
+              <span className="pb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                / month
+              </span>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-border bg-background p-3">
+              <label className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Showcase pet for breeding
+              </label>
+              <select
+                value={user.breederShowcasePetId ?? ""}
+                onChange={(event) => void handleShowcasePet(event.target.value)}
+                disabled={pets.length === 0}
+                className="mt-2 w-full rounded-md border border-input bg-white px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">Select a pet</option>
+                {pets.map((pet) => (
+                  <option key={pet.id} value={pet.id}>
+                    {pet.name} • {pet.breed}
+                  </option>
+                ))}
+              </select>
+              {!pets.length ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Add a pet to your profile to unlock the breeder join button.
+                </p>
+              ) : null}
+            </div>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              Breeders Club membership is available to owners of registered pets with current
+              vaccination records.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => void handleJoinBreedersClub()}
+              disabled={!pets.length || activeBreedersClub || user.breedersClubStatus === "pending"}
+              className="mt-5 w-full border border-primary bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {activeBreedersClub
+                ? "Breeders Club active"
+                : user.breedersClubStatus === "pending"
+                  ? "Application in review"
+                  : "Join Breeders Club"}
+            </button>
           </section>
         </>
       ) : (
@@ -288,7 +385,10 @@ function Profile() {
                   <div className="mt-3 flex items-start justify-between gap-3 rounded-xl border border-border bg-background px-3 py-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
-                        {linkedSurgery?.surgery || linkedSurgery?.name || user.practiceName || "Linked surgery"}
+                        {linkedSurgery?.surgery ||
+                          linkedSurgery?.name ||
+                          user.practiceName ||
+                          "Linked surgery"}
                       </p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {linkedSurgery?.location || "Linked to directory surgery"}
@@ -324,7 +424,9 @@ function Profile() {
                 {surgerySearchOpen && surgeries.length > 0 ? (
                   <div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-border bg-background shadow-[var(--shadow-card)]">
                     {filteredSurgeries.length === 0 ? (
-                      <p className="px-3 py-4 text-center text-sm text-muted-foreground">No surgeries match that search.</p>
+                      <p className="px-3 py-4 text-center text-sm text-muted-foreground">
+                        No surgeries match that search.
+                      </p>
                     ) : (
                       filteredSurgeries.map((surgery) => {
                         const selected = (user.surgeryId || linkedSurgery?.id) === surgery.id;
@@ -341,11 +443,14 @@ function Profile() {
                                 {surgery.surgery || surgery.name}
                               </span>
                               <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                                {[surgery.location, surgery.address].filter(Boolean).join(" · ") || "Directory surgery"}
+                                {[surgery.location, surgery.address].filter(Boolean).join(" · ") ||
+                                  "Directory surgery"}
                               </span>
                             </span>
                             {selected ? (
-                              <span className="shrink-0 text-xs font-semibold text-primary">Linked</span>
+                              <span className="shrink-0 text-xs font-semibold text-primary">
+                                Linked
+                              </span>
                             ) : null}
                           </button>
                         );
@@ -355,7 +460,9 @@ function Profile() {
                 ) : null}
 
                 {surgeries.length === 0 ? (
-                  <p className="mt-2 text-xs text-muted-foreground">No active surgeries in the directory yet.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    No active surgeries in the directory yet.
+                  </p>
                 ) : null}
                 {surgeryBusy ? <p className="mt-2 text-xs text-muted-foreground">Saving…</p> : null}
               </div>
@@ -373,27 +480,15 @@ function Profile() {
             <ChevronRight className="size-4 text-muted-foreground" />
           </Link>
         ))}
-        <button type="button" className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left">
+        <button
+          type="button"
+          className="flex w-full cursor-pointer items-center gap-3 px-4 py-4 text-left"
+        >
           <HelpCircle className="size-5 text-primary" />
           <span className="flex-1 font-medium">Help and support</span>
           <ChevronRight className="size-4 text-muted-foreground" />
         </button>
       </div>
-
-      <Button
-        variant="outline"
-        size="lg"
-        className="mx-5 mt-6 gap-2"
-        onClick={async () => {
-          await unbindDevice();
-          toast.success("Device unbound", {
-            description: "This account can now be signed in on another device.",
-          });
-          void navigate({ to: "/register" });
-        }}
-      >
-        <Unplug className="size-4" /> Unbind this device
-      </Button>
 
       <Button
         variant="outline"

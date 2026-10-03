@@ -101,6 +101,11 @@ function PatientsScreen() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {verified ? (
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/vet">Dashboard</Link>
+            </Button>
+          ) : null}
           <HeaderAlerts />
         </div>
       </header>

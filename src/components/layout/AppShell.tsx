@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BreedersClubFab } from "@/components/breeders/BreedersClubFab";
 import { BottomNav } from "./BottomNav";
 import { MobileScreen } from "./MobileScreen";
 
@@ -20,12 +21,21 @@ export function AppShell({
       className={immersive || hideNav ? "relative h-dvh max-h-dvh overflow-hidden" : undefined}
     >
       {children}
+      <BreedersClubFab />
       {showNav ? <BottomNav /> : null}
     </MobileScreen>
   );
 }
 
-export function ScreenHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function ScreenHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
   return (
     <header className="flex items-start justify-between gap-4 px-5 pb-4 pt-8">
       <div>

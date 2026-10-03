@@ -1,34 +1,32 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, BadgeCheck, CircleUserRound, Smartphone } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { CircleUserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { PinPad } from "@/components/auth/PinPad";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
-import { StepIndicator } from "@/components/onboarding/StepIndicator";
-import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { getAppHomePath } from "@/lib/account";
-import { verifyAccessCode } from "@/services/userService";
+import { PIN_LENGTH } from "@/lib/pin";
+import { setAccountPin, verifyAccountPin } from "@/services/userService";
 import { createNotification } from "@/services/notificationService";
 import type { AccountType } from "@/types";
 
 type PendingAuth = {
   accountId: string;
-  otp: string;
   phone: string;
   countryCode: string;
   isNew: boolean;
-  expiresAt: string;
+  hasPin: boolean;
+  fullName?: string;
   accountType?: AccountType;
 };
 
 export const Route = createFileRoute("/verify")({
   head: () => ({
     meta: [
-      { title: "Verify access — VetKonnect" },
-      { name: "description", content: "Enter your unique VetKonnect access code to bind this device." },
-      { property: "og:title", content: "Verify access — VetKonnect" },
-      { property: "og:description", content: "Device-bound verification for your account." },
+      { title: "PIN — VetKonnect" },
+      { name: "description", content: "Create or enter your 5-digit VetKonnect PIN." },
     ],
   }),
   component: Verify,
@@ -38,9 +36,12 @@ function Verify() {
   const navigate = useNavigate();
   const { refreshSession } = useApp();
   const [pending, setPending] = useState<PendingAuth | null>(null);
-  const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [firstPin, setFirstPin] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("vetkonnect:pending_auth");
@@ -49,152 +50,153 @@ function Verify() {
       return;
     }
     try {
-      setPending(JSON.parse(raw) as PendingAuth);
+      const parsed = JSON.parse(raw) as PendingAuth;
+      setPending(parsed);
+      setName(parsed.fullName ?? "");
     } catch {
       void navigate({ to: "/register" });
     }
   }, [navigate]);
 
-  const masked = useMemo(() => {
-    if (!pending) return "+263 …";
-    return `${pending.countryCode} ${pending.phone}`;
-  }, [pending]);
+  const returning = Boolean(pending && !pending.isNew && pending.hasPin);
+  const needsName = Boolean(pending?.isNew || !pending?.fullName);
 
-  const canSubmit = code.length === 6 && (!pending?.isNew || name.trim().length >= 2);
-
-  const submit = async () => {
+  const finish = async (userPin: string) => {
     if (!pending) return;
     setLoading(true);
+    setError(false);
     try {
-      const user = await verifyAccessCode({
-        accountId: pending.accountId,
-        code,
-        fullName: name.trim() || undefined,
-      });
+      const user = returning
+        ? await verifyAccountPin({ accountId: pending.accountId, pin: userPin })
+        : await setAccountPin({
+            accountId: pending.accountId,
+            pin: userPin,
+            fullName: name.trim() || pending.fullName,
+          });
       sessionStorage.removeItem("vetkonnect:pending_auth");
       await refreshSession();
-      await createNotification({
-        accountId: user.id,
-        title: user.accountType === "vet" ? "Vet account secured" : "Device secured",
-        body:
-          user.accountType === "vet"
-            ? "Your practice account is bound to this device. Patients & Impact unlock after admin verification."
-            : "This account is now bound to this device.",
-        type: "security",
-      });
-      toast.success("Device bound successfully", {
-        description:
-          user.accountType === "vet"
-            ? "Opening your vet workspace."
-            : "Your VetKonnect account is secured on this device.",
+      try {
+        await createNotification({
+          accountId: user.id,
+          title: returning ? "Signed in" : "PIN saved",
+          body: returning
+            ? "Welcome back to VetKonnect."
+            : user.accountType === "vet"
+              ? "Your practice PIN is ready. Patients and Impact unlock after admin verification."
+              : "Your 5-digit PIN is ready. Use it whenever you sign in.",
+          type: "security",
+        });
+      } catch {
+        // PIN sign-in already succeeded. A missed notice should not undo it.
+      }
+      toast.success(returning ? "Welcome back" : "PIN created", {
+        description: user.accountType === "vet" ? "Opening your vet workspace." : "You can sign in with this PIN on any device.",
       });
       void navigate({ to: getAppHomePath(user) });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Verification failed.");
+    } catch (err) {
+      setError(true);
+      setPin("");
+      if (!returning) {
+        setConfirming(false);
+        setFirstPin("");
+      }
+      toast.error(err instanceof Error ? err.message : "Could not check that PIN.");
     } finally {
       setLoading(false);
     }
   };
 
+  const onPinChange = (next: string) => {
+    setError(false);
+    setPin(next);
+    if (next.length < PIN_LENGTH) return;
+    if (returning) {
+      void finish(next);
+      return;
+    }
+    if (!confirming) {
+      if (needsName && name.trim().length < 2) {
+        setPin("");
+        toast.error("Enter your name before choosing a PIN.");
+        return;
+      }
+      setFirstPin(next);
+      setPin("");
+      setConfirming(true);
+      return;
+    }
+    if (next !== firstPin) {
+      setError(true);
+      setPin("");
+      setConfirming(false);
+      setFirstPin("");
+      toast.error("Those PINs did not match. Choose it again.");
+      return;
+    }
+    void finish(next);
+  };
+
   if (!pending) {
     return (
-      <MobileScreen className="px-6">
-        <p className="pt-16 text-center text-sm text-muted-foreground">Preparing verification…</p>
+      <MobileScreen className="bg-white px-6">
+        <p className="pt-16 text-center text-sm text-muted-foreground">Preparing sign-in…</p>
       </MobileScreen>
     );
   }
 
+  const masked = `${pending.countryCode} ${pending.phone}`;
+
   return (
-    <MobileScreen className="px-6">
-      <div className="flex justify-center pt-10">
-        <Logo size="sm" stacked />
-      </div>
-      <div className="mt-6">
-        <StepIndicator step={2} total={3} />
+    <MobileScreen className="bg-white px-6 pb-6">
+      <div className="flex justify-center pt-4">
+        <Logo size="sm" />
       </div>
 
-      <h1 className="mt-6 text-center text-3xl font-extrabold text-primary">Secure this device</h1>
-      <p className="mt-2 text-center text-[15px] text-muted-foreground">
-        Enter the unique access code generated for this login. No SMS is sent.
-      </p>
-
-      <div className="mt-7 flex items-center gap-3">
-        <span className="flex size-11 items-center justify-center rounded-full bg-accent">
-          <Smartphone className="size-5 text-primary" />
-        </span>
-        <div>
-          <p className="font-bold">Access code for</p>
-          <p className="text-sm text-primary">{masked}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-primary/20 bg-accent/50 p-4 text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Your unique code</p>
-        <p className="mt-2 font-mono text-3xl font-extrabold tracking-[0.35em] text-primary">{pending.otp}</p>
-        <p className="mt-2 text-xs text-muted-foreground">Valid for 10 minutes · generated only for this attempt</p>
-      </div>
+      {returning ? (
+        <>
+          <h1 className="mt-5 text-center text-2xl font-extrabold text-primary">Welcome back</h1>
+          <p className="mt-1 text-center text-sm text-muted-foreground">Enter the 5-digit PIN for {masked}.</p>
+        </>
+      ) : (
+        <>
+          <h1 className="mt-4 text-center text-2xl font-extrabold text-primary">
+            {confirming ? "Confirm your PIN" : "Create your PIN"}
+          </h1>
+          <p className="mt-1 text-center text-sm text-muted-foreground">
+            {confirming
+              ? "Enter the same 5 digits once more."
+              : `Choose a 5-digit PIN for ${masked}. You will use it each time you sign in.`}
+          </p>
+          {needsName && !confirming ? (
+            <div className="mt-3 flex items-center gap-3 rounded-2xl border border-border px-4 py-3">
+              <CircleUserRound className="size-5 text-muted-foreground" />
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+                placeholder="Full name"
+                className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/70"
+              />
+            </div>
+          ) : null}
+        </>
+      )}
 
       <div className="mt-4">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          placeholder="Enter 6-digit code"
-          className="w-full rounded-2xl border border-border bg-card px-4 py-4 text-center text-2xl font-semibold tracking-[0.3em] outline-none"
-        />
+        <PinPad value={pin} onChange={onPinChange} disabled={loading} error={error} />
       </div>
-
-      {code.length === 6 && code === pending.otp ? (
-        <div className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-accent/60 py-3 text-sm font-medium text-secondary-foreground">
-          <BadgeCheck className="size-5 text-primary" />
-          Code matches
-        </div>
-      ) : null}
 
       <button
         type="button"
         onClick={() => navigate({ to: "/register" })}
-        className="mx-auto mt-3 block cursor-pointer text-sm font-medium text-primary underline"
+        className="mx-auto mt-4 block cursor-pointer text-sm font-medium text-primary underline"
       >
         Change number
       </button>
 
-      {pending.isNew ? (
-        <>
-          <hr className="my-6 border-border" />
-
-          <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-full bg-accent">
-              <CircleUserRound className="size-5 text-primary" />
-            </span>
-            <p className="font-bold">What's your name?</p>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border px-4 py-4">
-            <CircleUserRound className="size-5 text-muted-foreground" />
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
-              placeholder="Full name"
-              className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/70"
-            />
-            {name.trim().length > 2 && <BadgeCheck className="size-6 text-primary" />}
-          </div>
-        </>
-      ) : null}
-
-      <Button
-        variant="hero"
-        size="lg"
-        disabled={!canSubmit || loading}
-        onClick={() => void submit()}
-        className="my-8 w-full justify-between text-base tracking-wide"
-      >
-        {loading ? "Binding device…" : "CONTINUE"}
-        <ArrowRight className="size-5" />
-      </Button>
+      <p className="mt-2 text-center text-sm text-muted-foreground">
+        {loading ? (returning ? "Checking PIN…" : "Saving PIN…") : confirming ? "Enter the same 5 digits again." : returning ? "Your PIN is checked as soon as the fifth digit is entered." : "The PIN is saved after you confirm it."}
+      </p>
     </MobileScreen>
   );
 }

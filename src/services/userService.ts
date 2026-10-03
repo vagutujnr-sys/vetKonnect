@@ -1,6 +1,7 @@
 import type { AccountType, ModuleId, UserProfile } from "@/types";
 import { isAppReadyUser } from "@/lib/account";
 import { getDeviceId } from "@/lib/device";
+import { createPinHash, isPin, verifyPinHash } from "@/lib/pin";
 import { withTimeout } from "@/lib/timeout";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
@@ -17,6 +18,9 @@ export const defaultUser: UserProfile = {
   countryCode: "+263",
   modules: [],
   vetSureMember: false,
+  breedersClubMember: false,
+  breedersClubStatus: "none",
+  breederShowcasePetId: null,
   onboarded: false,
   isAdmin: false,
   notificationsEnabled: true,
@@ -33,12 +37,9 @@ function normalizePhone(phone: string) {
   return phone.replace(/\s+/g, "").trim();
 }
 
-function generateOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
 function mapAccount(row: Record<string, unknown>): UserProfile {
   const accountType = String(row.account_type ?? "owner") === "vet" ? "vet" : "owner";
+  const breederStatus = String(row.breeders_club_status ?? "none");
   return {
     id: String(row.id),
     fullName: String(row.full_name ?? ""),
@@ -46,6 +47,13 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     countryCode: String(row.country_code ?? "+263"),
     modules: (row.modules ?? []) as ModuleId[],
     vetSureMember: Boolean(row.vet_sure_member),
+    breedersClubMember: Boolean(row.breeders_club_member ?? row.breeders_club_status === "active"),
+    breedersClubStatus: ["none", "pending", "active", "expired", "cancelled", "suspended"].includes(
+      breederStatus,
+    )
+      ? (breederStatus as UserProfile["breedersClubStatus"])
+      : "none",
+    breederShowcasePetId: row.breeder_showcase_pet_id ? String(row.breeder_showcase_pet_id) : null,
     onboarded: Boolean(row.onboarded),
     isAdmin: Boolean(row.is_admin),
     notificationsEnabled: row.notifications_enabled !== false,
@@ -136,7 +144,9 @@ export async function getUser(): Promise<UserProfile> {
   const cached = getCachedSessionProfile(sessionId);
 
   if (!isSupabaseConfigured) {
-    return cached ? { ...cached, isAdmin: cached.isAdmin || isAdminSession() } : { ...defaultUser, id: sessionId, boundDeviceId: getDeviceId(), onboarded: true };
+    return cached
+      ? { ...cached, isAdmin: cached.isAdmin || isAdminSession() }
+      : { ...defaultUser, id: sessionId, boundDeviceId: getDeviceId(), onboarded: true };
   }
 
   let data: Record<string, unknown> | null = null;
@@ -165,20 +175,8 @@ export async function getUser(): Promise<UserProfile> {
   }
 
   const account = mapAccount(data as Record<string, unknown>);
-  const deviceId = getDeviceId();
 
   if (account.blocked) {
-    setSessionAccountId(null);
-    return defaultUser;
-  }
-
-  // Session is only valid on the bound device.
-  if (account.boundDeviceId && account.boundDeviceId !== deviceId) {
-    setSessionAccountId(null);
-    return defaultUser;
-  }
-
-  if (!account.boundDeviceId) {
     setSessionAccountId(null);
     return defaultUser;
   }
@@ -203,16 +201,25 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
   if (patch.modules !== undefined) payload.modules = next.modules;
   if (patch.onboarded !== undefined) payload.onboarded = next.onboarded;
   if (patch.vetSureMember !== undefined) payload.vet_sure_member = next.vetSureMember;
-  if (patch.notificationsEnabled !== undefined) payload.notifications_enabled = next.notificationsEnabled !== false;
+  if (patch.breedersClubMember !== undefined)
+    payload.breeders_club_member = Boolean(next.breedersClubMember);
+  if (patch.breedersClubStatus !== undefined)
+    payload.breeders_club_status = next.breedersClubStatus;
+  if (patch.breederShowcasePetId !== undefined)
+    payload.breeder_showcase_pet_id = next.breederShowcasePetId || null;
+  if (patch.notificationsEnabled !== undefined)
+    payload.notifications_enabled = next.notificationsEnabled !== false;
   if (patch.avatarUrl !== undefined) payload.avatar_url = next.avatarUrl ?? "";
   if (patch.practiceName !== undefined) payload.practice_name = next.practiceName ?? "";
-  if (patch.patientsServed !== undefined) payload.patients_served = Number(next.patientsServed ?? 0);
+  if (patch.patientsServed !== undefined)
+    payload.patients_served = Number(next.patientsServed ?? 0);
   if (patch.surgeryId !== undefined) payload.surgery_id = next.surgeryId || null;
 
   // Admin-controlled fields — only write when explicitly patched so stale client
   // cache cannot overwrite elevation / block status from the dashboard.
   if (patch.isAdmin !== undefined) payload.is_admin = Boolean(next.isAdmin);
-  if (patch.accountType !== undefined) payload.account_type = next.accountType === "vet" ? "vet" : "owner";
+  if (patch.accountType !== undefined)
+    payload.account_type = next.accountType === "vet" ? "vet" : "owner";
   if (patch.vetVerified !== undefined) payload.vet_verified = Boolean(next.vetVerified);
   if (patch.blocked !== undefined) payload.blocked = Boolean(next.blocked);
 
@@ -258,7 +265,11 @@ export async function alignWithSurgery(surgeryId: string | null): Promise<UserPr
   let practiceName = user.practiceName?.trim() || `${user.fullName?.trim() || "Vet"}'s Practice`;
 
   if (surgeryId) {
-    const { data, error } = await supabase.from("vets").select("id,name,surgery,location").eq("id", surgeryId).maybeSingle();
+    const { data, error } = await supabase
+      .from("vets")
+      .select("id,name,surgery,location")
+      .eq("id", surgeryId)
+      .maybeSingle();
     if (error) throw error;
     if (!data) throw new Error("Surgery not found.");
     practiceName = String(data.surgery || data.name || "").trim() || practiceName;
@@ -303,17 +314,14 @@ export async function resetUser(): Promise<void> {
 
 export type AccessCodeResult = {
   accountId: string;
-  otp: string;
-  expiresAt: string;
   isNew: boolean;
+  hasPin: boolean;
+  fullName: string;
   phone: string;
   countryCode: string;
-  /** Same device already bound — restore session and skip OTP. */
-  skipVerify?: boolean;
-  user?: UserProfile;
 };
 
-/** Request a unique one-time access code for this phone (no SMS — returned to the client). */
+/** Look up a phone and open PIN sign-in, or start a new account that still needs a PIN. */
 export async function requestAccessCode(
   phone: string,
   countryCode = "+263",
@@ -325,7 +333,6 @@ export async function requestAccessCode(
   }
 
   const registerAsVet = options?.accountType === "vet";
-  const deviceId = getDeviceId();
   const { data: existing, error: lookupError } = await supabase
     .from("accounts")
     .select("*")
@@ -336,51 +343,14 @@ export async function requestAccessCode(
 
   if (existing) {
     assertAccountNotBlocked(mapAccount(existing as Record<string, unknown>));
-  }
-
-  if (existing?.bound_device_id && String(existing.bound_device_id) !== deviceId) {
-    throw new Error(
-      "This account is bound to another device. Open Settings on that device and unbind it before logging in here.",
-    );
-  }
-
-  // Returning user on the same bound device — restore session and skip OTP/onboarding.
-  if (existing?.bound_device_id && String(existing.bound_device_id) === deviceId) {
-    const user = mapAccount(existing as Record<string, unknown>);
-    setSessionAccountId(String(existing.id));
-    cacheSessionProfile(user);
-    await supabase
-      .from("accounts")
-      .update({
-        otp_code: null,
-        otp_expires_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id);
-
-    return {
-      accountId: String(existing.id),
-      otp: "",
-      expiresAt: "",
-      isNew: false,
-      phone: cleanPhone,
-      countryCode,
-      skipVerify: true,
-      user,
-    };
-  }
-
-  const otp = generateOtp();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-  if (existing) {
     const existingPatch: Record<string, unknown> = {
-      otp_code: otp,
-      otp_expires_at: expiresAt,
       country_code: countryCode,
+      otp_code: null,
+      otp_expires_at: null,
+      bound_device_id: null,
+      device_bound_at: null,
       updated_at: new Date().toISOString(),
     };
-    // Allow an owner phone to re-register as a pending vet.
     if (registerAsVet) {
       existingPatch.account_type = "vet";
       existingPatch.vet_verified = false;
@@ -388,19 +358,13 @@ export async function requestAccessCode(
         existingPatch.modules = ["community", "tips"];
       }
     }
-
-    const { data, error } = await supabase
-      .from("accounts")
-      .update(existingPatch)
-      .eq("id", existing.id)
-      .select("*")
-      .single();
+    const { error } = await supabase.from("accounts").update(existingPatch).eq("id", existing.id);
     if (error) throw error;
     return {
-      accountId: String(data.id),
-      otp,
-      expiresAt,
+      accountId: String(existing.id),
       isNew: false,
+      hasPin: Boolean(String(existing.pin_hash ?? "").trim()),
+      fullName: String(existing.full_name ?? "").trim(),
       phone: cleanPhone,
       countryCode,
     };
@@ -418,8 +382,10 @@ export async function requestAccessCode(
       onboarded: false,
       account_type: registerAsVet ? "vet" : "owner",
       vet_verified: false,
-      otp_code: otp,
-      otp_expires_at: expiresAt,
+      otp_code: null,
+      otp_expires_at: null,
+      bound_device_id: null,
+      device_bound_at: null,
     })
     .select("*")
     .single();
@@ -428,54 +394,61 @@ export async function requestAccessCode(
 
   return {
     accountId: String(data.id),
-    otp,
-    expiresAt,
     isNew: true,
+    hasPin: false,
+    fullName: "",
     phone: cleanPhone,
     countryCode,
   };
 }
 
-export async function verifyAccessCode(input: {
+function pinColumnError(error: { message?: string }): Error {
+  const message = String(error.message ?? "");
+  if (message.toLowerCase().includes("pin_hash")) {
+    return new Error(
+      "PIN sign-in is not installed yet. Apply migration 022_account_pin.sql in Supabase.",
+    );
+  }
+  return error instanceof Error ? error : new Error(message || "Could not save the PIN.");
+}
+
+/** Create the 5-digit PIN for a new account, or an older account that never had one. */
+export async function setAccountPin(input: {
   accountId: string;
-  code: string;
+  pin: string;
   fullName?: string;
 }): Promise<UserProfile> {
-  const deviceId = getDeviceId();
-  const { data, error } = await supabase.from("accounts").select("*").eq("id", input.accountId).maybeSingle();
+  if (!isPin(input.pin)) throw new Error("Enter a 5-digit PIN.");
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("*")
+    .eq("id", input.accountId)
+    .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Account not found. Start again from login.");
-
   assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
-
-  if (data.bound_device_id && String(data.bound_device_id) !== deviceId) {
-    throw new Error("This account is bound to another device.");
-  }
-
-  if (!data.otp_code || String(data.otp_code) !== input.code.trim()) {
-    throw new Error("Incorrect access code. Please try again.");
-  }
-
-  if (data.otp_expires_at && new Date(String(data.otp_expires_at)).getTime() < Date.now()) {
-    throw new Error("Access code expired. Request a new one.");
-  }
 
   const existingName = String(data.full_name ?? "").trim();
   const fullName = (input.fullName ?? existingName).trim() || existingName;
+  if (fullName.length < 2) throw new Error("Enter your name.");
   const isVet = String(data.account_type ?? "owner") === "vet";
+  const pinHash = await createPinHash(input.pin);
   const { data: updated, error: updateError } = await supabase
     .from("accounts")
     .update({
       full_name: fullName,
+      pin_hash: pinHash,
       otp_code: null,
       otp_expires_at: null,
-      bound_device_id: deviceId,
-      device_bound_at: new Date().toISOString(),
-      // Vet accounts skip owner module picking and land in the practice app.
+      bound_device_id: null,
+      device_bound_at: null,
       ...(isVet
         ? {
             onboarded: true,
-            modules: Array.isArray(data.modules) && (data.modules as unknown[]).length ? data.modules : ["community", "tips"],
+            modules:
+              Array.isArray(data.modules) && (data.modules as unknown[]).length
+                ? data.modules
+                : ["community", "tips"],
             practice_name: String(data.practice_name ?? "").trim() || `${fullName}'s Practice`,
           }
         : {}),
@@ -485,10 +458,47 @@ export async function verifyAccessCode(input: {
     .select("*")
     .single();
 
-  if (updateError) throw updateError;
-
+  if (updateError) throw pinColumnError(updateError);
   const user = mapAccount(updated as Record<string, unknown>);
   setSessionAccountId(String(updated.id));
+  cacheSessionProfile(user);
+  return user;
+}
+
+/** Sign a returning account in with its 5-digit PIN. */
+export async function verifyAccountPin(input: {
+  accountId: string;
+  pin: string;
+}): Promise<UserProfile> {
+  if (!isPin(input.pin)) throw new Error("Enter your 5-digit PIN.");
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("*")
+    .eq("id", input.accountId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Account not found. Start again from login.");
+  assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
+
+  const stored = String(data.pin_hash ?? "").trim();
+  if (!stored) throw new Error("This account does not have a PIN yet.");
+  const ok = await verifyPinHash(input.pin, stored);
+  if (!ok) throw new Error("Incorrect PIN. Try again.");
+
+  const { error: updateError } = await supabase
+    .from("accounts")
+    .update({
+      bound_device_id: null,
+      device_bound_at: null,
+      otp_code: null,
+      otp_expires_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.accountId);
+  if (updateError) throw updateError;
+
+  const user = mapAccount(data as Record<string, unknown>);
+  setSessionAccountId(String(data.id));
   cacheSessionProfile(user);
   return user;
 }
@@ -525,5 +535,5 @@ export async function hasActiveSession(): Promise<boolean> {
   }
   if (isAdminSession()) return true;
   const user = await getUser();
-  return Boolean(user.id && user.boundDeviceId);
+  return Boolean(user.id);
 }

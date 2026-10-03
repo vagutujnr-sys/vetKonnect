@@ -1,9 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Bell, ShieldAlert, Unplug } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowLeft, Bell, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { playNotificationSound } from "@/lib/notificationSound";
 import { requestBrowserNotificationPermission } from "@/services/notificationService";
@@ -12,15 +11,14 @@ export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
       { title: "Settings — VetKonnect" },
-      { name: "description", content: "Manage notifications and device security for your VetKonnect account." },
+      { name: "description", content: "Manage notifications and your VetKonnect PIN." },
     ],
   }),
   component: SettingsPage,
 });
 
 function SettingsPage() {
-  const { user, updateUser, unbindDevice } = useApp();
-  const navigate = useNavigate();
+  const { user, updateUser } = useApp();
   const notificationsOn = user.notificationsEnabled !== false;
 
   return (
@@ -70,25 +68,14 @@ function SettingsPage() {
 
       <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
         <div className="flex items-start gap-3">
-          <ShieldAlert className="mt-0.5 size-5 text-primary" />
+          <ShieldCheck className="mt-0.5 size-5 text-primary" />
           <div>
-            <p className="font-bold">Device binding</p>
+            <p className="font-bold">5-digit PIN</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Your account stays locked to this device. Unbind to allow login on another phone or browser.
+              Sign in with your mobile number and PIN on any phone or browser. The account is not locked to one device.
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          className="mt-4 w-full gap-2"
-          onClick={async () => {
-            await unbindDevice();
-            toast.success("Account unbound from this device");
-            void navigate({ to: "/register" });
-          }}
-        >
-          <Unplug className="size-4" /> Unbind account from this device
-        </Button>
       </section>
     </AppShell>
   );

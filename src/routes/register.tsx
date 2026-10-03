@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { useApp } from "@/hooks/useApp";
 import { getAppHomePath } from "@/lib/account";
 import {
   COUNTRY_DIAL_CODES,
@@ -37,9 +36,9 @@ export const Route = createFileRoute("/register")({
   head: () => ({
     meta: [
       { title: "Login — VetKonnect" },
-      { name: "description", content: "Sign in or create your VetKonnect account with your mobile number." },
+      { name: "description", content: "Sign in or create your VetKonnect account with your mobile number and a 5-digit PIN." },
       { property: "og:title", content: "Login — VetKonnect" },
-      { property: "og:description", content: "Device-bound secure login for VetKonnect." },
+      { property: "og:description", content: "PIN sign-in for VetKonnect on any device." },
     ],
   }),
   component: Register,
@@ -47,7 +46,6 @@ export const Route = createFileRoute("/register")({
 
 function Register() {
   const navigate = useNavigate();
-  const { refreshSession } = useApp();
   const [phone, setPhone] = useState("");
   const [countryIso, setCountryIso] = useState(DEFAULT_COUNTRY_ISO);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -66,31 +64,20 @@ function Register() {
         accountType: registerAsVet ? "vet" : "owner",
       });
 
-      if (result.skipVerify && result.user) {
-        await refreshSession();
-        toast.success("Signed in", {
-          description: "Signed in on this trusted device.",
-        });
-        void navigate({ to: getAppHomePath(result.user) });
-        return;
-      }
-
       sessionStorage.setItem(
         "vetkonnect:pending_auth",
         JSON.stringify({
           accountId: result.accountId,
-          otp: result.otp,
           phone: result.phone,
           countryCode: result.countryCode,
           isNew: result.isNew,
-          expiresAt: result.expiresAt,
+          hasPin: result.hasPin,
+          fullName: result.fullName,
           accountType: registerAsVet ? "vet" : "owner",
         }),
       );
-      toast.success("Unique access code created", {
-        description: registerAsVet
-          ? "Continue to secure your vet account on this device."
-          : "Enter the code on the next screen to bind this device.",
+      toast.success(result.hasPin ? "Enter your PIN" : "Create your PIN", {
+        description: result.hasPin ? "Welcome back. Use your 5-digit PIN." : "Choose a 5-digit PIN for this account.",
       });
       void navigate({ to: "/verify" });
     } catch (error) {
@@ -107,7 +94,7 @@ function Register() {
       </div>
 
       <p className="mt-8 text-center text-[15px] text-muted-foreground">
-        Enter your mobile number to create an account or sign in. Your account will be bound to this device.
+        Enter your mobile number to create an account or sign in. A 5-digit PIN opens the account on any device.
       </p>
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card/80 backdrop-blur">
@@ -190,8 +177,8 @@ function Register() {
       <div className="mt-4 flex items-start gap-3 rounded-2xl bg-accent/60 p-4 text-sm text-secondary-foreground">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
         <p>
-          VetKonnect uses a unique access code each time — no SMS. After login, this account stays locked to this
-          device until you unbind it in Settings.
+          New accounts choose a 5-digit PIN. When you come back, sign in with that PIN. The account is not locked to
+          one phone.
         </p>
       </div>
 

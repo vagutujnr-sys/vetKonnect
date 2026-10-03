@@ -3,6 +3,8 @@ export type HealthStatus = "Healthy" | "Attention" | "Under Care";
 export type ModuleId = "pets" | "community" | "marketplace" | "rescue" | "tips" | "farm";
 export type MediaType = "none" | "image" | "video";
 export type AccountType = "owner" | "vet";
+export type BreedersClubStatus =
+  "none" | "pending" | "active" | "expired" | "cancelled" | "suspended";
 
 export interface Pet {
   id: string;
@@ -41,6 +43,9 @@ export interface UserProfile {
   countryCode: string;
   modules: ModuleId[];
   vetSureMember: boolean;
+  breedersClubMember: boolean;
+  breedersClubStatus: BreedersClubStatus;
+  breederShowcasePetId?: string | null;
   onboarded: boolean;
   isAdmin?: boolean;
   notificationsEnabled?: boolean;
@@ -188,7 +193,15 @@ export interface HerdTag {
 
 export type NewPetInput = Omit<
   Pet,
-  "id" | "vetConnectId" | "healthStatus" | "timeline" | "vetSure" | "weightKg" | "nextVaccine" | "medicationToday" | "ownerId"
+  | "id"
+  | "vetConnectId"
+  | "healthStatus"
+  | "timeline"
+  | "vetSure"
+  | "weightKg"
+  | "nextVaccine"
+  | "medicationToday"
+  | "ownerId"
 >;
 
 export type LicenceStatus = "active" | "expired" | "revoked";
@@ -316,4 +329,352 @@ export interface ChatMessage {
   readByRecipient: boolean;
   createdAt: string;
   mine: boolean;
+}
+
+export type DvsOfficerRole = "officer" | "supervisor" | "admin";
+export type DvsCertificateStatus = "valid" | "expired" | "cancelled" | "amended" | "suspicious";
+export type DvsVaccinationStatus = "administered" | "scheduled" | "void";
+export type DvsRabiesCaseStatus = "suspected" | "confirmed" | "negative";
+export type DvsQrScanResult = DvsCertificateStatus | "not_found" | "invalid";
+
+export interface DvsOfficer {
+  id: string;
+  email: string;
+  fullName: string;
+  title?: string;
+  role: DvsOfficerRole;
+  active: boolean;
+  createdAt: string;
+  lastLoginAt?: string | null;
+}
+
+export type DvsVaccineProductType = "Inactivated injectable" | "Live oral" | "Recombinant oral";
+export type DvsVetReportReviewStatus = "submitted" | "acknowledged" | "under_review";
+export type DvsHealthReportType =
+  | "monthly_summary"
+  | "outbreak"
+  | "notifiable_disease"
+  | "vaccination_campaign"
+  | "laboratory"
+  | "other";
+export type DvsHealthReportReviewStatus = "submitted" | "acknowledged" | "actioned";
+
+export interface DvsRecognisedVaccine {
+  id: string;
+  name: string;
+  vaccineType: string;
+  manufacturer: string;
+  species: string;
+  strain?: string;
+  registrationNumber?: string;
+  active: boolean;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface DvsVaccineBatch {
+  id: string;
+  manufacturer: string;
+  batchNumber: string;
+  vaccineName: string;
+  vaccineId?: string | null;
+  veterinarianAccountId?: string | null;
+  source?: "dvs" | "vet";
+  expiryDate?: string | null;
+  quantityReceived: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface VetPracticeNote {
+  id: string;
+  veterinarianAccountId: string;
+  petId?: string | null;
+  petName?: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DvsVetCaseReport {
+  id: string;
+  veterinarianAccountId: string;
+  veterinarianName?: string;
+  practiceName?: string;
+  petId?: string | null;
+  petName?: string;
+  species?: string;
+  caseStatus: DvsRabiesCaseStatus;
+  province?: string;
+  district?: string;
+  locationLabel?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  vaccinationStatus?: string;
+  notes?: string;
+  rabiesCaseId?: string | null;
+  reviewStatus: DvsVetReportReviewStatus;
+  dvsNotes?: string;
+  reportedAt: string;
+}
+
+export interface DvsAnimalHealthReport {
+  id: string;
+  veterinarianAccountId: string;
+  veterinarianName?: string;
+  practiceName?: string;
+  reportType: DvsHealthReportType;
+  title: string;
+  body: string;
+  province?: string;
+  district?: string;
+  petId?: string | null;
+  reviewStatus: DvsHealthReportReviewStatus;
+  dvsNotes?: string;
+  submittedAt: string;
+  acknowledgedAt?: string | null;
+}
+
+export interface DvsVaccination {
+  id: string;
+  petId?: string | null;
+  ownerAccountId?: string | null;
+  veterinarianAccountId?: string | null;
+  practiceId?: string | null;
+  batchId?: string | null;
+  vaccineId?: string | null;
+  vaccinatedAt: string;
+  validUntil?: string | null;
+  province?: string;
+  district?: string;
+  status: DvsVaccinationStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface DvsCertificate {
+  id: string;
+  certificateNumber: string;
+  verificationCode: string;
+  petId?: string | null;
+  ownerAccountId?: string | null;
+  vaccinationId?: string | null;
+  veterinarianAccountId?: string | null;
+  practiceId?: string | null;
+  issuedByDvsId?: string | null;
+  issuedAt: string;
+  expiresAt: string;
+  status: DvsCertificateStatus;
+  previousCertificateId?: string | null;
+  petName?: string;
+  species?: string;
+  breed?: string;
+  microchip?: string;
+  vetconnectId?: string;
+  ownerName?: string;
+  ownerPhone?: string;
+  veterinarianName?: string;
+  practiceName?: string;
+  manufacturer?: string;
+  batchNumber?: string;
+  vaccineName?: string;
+  vaccineId?: string | null;
+  province?: string;
+  district?: string;
+  qrPayload?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type DvsLicenceStatus = "active" | "expired" | "revoked" | "pending";
+export type DvsPaymentStatus = "pending" | "paid" | "cancelled" | "failed";
+export type DvsPaymentMethod = "paynow" | "ecocash" | "onemoney" | "office";
+
+export interface DvsAnimalLicence {
+  id: string;
+  licenceNumber: string;
+  petId?: string | null;
+  ownerAccountId?: string | null;
+  ownerName?: string;
+  ownerPhone?: string;
+  petName?: string;
+  species?: string;
+  sex?: string;
+  issuedAt: string;
+  expiresAt: string;
+  status: DvsLicenceStatus;
+  amount: number;
+  currency: string;
+  paymentId?: string | null;
+  issuedBy?: string;
+  notes?: string;
+  proofUrl?: string;
+  createdAt: string;
+}
+
+export interface DvsLicencePayment {
+  id: string;
+  reference: string;
+  petId?: string | null;
+  ownerAccountId?: string | null;
+  licenceId?: string | null;
+  amount: number;
+  currency: string;
+  method: DvsPaymentMethod;
+  status: DvsPaymentStatus;
+  phone?: string;
+  pollUrl?: string;
+  redirectUrl?: string;
+  instructions?: string;
+  paynowStatus?: string;
+  paidAt?: string | null;
+  createdAt: string;
+}
+
+export interface DvsAnimalRegistryRow {
+  pet: Pet;
+  ownerName?: string;
+  ownerPhone?: string;
+  licenceStatus: "licensed" | "expired" | "unlicensed" | "revoked" | "pending";
+  licenceNumber?: string;
+  licenceExpiresAt?: string;
+}
+
+export interface DvsLicenceFinance {
+  currency: string;
+  paidCount: number;
+  pendingCount: number;
+  failedCount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  activeLicences: number;
+  expiredLicences: number;
+  unlicensedAnimals: number;
+  yearToDatePaid: number;
+}
+
+export interface DvsQrScan {
+  id: string;
+  certificateId?: string | null;
+  verificationCode?: string;
+  result: DvsQrScanResult;
+  scannerContext?: string;
+  locationLabel?: string;
+  scannedAt: string;
+}
+
+export interface DvsRabiesCase {
+  id: string;
+  status: DvsRabiesCaseStatus;
+  species?: string;
+  petId?: string | null;
+  petName?: string;
+  province?: string;
+  district?: string;
+  locationLabel?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  vaccinationStatus?: string;
+  reportedAt: string;
+  notes?: string;
+}
+
+export interface DvsAuditEntry {
+  id: string;
+  actorType: string;
+  actorId?: string | null;
+  actorName?: string;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  detail: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface DvsSettings {
+  certificateValidityDays: number;
+  coverageAlertThreshold: number;
+  expiryWarningDays: number;
+  verificationEnabled: boolean;
+}
+
+export interface DvsCoverageRow {
+  province: string;
+  district?: string;
+  animals: number;
+  vaccinated: number;
+  identified: number;
+  coveragePct: number;
+}
+
+export interface DvsAlert {
+  id: string;
+  severity: "red" | "orange" | "yellow";
+  title: string;
+  detail: string;
+  count: number;
+}
+
+export interface DvsDashboardStats {
+  animalsIdentified: number;
+  rabiesVaccinations: number;
+  activeCertificates: number;
+  expiredCertificates: number;
+  cancelledCertificates: number;
+  activePractices: number;
+  authorisedVeterinarians: number;
+  nationalCoveragePct: number;
+  microchippedAnimals: number;
+  scansToday: number;
+  suspectedRabies: number;
+  confirmedRabies: number;
+  totalAnimals: number;
+  licensedAnimals: number;
+  unlicensedAnimals: number;
+  licenceRevenuePaid: number;
+}
+
+export interface DvsMapPoint {
+  id: string;
+  label: string;
+  kind: "vaccination" | "identified" | "rabies" | "coverage";
+  latitude: number;
+  longitude: number;
+  detail?: string;
+}
+
+export interface DvsPractitionerRow {
+  id: string;
+  name: string;
+  practiceName: string;
+  phone?: string;
+  verified: boolean;
+  status?: string;
+  certificatesIssued: number;
+  vaccinationsRecorded: number;
+}
+
+export interface DvsDashboardSnapshot {
+  stats: DvsDashboardStats;
+  certificates: DvsCertificate[];
+  vaccinations: DvsVaccination[];
+  batches: DvsVaccineBatch[];
+  scans: DvsQrScan[];
+  rabiesCases: DvsRabiesCase[];
+  audit: DvsAuditEntry[];
+  officers: DvsOfficer[];
+  coverage: DvsCoverageRow[];
+  alerts: DvsAlert[];
+  mapPoints: DvsMapPoint[];
+  practitioners: DvsPractitionerRow[];
+  settings: DvsSettings;
+  pets: Pet[];
+  recognisedVaccines: DvsRecognisedVaccine[];
+  vetCaseReports: DvsVetCaseReport[];
+  healthReports: DvsAnimalHealthReport[];
+  licences: DvsAnimalLicence[];
+  licencePayments: DvsLicencePayment[];
+  animalRegistry: DvsAnimalRegistryRow[];
+  licenceFinance: DvsLicenceFinance;
 }

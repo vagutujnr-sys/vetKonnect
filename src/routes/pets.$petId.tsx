@@ -1,7 +1,9 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Camera, HeartPulse, ImagePlus, QrCode, ShieldCheck, ShieldPlus, Syringe } from "lucide-react";
+import { ArrowLeft, Camera, HeartPulse, ImagePlus, QrCode, Syringe } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { DvsPetCertificates } from "@/components/dvs/DvsPetCertificates";
+import { DvsPetLicence } from "@/components/dvs/DvsPetLicence";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
@@ -11,9 +13,12 @@ export const Route = createFileRoute("/pets/$petId")({
   head: () => ({
     meta: [
       { title: "Pet health passport — VetKonnect" },
-      { name: "description", content: "A premium digital pet passport with health status, ID and full care timeline." },
+      {
+        name: "description",
+        content: "A premium digital pet passport with health status, ID and full care timeline.",
+      },
       { property: "og:title", content: "Pet health passport — VetKonnect" },
-      { property: "og:description", content: "Health status, VetSure cover, QR ID and care history." },
+      { property: "og:description", content: "Health status, QR ID and care history." },
     ],
   }),
   component: PetProfile,
@@ -81,7 +86,9 @@ function PetProfile() {
         {pet.photoUrl ? (
           <img src={pet.photoUrl} alt={pet.name} className="h-64 w-full object-cover" />
         ) : (
-          <div className="flex h-64 items-center justify-center bg-accent text-primary">No photo</div>
+          <div className="flex h-64 items-center justify-center bg-accent text-primary">
+            No photo
+          </div>
         )}
         <Link
           to="/pets"
@@ -147,7 +154,8 @@ function PetProfile() {
           <div>
             <h1 className="text-3xl font-extrabold">{displayValue(pet.name, "Pet")}</h1>
             <p className="text-sm text-muted-foreground">
-              {displayValue(pet.breed)} · {displayValue(pet.sex)} · {displayValue(pet.ageYears)} years
+              {displayValue(pet.breed)} · {displayValue(pet.sex)} · {displayValue(pet.ageYears)}{" "}
+              years
             </p>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
@@ -158,10 +166,18 @@ function PetProfile() {
         <div className="mt-5 card-surface p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
-              <p className="mt-1 text-lg font-extrabold text-primary">{displayValue(pet.vetConnectId)}</p>
-              <p className="mt-2 text-xs text-muted-foreground">Tag / collar ID {displayValue(pet.collarId)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Microchip {displayValue(pet.microchip)}</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                VetKonnect Pet ID
+              </p>
+              <p className="mt-1 text-lg font-extrabold text-primary">
+                {displayValue(pet.vetConnectId)}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Tag / collar ID {displayValue(pet.collarId)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Microchip {displayValue(pet.microchip)}
+              </p>
             </div>
             <div className="flex size-24 items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-accent/40">
               <QrCode className="size-14 text-primary" />
@@ -175,24 +191,8 @@ function PetProfile() {
           <Tile label="Next vaccine" value={displayValue(pet.nextVaccine)} />
         </div>
 
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-accent bg-accent/40 p-4">
-          {user.vetSureMember || pet.vetSure ? (
-            <ShieldCheck className="size-6 text-primary" />
-          ) : (
-            <ShieldPlus className="size-6 text-primary" />
-          )}
-          <div className="flex-1">
-            <p className="font-semibold">VetSure</p>
-            <p className="text-sm text-muted-foreground">
-              {user.vetSureMember || pet.vetSure ? "Active cover · full benefits" : "Not covered yet"}
-            </p>
-          </div>
-          {!(user.vetSureMember || pet.vetSure) && (
-            <Button asChild variant="hero" size="sm">
-              <Link to="/profile">Join</Link>
-            </Button>
-          )}
-        </div>
+        <DvsPetLicence pet={pet} ownerPhone={user.phone} />
+        <DvsPetCertificates petId={pet.id} />
 
         <h2 className="mt-7 text-lg font-bold">Health timeline</h2>
         <ol className="mt-3 space-y-4 border-l border-border pl-5">
