@@ -35,7 +35,9 @@ const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [user, setUser] = useState<UserProfile>(userService.defaultUser);
+  const [user, setUser] = useState<UserProfile>(
+    () => userService.getCachedUser() ?? userService.defaultUser,
+  );
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePetId, setActivePetId] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);

@@ -26,7 +26,7 @@ export function BottomNav() {
   const items = isVetAccount(user) ? vetItems : ownerItems;
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur-sm">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 bg-background/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur-sm">
       <div className="pointer-events-auto grid w-full grid-cols-5 items-stretch">
         {items.map(({ to, label, icon: Icon }) => {
           const active = pathname === to || pathname.startsWith(`${to}/`);
@@ -35,14 +35,19 @@ export function BottomNav() {
               key={to}
               to={to}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                "flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 text-[10px] font-medium transition-colors",
+                active ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className={cn("size-5", active ? "stroke-[2.5]" : "stroke-[1.5]")} />
-              <span className={cn(active ? "opacity-100" : "opacity-80")}>{label}</span>
+              <span
+                className={cn(
+                  "flex size-10 items-center justify-center rounded-full transition-colors",
+                  active ? "bg-primary text-primary-foreground" : "bg-transparent",
+                )}
+              >
+                <Icon className={cn("size-5", active ? "stroke-[2.5]" : "stroke-[1.5]")} />
+              </span>
+              <span className={cn(active ? "font-semibold" : "opacity-80")}>{label}</span>
             </Link>
           );
         })}
