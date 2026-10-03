@@ -426,11 +426,15 @@ export async function setAccountPin(input: {
   fullName?: string;
 }): Promise<UserProfile> {
   if (!isPin(input.pin)) throw new Error("Enter a 5-digit PIN.");
-  const { data, error } = await supabase
-    .from("accounts")
-    .select("*")
-    .eq("id", input.accountId)
-    .maybeSingle();
+  const { data, error } = await withTimeout(
+    supabase
+      .from("accounts")
+      .select("*")
+      .eq("id", input.accountId)
+      .maybeSingle(),
+    10000,
+    "PIN account lookup",
+  );
   if (error) throw error;
   if (!data) throw new Error("Account not found. Start again from login.");
   assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
@@ -440,30 +444,34 @@ export async function setAccountPin(input: {
   if (fullName.length < 2) throw new Error("Enter your name.");
   const isVet = String(data.account_type ?? "owner") === "vet";
   const pinHash = await createPinHash(input.pin);
-  const { data: updated, error: updateError } = await supabase
-    .from("accounts")
-    .update({
-      full_name: fullName,
-      pin_hash: pinHash,
-      otp_code: null,
-      otp_expires_at: null,
-      bound_device_id: null,
-      device_bound_at: null,
-      ...(isVet
-        ? {
-            onboarded: true,
-            modules:
-              Array.isArray(data.modules) && (data.modules as unknown[]).length
-                ? data.modules
-                : ["community", "tips"],
-            practice_name: String(data.practice_name ?? "").trim() || `${fullName}'s Practice`,
-          }
-        : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.accountId)
-    .select("*")
-    .single();
+  const { data: updated, error: updateError } = await withTimeout(
+    supabase
+      .from("accounts")
+      .update({
+        full_name: fullName,
+        pin_hash: pinHash,
+        otp_code: null,
+        otp_expires_at: null,
+        bound_device_id: null,
+        device_bound_at: null,
+        ...(isVet
+          ? {
+              onboarded: true,
+              modules:
+                Array.isArray(data.modules) && (data.modules as unknown[]).length
+                  ? data.modules
+                  : ["community", "tips"],
+              practice_name: String(data.practice_name ?? "").trim() || `${fullName}'s Practice`,
+            }
+          : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.accountId)
+      .select("*")
+      .single(),
+    10000,
+    "PIN save",
+  );
 
   if (updateError) throw pinColumnError(updateError);
   const user = mapAccount(updated as Record<string, unknown>);
@@ -478,11 +486,15 @@ export async function verifyAccountPin(input: {
   pin: string;
 }): Promise<UserProfile> {
   if (!isPin(input.pin)) throw new Error("Enter your 5-digit PIN.");
-  const { data, error } = await supabase
-    .from("accounts")
-    .select("*")
-    .eq("id", input.accountId)
-    .maybeSingle();
+  const { data, error } = await withTimeout(
+    supabase
+      .from("accounts")
+      .select("*")
+      .eq("id", input.accountId)
+      .maybeSingle(),
+    10000,
+    "PIN account lookup",
+  );
   if (error) throw error;
   if (!data) throw new Error("Account not found. Start again from login.");
   assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
@@ -492,21 +504,25 @@ export async function verifyAccountPin(input: {
   const ok = await verifyPinHash(input.pin, stored);
   if (!ok) throw new Error("Incorrect PIN. Try again.");
 
-  const { error: updateError } = await supabase
-    .from("accounts")
-    .update({
-      bound_device_id: null,
-      device_bound_at: null,
-      otp_code: null,
-      otp_expires_at: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.accountId);
-  if (updateError) throw updateError;
-
   const user = mapAccount(data as Record<string, unknown>);
   setSessionAccountId(String(data.id));
   cacheSessionProfile(user);
+
+  void withTimeout(
+    supabase
+      .from("accounts")
+      .update({
+        bound_device_id: null,
+        device_bound_at: null,
+        otp_code: null,
+        otp_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.accountId),
+    5000,
+    "Session cleanup",
+  ).catch((error) => console.warn("Could not finish optional sign-in cleanup", error));
+
   return user;
 }
 

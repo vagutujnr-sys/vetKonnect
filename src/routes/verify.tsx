@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CircleUserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/auth/PinPad";
 import { Logo } from "@/components/brand/Logo";
@@ -42,6 +42,7 @@ function Verify() {
   const [firstPin, setFirstPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const finishInFlight = useRef(false);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("vetkonnect:pending_auth");
@@ -62,7 +63,8 @@ function Verify() {
   const needsName = Boolean(pending?.isNew || !pending?.fullName);
 
   const finish = async (userPin: string) => {
-    if (!pending) return;
+    if (!pending || finishInFlight.current) return;
+    finishInFlight.current = true;
     setLoading(true);
     setError(false);
     try {
@@ -75,20 +77,16 @@ function Verify() {
           });
       sessionStorage.removeItem("vetkonnect:pending_auth");
       acceptAuthenticatedUser(user);
-      try {
-        await createNotification({
-          accountId: user.id,
-          title: returning ? "Signed in" : "PIN saved",
-          body: returning
-            ? "Welcome back to VetKonnect."
-            : user.accountType === "vet"
-              ? "Your practice PIN is ready. Patients and Impact unlock after admin verification."
-              : "Your 5-digit PIN is ready. Use it whenever you sign in.",
-          type: "security",
-        });
-      } catch {
-        // PIN sign-in already succeeded. A missed notice should not undo it.
-      }
+      void createNotification({
+        accountId: user.id,
+        title: returning ? "Signed in" : "PIN saved",
+        body: returning
+          ? "Welcome back to VetKonnect."
+          : user.accountType === "vet"
+            ? "Your practice PIN is ready. Patients and Impact unlock after admin verification."
+            : "Your 5-digit PIN is ready. Use it whenever you sign in.",
+        type: "security",
+      }).catch(() => undefined);
       toast.success(returning ? "Welcome back" : "PIN created", {
         description: user.accountType === "vet" ? "Opening your vet workspace." : "You can sign in with this PIN on any device.",
       });
@@ -102,6 +100,7 @@ function Verify() {
       }
       toast.error(err instanceof Error ? err.message : "Could not check that PIN.");
     } finally {
+      finishInFlight.current = false;
       setLoading(false);
     }
   };
