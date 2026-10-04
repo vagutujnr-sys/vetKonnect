@@ -174,19 +174,19 @@ function ChatsHub() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 pt-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tab === "messages" ? (
           <>
             {loadingChats ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-[4.5rem] animate-pulse rounded-2xl bg-muted/70" />
+                  <div key={i} className="h-[4.5rem] animate-pulse rounded-md bg-muted/70" />
                 ))}
               </div>
             ) : null}
 
             {!loadingChats && items.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-border/80 bg-gradient-to-b from-card to-muted/30 px-6 py-10 text-center shadow-sm">
+              <div className="rounded-md bg-card px-6 py-10 text-center shadow-[var(--shadow-card)]">
                 <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <MessageSquare className="size-7" />
                 </span>
@@ -209,7 +209,7 @@ function ChatsHub() {
                   key={chat.id}
                   to="/chats/$conversationId"
                   params={{ conversationId: chat.id }}
-                  className="group flex items-center gap-3.5 rounded-[1.25rem] border border-border/70 bg-card/90 px-3.5 py-3.5 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.45)] transition hover:border-primary/25 hover:bg-accent/40"
+                  className="group flex w-full items-center gap-3.5 rounded-md bg-card px-3.5 py-3.5 shadow-[var(--shadow-card)] transition hover:bg-accent/40"
                 >
                   <span className="relative flex size-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-teal-700 text-base font-bold text-primary-foreground shadow-sm">
                     {chat.peerName.charAt(0).toUpperCase()}
@@ -258,13 +258,13 @@ function ChatsHub() {
             {loadingCalls ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-[4.5rem] animate-pulse rounded-2xl bg-muted/70" />
+                  <div key={i} className="h-[4.5rem] animate-pulse rounded-md bg-muted/70" />
                 ))}
               </div>
             ) : null}
 
             {!loadingCalls && calls.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-border/80 bg-gradient-to-b from-card to-muted/30 px-6 py-10 text-center shadow-sm">
+              <div className="rounded-md bg-card px-6 py-10 text-center shadow-[var(--shadow-card)]">
                 <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Phone className="size-7" />
                 </span>
@@ -286,7 +286,7 @@ function ChatsHub() {
                 return (
                   <div
                     key={call.id}
-                    className="flex items-center gap-3.5 rounded-[1.25rem] border border-border/70 bg-card/90 px-3.5 py-3.5 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.45)]"
+                    className="flex w-full items-center gap-3.5 rounded-md bg-card px-3.5 py-3.5 shadow-[var(--shadow-card)]"
                   >
                     <span
                       className={cn(

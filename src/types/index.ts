@@ -49,6 +49,8 @@ export interface UserProfile {
   onboarded: boolean;
   isAdmin?: boolean;
   notificationsEnabled?: boolean;
+  /** Owner agreed to WhatsApp receipts and follow-up visits on their registered number. */
+  whatsappOptIn?: boolean;
   boundDeviceId?: string | null;
   avatarUrl?: string;
   accountType?: AccountType;

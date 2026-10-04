@@ -249,7 +249,7 @@ function Community() {
           </Link>
         }
       >
-        <div className="mt-2 flex gap-1.5 overflow-x-auto">
+        <div className="mt-2 flex w-full min-w-0 gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {filters.map((f) => (
             <button
               key={f}
@@ -268,7 +268,7 @@ function Community() {
       <div className="space-y-2 pb-8">
         {initialLoading ? <p className="px-5 text-sm text-muted-foreground">Loading posts…</p> : null}
         {!initialLoading && posts.length === 0 ? (
-          <div className="mx-5 rounded-md bg-card p-8 text-center shadow-[var(--shadow-card)]">
+          <div className="rounded-md bg-card p-8 text-center shadow-[var(--shadow-card)]">
             <p className="font-bold">No posts in this category yet</p>
             <p className="mt-1 text-sm text-muted-foreground">Be the first to share something.</p>
           </div>

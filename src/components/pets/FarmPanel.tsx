@@ -162,8 +162,8 @@ export function FarmPanel({ createOpen, onCreateOpenChange }: { createOpen: bool
   };
 
   return (
-    <div className="space-y-4 px-5 pb-8">
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-2 pb-8">
+      <p className="px-5 text-sm text-muted-foreground">
         Add animals in a group. When one is sick, it is identified by the herd and its tag number.
       </p>
 

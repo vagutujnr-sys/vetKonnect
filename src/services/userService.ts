@@ -24,6 +24,7 @@ export const defaultUser: UserProfile = {
   onboarded: false,
   isAdmin: false,
   notificationsEnabled: true,
+  whatsappOptIn: false,
   boundDeviceId: null,
   avatarUrl: "",
   accountType: "owner",
@@ -57,6 +58,7 @@ function mapAccount(row: Record<string, unknown>): UserProfile {
     onboarded: Boolean(row.onboarded),
     isAdmin: Boolean(row.is_admin),
     notificationsEnabled: row.notifications_enabled !== false,
+    whatsappOptIn: row.whatsapp_opt_in === true,
     boundDeviceId: row.bound_device_id ? String(row.bound_device_id) : null,
     avatarUrl: String(row.avatar_url ?? ""),
     accountType,
@@ -216,6 +218,7 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
     payload.breeder_showcase_pet_id = next.breederShowcasePetId || null;
   if (patch.notificationsEnabled !== undefined)
     payload.notifications_enabled = next.notificationsEnabled !== false;
+  if (patch.whatsappOptIn !== undefined) payload.whatsapp_opt_in = Boolean(next.whatsappOptIn);
   if (patch.avatarUrl !== undefined) payload.avatar_url = next.avatarUrl ?? "";
   if (patch.practiceName !== undefined) payload.practice_name = next.practiceName ?? "";
   if (patch.patientsServed !== undefined)
@@ -247,7 +250,13 @@ export async function updateUser(patch: Partial<UserProfile>): Promise<UserProfi
     }
   }
 
-  if (error) throw error;
+  if (error) {
+    const message = `${error.message ?? ""}`.toLowerCase();
+    if (message.includes("whatsapp_opt_in")) {
+      throw new Error("WhatsApp opt-in is not installed yet. Apply migration 030_whatsapp_opt_in.sql in Supabase.");
+    }
+    throw error;
+  }
 
   // Re-read so admin elevation / verification changes win over any local merge.
   const refreshed = await getUser();
@@ -326,6 +335,10 @@ export type AccessCodeResult = {
   fullName: string;
   phone: string;
   countryCode: string;
+  /** Account already read while looking up the phone, so PIN confirm does not fetch it again. */
+  profile: UserProfile;
+  /** Present only until the PIN step. Lets a returning sign-in check the PIN without another request. */
+  pinHash: string;
 };
 
 /** Look up a phone and open PIN sign-in, or start a new account that still needs a PIN. */
@@ -365,13 +378,17 @@ export async function requestAccessCode(
     }
     const { error } = await supabase.from("accounts").update(existingPatch).eq("id", existing.id);
     if (error) throw error;
+    const pinHash = String(existing.pin_hash ?? "").trim();
+    const profile = mapAccount({ ...(existing as Record<string, unknown>), ...existingPatch });
     return {
       accountId: String(existing.id),
       isNew: false,
-      hasPin: Boolean(String(existing.pin_hash ?? "").trim()),
-      fullName: String(existing.full_name ?? "").trim(),
+      hasPin: Boolean(pinHash),
+      fullName: profile.fullName,
       phone: cleanPhone,
       countryCode,
+      profile,
+      pinHash,
     };
   }
 
@@ -402,6 +419,8 @@ export async function requestAccessCode(
     fullName: "",
     phone: cleanPhone,
     countryCode,
+    profile: mapAccount(data as Record<string, unknown>),
+    pinHash: "",
   };
 }
 
@@ -428,36 +447,50 @@ function rememberSession(user: UserProfile) {
   cacheSessionProfile(user);
 }
 
+function refreshStoredPin(accountId: string, pin: string) {
+  void (async () => {
+    try {
+      const pinHash = await createPinHash(pin);
+      const { error: refreshError } = await supabase
+        .from("accounts")
+        .update({ pin_hash: pinHash, updated_at: new Date().toISOString() })
+        .eq("id", accountId);
+      if (refreshError) console.warn("Could not refresh stored PIN", refreshError);
+    } catch (refreshError) {
+      console.warn("Could not refresh stored PIN", refreshError);
+    }
+  })();
+}
+
 /** Create the 5-digit PIN for a new account, or an older account that never had one. */
 export async function setAccountPin(input: {
   accountId: string;
   pin: string;
   fullName?: string;
+  profile?: UserProfile;
 }): Promise<UserProfile> {
   if (!isPin(input.pin)) throw new Error("Enter a 5-digit PIN.");
-  const { data, error } = await withTimeout(
-    supabase
-      .from("accounts")
-      .select("*")
-      .eq("id", input.accountId)
-      .maybeSingle(),
-    10000,
-    "PIN account lookup",
-  );
-  if (error) throw error;
-  if (!data) throw new Error("Account not found. Start again from login.");
-  assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
+  const known = input.profile?.id === input.accountId ? input.profile : null;
+  let base = known;
 
-  const existingName = String(data.full_name ?? "").trim();
-  const fullName = (input.fullName ?? existingName).trim() || existingName;
+  if (!base) {
+    const { data, error } = await withTimeout(
+      supabase.from("accounts").select("*").eq("id", input.accountId).maybeSingle(),
+      5000,
+      "PIN account lookup",
+    );
+    if (error) throw error;
+    if (!data) throw new Error("Account not found. Start again from login.");
+    base = mapAccount(data as Record<string, unknown>);
+  }
+
+  assertAccountNotBlocked(base);
+  const fullName = (input.fullName ?? base.fullName).trim() || base.fullName.trim();
   if (fullName.length < 2) throw new Error("Enter your name.");
-  const isVet = String(data.account_type ?? "owner") === "vet";
+  const isVet = base.accountType === "vet";
   const pinHash = await createPinHash(input.pin);
-  const vetModules =
-    Array.isArray(data.modules) && (data.modules as unknown[]).length
-      ? data.modules
-      : ["community", "tips"];
-  const practiceName = String(data.practice_name ?? "").trim() || `${fullName}'s Practice`;
+  const vetModules = base.modules.length ? base.modules : (["community", "tips"] as UserProfile["modules"]);
+  const practiceName = base.practiceName?.trim() || `${fullName}'s Practice`;
   const { error: updateError } = await withTimeout(
     supabase
       .from("accounts")
@@ -476,22 +509,22 @@ export async function setAccountPin(input: {
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.accountId),
-    8000,
+    5000,
     "PIN save",
   );
 
   if (updateError) throw pinColumnError(updateError);
-  const user = mapAccount({
-    ...(data as Record<string, unknown>),
-    full_name: fullName,
+  const user: UserProfile = {
+    ...base,
+    fullName,
     ...(isVet
       ? {
           onboarded: true,
           modules: vetModules,
-          practice_name: practiceName,
+          practiceName,
         }
       : {}),
-  });
+  };
   rememberSession(user);
   return user;
 }
@@ -500,44 +533,39 @@ export async function setAccountPin(input: {
 export async function verifyAccountPin(input: {
   accountId: string;
   pin: string;
+  pinHash?: string;
+  profile?: UserProfile;
 }): Promise<UserProfile> {
   if (!isPin(input.pin)) throw new Error("Enter your 5-digit PIN.");
+  const known = input.profile?.id === input.accountId ? input.profile : null;
+  const cachedHash = String(input.pinHash ?? "").trim();
+
+  if (known && cachedHash) {
+    assertAccountNotBlocked(known);
+    const ok = await verifyPinHash(input.pin, cachedHash);
+    if (!ok) throw new IncorrectPinError();
+    rememberSession(known);
+    if (isLegacyPinHash(cachedHash)) refreshStoredPin(input.accountId, input.pin);
+    return known;
+  }
+
   const { data, error } = await withTimeout(
-    supabase
-      .from("accounts")
-      .select("*")
-      .eq("id", input.accountId)
-      .maybeSingle(),
-    10000,
+    supabase.from("accounts").select("*").eq("id", input.accountId).maybeSingle(),
+    5000,
     "PIN account lookup",
   );
   if (error) throw error;
   if (!data) throw new Error("Account not found. Start again from login.");
-  assertAccountNotBlocked(mapAccount(data as Record<string, unknown>));
+  const user = mapAccount(data as Record<string, unknown>);
+  assertAccountNotBlocked(user);
 
   const stored = String(data.pin_hash ?? "").trim();
   if (!stored) throw new Error("This account does not have a PIN yet.");
   const ok = await verifyPinHash(input.pin, stored);
   if (!ok) throw new IncorrectPinError();
 
-  const user = mapAccount(data as Record<string, unknown>);
   rememberSession(user);
-
-  if (isLegacyPinHash(stored)) {
-    void (async () => {
-      try {
-        const pinHash = await createPinHash(input.pin);
-        const { error: refreshError } = await supabase
-          .from("accounts")
-          .update({ pin_hash: pinHash, updated_at: new Date().toISOString() })
-          .eq("id", input.accountId);
-        if (refreshError) console.warn("Could not refresh stored PIN", refreshError);
-      } catch (refreshError) {
-        console.warn("Could not refresh stored PIN", refreshError);
-      }
-    })();
-  }
-
+  if (isLegacyPinHash(stored)) refreshStoredPin(input.accountId, input.pin);
   return user;
 }
 

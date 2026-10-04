@@ -29,7 +29,7 @@ export function DvsPetCertificates({ petId }: { petId: string }) {
   if (!certificates.length) return null;
 
   return (
-    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+    <div className="mt-2 w-full rounded-md border border-emerald-200 bg-emerald-50/50 p-4">
       <div className="flex items-center gap-2">
         <ScrollText className="size-5 text-emerald-800" />
         <h3 className="font-semibold text-emerald-950">DVS official certificates</h3>

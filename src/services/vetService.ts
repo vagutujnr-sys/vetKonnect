@@ -1,5 +1,12 @@
 import type { HealthStatus, Pet, PotentialClient } from "@/types";
 import { haversineKm, HARARE, type GeoPoint } from "@/lib/geo";
+import {
+  buildVisitMeeting,
+  buildVisitReceipt,
+  formatVisitWhen,
+  toWhatsAppDigits,
+  whatsAppComposeUrl,
+} from "@/lib/whatsapp";
 import { createNotification, notifyAccount } from "./notificationService";
 import { findPetByTag, getPetRecordById, updatePet } from "./petService";
 import { supabase } from "./supabaseClient";
@@ -32,6 +39,16 @@ export type PrescribeTreatmentInput = {
   healthStatus?: HealthStatus;
   nextVaccine?: string;
   weightKg?: number;
+  followUpDate: string;
+  followUpTime: string;
+};
+
+export type TreatmentVisitResult = {
+  pet: Pet;
+  /** sent = Twilio delivered both messages. ready = Twilio is not configured yet. opted_out = owner has not allowed WhatsApp. */
+  whatsapp: "sent" | "ready" | "no_phone" | "opted_out" | "failed";
+  whatsappUrl?: string;
+  whatsappError?: string;
 };
 
 export function getRecentPatientIds(): string[] {
@@ -66,7 +83,50 @@ export async function lookupPatientByTag(raw: string): Promise<Pet> {
   return pet;
 }
 
-export async function prescribeTreatment(input: PrescribeTreatmentInput): Promise<Pet> {
+async function ownerPhone(
+  ownerId: string,
+): Promise<{ phone: string; countryCode: string; name: string; whatsappOptIn: boolean } | null> {
+  let result = await supabase
+    .from("accounts")
+    .select("phone,country_code,full_name,whatsapp_opt_in")
+    .eq("id", ownerId)
+    .maybeSingle();
+  if (result.error && `${result.error.message ?? ""}`.toLowerCase().includes("whatsapp_opt_in")) {
+    result = await supabase.from("accounts").select("phone,country_code,full_name").eq("id", ownerId).maybeSingle();
+  }
+  const { data, error } = result;
+  if (error || !data) return null;
+  const phone = String(data.phone ?? "").trim();
+  if (!phone) return null;
+  return {
+    phone,
+    countryCode: String(data.country_code ?? "+263"),
+    name: String(data.full_name ?? "").trim(),
+    whatsappOptIn: data.whatsapp_opt_in === true,
+  };
+}
+
+async function deliverOwnerWhatsApp(
+  digits: string,
+  messages: string[],
+): Promise<Pick<TreatmentVisitResult, "whatsapp" | "whatsappError">> {
+  try {
+    const response = await fetch("/api/whatsapp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: digits, messages }),
+    });
+    const payload = (await response.json()) as { delivered?: boolean; reason?: string; error?: string };
+    if (payload.delivered) return { whatsapp: "sent" };
+    if (payload.reason === "not_configured") return { whatsapp: "ready" };
+    return { whatsapp: "failed", whatsappError: payload.error || "Twilio could not send the WhatsApp message." };
+  } catch (error) {
+    console.warn("Twilio WhatsApp unavailable", error);
+    return { whatsapp: "failed", whatsappError: "Could not reach Twilio." };
+  }
+}
+
+export async function prescribeTreatment(input: PrescribeTreatmentInput): Promise<TreatmentVisitResult> {
   const user = await getUser();
   if (!user.id || user.accountType !== "vet") {
     throw new Error("Only verified vet accounts can prescribe treatment.");
@@ -77,22 +137,37 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
 
   const title = input.title.trim();
   const detail = input.detail.trim();
+  const followUpDate = input.followUpDate.trim();
+  const followUpTime = input.followUpTime.trim() || "09:00";
   if (title.length < 2) throw new Error("Add a treatment title.");
   if (detail.length < 2) throw new Error("Add treatment details.");
+  if (!followUpDate) throw new Error("Choose a date for the follow-up visit.");
 
   const pet = await getPetRecordById(input.petId);
   if (!pet) throw new Error("Patient not found.");
 
+  const visitedAt = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const when = formatVisitWhen(followUpDate, followUpTime);
+  const vetName = user.fullName?.trim() || "Your vet";
+  const practiceName = user.practiceName?.trim() || "";
+
   const event = {
     id: crypto.randomUUID(),
-    date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }),
+    date: visitedAt,
     title,
     detail: `${detail}${user.fullName ? ` · Prescribed by ${user.fullName}` : ""}`,
     type: "treatment" as const,
   };
+  const meeting = {
+    id: crypto.randomUUID(),
+    date: when,
+    title: "Follow-up visit",
+    detail: `Scheduled with ${vetName}${practiceName ? ` at ${practiceName}` : ""}.`,
+    type: "checkup" as const,
+  };
 
   const updated = await updatePet(pet.id, {
-    timeline: [event, ...(pet.timeline ?? [])],
+    timeline: [event, meeting, ...(pet.timeline ?? [])],
     medicationToday: input.medicationToday?.trim() || pet.medicationToday,
     healthStatus: input.healthStatus ?? pet.healthStatus,
     nextVaccine: input.nextVaccine?.trim() || pet.nextVaccine,
@@ -104,16 +179,55 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
   rememberPatientId(updated.id);
   await updateUser({ patientsServed: Number(user.patientsServed ?? 0) + 1 });
 
+  const receipt = buildVisitReceipt({
+    petName: updated.name,
+    species: updated.species,
+    treatment: title,
+    detail,
+    medication: input.medicationToday?.trim(),
+    healthStatus: input.healthStatus,
+    vetName,
+    practiceName,
+    visitedAt,
+  });
+  const meetingNote = buildVisitMeeting({
+    petName: updated.name,
+    when,
+    vetName,
+    practiceName,
+  });
+
   if (updated.ownerId) {
     await createNotification({
       accountId: updated.ownerId,
-      title: `Treatment for ${updated.name}`,
+      title: `Receipt for ${updated.name}`,
       body: `${title}: ${detail}`,
+      type: "health",
+    });
+    await createNotification({
+      accountId: updated.ownerId,
+      title: `Follow-up for ${updated.name}`,
+      body: `Visit scheduled ${when}${practiceName ? ` at ${practiceName}` : ""}.`,
       type: "health",
     });
   }
 
-  return updated;
+  const owner = updated.ownerId ? await ownerPhone(updated.ownerId) : null;
+  const digits = owner ? toWhatsAppDigits(owner.countryCode, owner.phone) : null;
+  if (!digits) {
+    return { pet: updated, whatsapp: "no_phone" };
+  }
+  if (!owner?.whatsappOptIn) {
+    return { pet: updated, whatsapp: "opted_out" };
+  }
+
+  const delivery = await deliverOwnerWhatsApp(digits, [receipt, meetingNote]);
+  return {
+    pet: updated,
+    whatsapp: delivery.whatsapp,
+    whatsappError: delivery.whatsappError,
+    whatsappUrl: delivery.whatsapp === "ready" ? whatsAppComposeUrl(digits, `${receipt}\n\n${meetingNote}`) : undefined,
+  };
 }
 
 /** Owner accounts with pets — mapped near the logged-in vet for Impact. */

@@ -77,7 +77,7 @@ function PatientsScreen() {
 
   if (!isVetAccount(user)) {
     return (
-      <AppShell>
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <ScreenHeader title="Patients" subtitle="This workspace is for vet accounts." />
         <div className="px-5">
           <Button asChild variant="hero" className="w-full">
@@ -89,7 +89,7 @@ function PatientsScreen() {
   }
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <header
         className={`${appHeaderClass} flex items-start justify-between px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
       >
@@ -113,7 +113,7 @@ function PatientsScreen() {
       </header>
 
       {!verified ? (
-        <section className="mx-5 mt-5 rounded-2xl border border-border bg-card p-4">
+        <section className="mt-2 rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-start gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent">
               <LayoutDashboard className="size-5 text-primary" />
@@ -144,20 +144,20 @@ function PatientsScreen() {
       ) : null}
 
       <VetFeatureGate verified={verified} title="Patient management">
-        <section className="mx-5 mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-border bg-card p-4">
+        <section className="mt-2 grid grid-cols-2 gap-2">
+          <div className="rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
             <Users className="size-5 text-primary" />
             <p className="mt-3 text-3xl font-extrabold">{user.patientsServed ?? 0}</p>
             <p className="mt-1 text-sm text-muted-foreground">Patients served</p>
           </div>
-          <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
             <PawPrint className="size-5 text-primary" />
             <p className="mt-3 text-3xl font-extrabold">{recent.length}</p>
             <p className="mt-1 text-sm text-muted-foreground">Recent lookups</p>
           </div>
         </section>
 
-        <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-4">
+        <section className="mt-2 rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="mb-3 flex items-center gap-2">
             <HeartPulse className="size-5 text-primary" />
             <h2 className="font-extrabold">Scan patient tag</h2>
@@ -168,7 +168,7 @@ function PatientsScreen() {
           <TagScanPanel busy={searching} onScan={handleScan} />
         </section>
 
-        <section className="mx-5 mt-4 mb-4 rounded-2xl border border-border bg-card p-4">
+        <section className="mb-2 mt-2 rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-center gap-2">
             <ClipboardList className="size-5 text-primary" />
             <h2 className="font-extrabold">Recent patients</h2>

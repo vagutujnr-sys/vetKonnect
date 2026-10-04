@@ -65,7 +65,7 @@ function NotificationsPage() {
   }, []);
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <header
         className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
       >
@@ -95,10 +95,10 @@ function NotificationsPage() {
         </Button>
       </header>
 
-      <div className="space-y-3 px-5 pb-8">
-        {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
+      <div className="space-y-2 pb-8">
+        {loading ? <p className="px-5 text-sm text-muted-foreground">Loading…</p> : null}
         {!loading && items.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-white p-8 text-center shadow-[var(--shadow-card)]">
+          <div className="rounded-md bg-card p-8 text-center shadow-[var(--shadow-card)]">
             <LogoMark className="mx-auto h-8 w-8" />
             <p className="mt-3 font-bold">You're all caught up</p>
             <p className="mt-1 text-sm text-muted-foreground">New likes, comments and security alerts will appear here.</p>
@@ -117,7 +117,7 @@ function NotificationsPage() {
                 }
               }}
               className={cn(
-                "w-full rounded-2xl bg-white p-4 text-left shadow-[var(--shadow-card)] transition-opacity",
+                "w-full rounded-md bg-card p-4 text-left shadow-[var(--shadow-card)] transition-opacity",
                 note.read && "opacity-75",
               )}
               style={{ borderLeft: `4px solid ${accent}` }}

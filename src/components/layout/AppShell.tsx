@@ -26,8 +26,8 @@ export function AppShell({
     <MobileScreen className="h-dvh max-h-dvh overflow-hidden">
       <div
         className={cn(
-          "relative min-h-0 flex-1",
-          immersive || hideNav ? "overflow-hidden" : "overflow-y-auto overscroll-contain",
+          "relative min-h-0 w-full min-w-0 flex-1",
+          immersive || hideNav ? "overflow-hidden" : "overflow-x-hidden overflow-y-auto overscroll-contain",
           scrollClassName,
         )}
       >

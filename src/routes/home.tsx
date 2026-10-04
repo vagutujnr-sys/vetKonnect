@@ -124,7 +124,7 @@ function HomeScreen() {
 
       <section className="mt-6">
         <h3 className="px-5 text-lg font-bold">Quick Actions</h3>
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        <div className="mt-3 flex w-full min-w-0 gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {quickActions.map(({ label, icon: Icon, to }) => {
             const isQr = label === "Scan QR";
             return (
@@ -164,7 +164,7 @@ function HomeScreen() {
             View All <ChevronRight className="size-4" />
           </Link>
         </div>
-        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+        <div className="mt-3 flex w-full min-w-0 gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {services.map((s) => (
             <Link
               key={s.id}

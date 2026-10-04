@@ -322,7 +322,7 @@ function Discover() {
   }
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ScreenHeader title="Discover" subtitle="Trusted care and services near you." />
 
       <div className="px-5">
@@ -353,7 +353,7 @@ function Discover() {
         ) : null}
       </div>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto px-5 pb-4">
+      <div className="mt-4 flex w-full min-w-0 gap-2 overflow-x-auto overscroll-x-contain px-5 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {categories.map((c) => (
           <button
             key={c}
@@ -369,7 +369,7 @@ function Discover() {
         ))}
       </div>
 
-      <div className="space-y-4 px-5">
+      <div className="space-y-2 pb-2">
         {services.map((s) => (
           <article key={s.id} className="card-surface overflow-hidden">
             {s.imageUrl ? <img src={s.imageUrl} alt={s.name} loading="lazy" className="h-36 w-full object-cover" /> : null}
@@ -397,7 +397,7 @@ function Discover() {
         )}
       </div>
 
-      <div className="mx-5 my-6 flex items-center gap-3 rounded-2xl bg-primary p-4 text-primary-foreground">
+      <div className="my-2 flex w-full items-center gap-3 rounded-md bg-primary p-4 text-primary-foreground">
         <Siren className="size-6" />
         <div className="flex-1">
           <p className="font-bold">Emergency assistance</p>

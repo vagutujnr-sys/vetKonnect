@@ -23,7 +23,7 @@ export const Route = createFileRoute("/pets/$petId")({
   }),
   component: PetProfile,
   notFoundComponent: () => (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="px-5 pt-16 text-center">
         <p className="font-bold">Pet not found</p>
         <Button asChild variant="hero" className="mt-4">
@@ -51,7 +51,7 @@ function PetProfile() {
   if (!pet) {
     if (!ready)
       return (
-        <AppShell>
+        <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="px-5 pt-16 text-sm text-muted-foreground">Loading…</div>
         </AppShell>
       );
@@ -81,7 +81,7 @@ function PetProfile() {
   };
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="relative mb-[20px] overflow-hidden">
         {pet.photoUrl ? (
           <img src={pet.photoUrl} alt={pet.name} className="h-64 w-full object-cover" />
@@ -149,8 +149,8 @@ function PetProfile() {
         </div>
       </div>
 
-      <div className="-mt-8 rounded-t-3xl bg-background px-5 pt-6">
-        <div className="flex items-start justify-between">
+      <div className="-mt-8 rounded-t-3xl bg-background pt-6">
+        <div className="flex items-start justify-between px-5">
           <div>
             <h1 className="text-3xl font-extrabold">{displayValue(pet.name, "Pet")}</h1>
             <p className="text-sm text-muted-foreground">
@@ -194,8 +194,8 @@ function PetProfile() {
         <DvsPetLicence pet={pet} ownerPhone={user.phone} />
         <DvsPetCertificates petId={pet.id} />
 
-        <h2 className="mt-7 text-lg font-bold">Health timeline</h2>
-        <ol className="mt-3 space-y-4 border-l border-border pl-5">
+        <h2 className="mt-7 px-5 text-lg font-bold">Health timeline</h2>
+        <ol className="mx-5 mt-3 space-y-4 border-l border-border pl-5">
           {(pet.timeline?.length ? pet.timeline : []).map((e) => (
             <li key={e.id} className="relative">
               <span className="absolute -left-[27px] top-1 flex size-4 items-center justify-center rounded-full bg-primary">
@@ -217,7 +217,7 @@ function PetProfile() {
 
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-surface p-3 text-center">
+    <div className="rounded-md bg-card p-3 text-center shadow-[var(--shadow-card)]">
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>

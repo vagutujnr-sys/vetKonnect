@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Bell, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Bell, MessageCircle, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { Switch } from "@/components/ui/switch";
@@ -20,9 +21,32 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const { user, updateUser } = useApp();
   const notificationsOn = user.notificationsEnabled !== false;
+  const whatsappOn = user.whatsappOptIn === true;
+  const registeredNumber = [user.countryCode, user.phone].filter(Boolean).join(" ");
+  const [sandbox, setSandbox] = useState<{ from: string | null; joinMessage: string | null }>({
+    from: null,
+    joinMessage: null,
+  });
+
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/whatsapp/opt-in")
+      .then((response) => response.json())
+      .then((payload: { from?: string | null; joinMessage?: string | null }) => {
+        if (!alive) return;
+        setSandbox({
+          from: payload.from ?? null,
+          joinMessage: payload.joinMessage ?? null,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <header
         className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
       >
@@ -39,7 +63,7 @@ function SettingsPage() {
         </div>
       </header>
 
-      <section className="mx-5 card-surface divide-y divide-border">
+      <section className="card-surface divide-y divide-border">
         <div className="flex items-center gap-3 px-4 py-4">
           <Bell className="size-5 text-primary" />
           <div className="flex-1">
@@ -64,9 +88,36 @@ function SettingsPage() {
             }}
           />
         </div>
+        <div className="flex items-start gap-3 px-4 py-4">
+          <MessageCircle className="mt-0.5 size-5 text-primary" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">WhatsApp receipts</p>
+            <p className="text-sm text-muted-foreground">
+              Visit receipts and follow-up times on {registeredNumber || "your registered number"}.
+            </p>
+            {whatsappOn && sandbox.joinMessage && sandbox.from ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                From this number, send “{sandbox.joinMessage}” to {sandbox.from} on WhatsApp once. Twilio delivers after that join.
+              </p>
+            ) : null}
+          </div>
+          <Switch
+            checked={whatsappOn}
+            aria-label="WhatsApp receipts"
+            onCheckedChange={(checked) => {
+              void updateUser({ whatsappOptIn: checked })
+                .then(() => {
+                  toast.success(checked ? "WhatsApp receipts on" : "WhatsApp receipts off");
+                })
+                .catch((error) => {
+                  toast.error(error instanceof Error ? error.message : "Could not update WhatsApp receipts.");
+                });
+            }}
+          />
+        </div>
       </section>
 
-      <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
+      <section className="card-surface mt-2 p-5">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 size-5 text-primary" />
           <div>

@@ -10,7 +10,7 @@ import { getAppHomePath } from "@/lib/account";
 import { PIN_LENGTH } from "@/lib/pin";
 import { IncorrectPinError, setAccountPin, verifyAccountPin } from "@/services/userService";
 import { createNotification, presentIncomingNotification } from "@/services/notificationService";
-import type { AccountType } from "@/types";
+import type { AccountType, UserProfile } from "@/types";
 
 type PendingAuth = {
   accountId: string;
@@ -20,6 +20,8 @@ type PendingAuth = {
   hasPin: boolean;
   fullName?: string;
   accountType?: AccountType;
+  profile?: UserProfile;
+  pinHash?: string;
 };
 
 export const Route = createFileRoute("/verify")({
@@ -67,13 +69,20 @@ function Verify() {
     finishInFlight.current = true;
     setLoading(true);
     setError(false);
+    let opened = false;
     try {
       const user = returning
-        ? await verifyAccountPin({ accountId: pending.accountId, pin: userPin })
+        ? await verifyAccountPin({
+            accountId: pending.accountId,
+            pin: userPin,
+            pinHash: pending.pinHash,
+            profile: pending.profile,
+          })
         : await setAccountPin({
             accountId: pending.accountId,
             pin: userPin,
             fullName: name.trim() || pending.fullName,
+            profile: pending.profile,
           });
       sessionStorage.removeItem("vetkonnect:pending_auth");
       acceptAuthenticatedUser(user);
@@ -91,7 +100,8 @@ function Verify() {
       toast.success(returning ? "Welcome back" : "PIN created", {
         description: user.accountType === "vet" ? "Opening your vet workspace." : "Your PIN is ready.",
       });
-      await navigate({ to: destination, replace: true });
+      opened = true;
+      void navigate({ to: destination, replace: true });
     } catch (err) {
       setError(true);
       setPin("");
@@ -113,11 +123,12 @@ function Verify() {
           presentIncomingNotification({ title, body, type: "security" }, { force: true });
         });
       } else {
-        toast.error(err instanceof Error ? err.message : "Could not check that PIN.");
+        const message = err instanceof Error ? err.message : "Could not check that PIN.";
+        toast.error(message.includes("timed out") ? "That took too long. Check your connection and try the PIN again." : message);
       }
     } finally {
       finishInFlight.current = false;
-      setLoading(false);
+      if (!opened) setLoading(false);
     }
   };
 

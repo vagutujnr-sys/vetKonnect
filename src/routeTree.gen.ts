@@ -46,6 +46,8 @@ import { Route as PetsNewRouteImport } from './routes/pets.new'
 import { Route as ApiPaynowInitiateRouteImport } from './routes/api.paynow.initiate'
 import { Route as ApiPaynowPollRouteImport } from './routes/api.paynow.poll'
 import { Route as ApiPaynowResultRouteImport } from './routes/api.paynow.result'
+import { Route as ApiWhatsappOptInRouteImport } from './routes/api.whatsapp.opt-in'
+import { Route as ApiWhatsappSendRouteImport } from './routes/api.whatsapp.send'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -232,6 +234,16 @@ const ApiPaynowResultRoute = ApiPaynowResultRouteImport.update({
   path: '/api/paynow/result',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWhatsappOptInRoute = ApiWhatsappOptInRouteImport.update({
+  id: '/api/whatsapp/opt-in',
+  path: '/api/whatsapp/opt-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWhatsappSendRoute = ApiWhatsappSendRouteImport.update({
+  id: '/api/whatsapp/send',
+  path: '/api/whatsapp/send',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -271,6 +283,8 @@ export interface FileRoutesByFullPath {
   '/api/paynow/initiate': typeof ApiPaynowInitiateRoute
   '/api/paynow/poll': typeof ApiPaynowPollRoute
   '/api/paynow/result': typeof ApiPaynowResultRoute
+  '/api/whatsapp/opt-in': typeof ApiWhatsappOptInRoute
+  '/api/whatsapp/send': typeof ApiWhatsappSendRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -310,6 +324,8 @@ export interface FileRoutesByTo {
   '/api/paynow/initiate': typeof ApiPaynowInitiateRoute
   '/api/paynow/poll': typeof ApiPaynowPollRoute
   '/api/paynow/result': typeof ApiPaynowResultRoute
+  '/api/whatsapp/opt-in': typeof ApiWhatsappOptInRoute
+  '/api/whatsapp/send': typeof ApiWhatsappSendRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -350,6 +366,8 @@ export interface FileRoutesById {
   '/api/paynow/initiate': typeof ApiPaynowInitiateRoute
   '/api/paynow/poll': typeof ApiPaynowPollRoute
   '/api/paynow/result': typeof ApiPaynowResultRoute
+  '/api/whatsapp/opt-in': typeof ApiWhatsappOptInRoute
+  '/api/whatsapp/send': typeof ApiWhatsappSendRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -391,6 +409,8 @@ export interface FileRouteTypes {
     | '/api/paynow/initiate'
     | '/api/paynow/poll'
     | '/api/paynow/result'
+    | '/api/whatsapp/opt-in'
+    | '/api/whatsapp/send'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -430,6 +450,8 @@ export interface FileRouteTypes {
     | '/api/paynow/initiate'
     | '/api/paynow/poll'
     | '/api/paynow/result'
+    | '/api/whatsapp/opt-in'
+    | '/api/whatsapp/send'
   id:
     | '__root__'
     | '/'
@@ -469,6 +491,8 @@ export interface FileRouteTypes {
     | '/api/paynow/initiate'
     | '/api/paynow/poll'
     | '/api/paynow/result'
+    | '/api/whatsapp/opt-in'
+    | '/api/whatsapp/send'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -506,6 +530,8 @@ export interface RootRouteChildren {
   ApiPaynowInitiateRoute: typeof ApiPaynowInitiateRoute
   ApiPaynowPollRoute: typeof ApiPaynowPollRoute
   ApiPaynowResultRoute: typeof ApiPaynowResultRoute
+  ApiWhatsappOptInRoute: typeof ApiWhatsappOptInRoute
+  ApiWhatsappSendRoute: typeof ApiWhatsappSendRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -769,6 +795,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPaynowResultRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/whatsapp/opt-in': {
+      id: '/api/whatsapp/opt-in'
+      path: '/api/whatsapp/opt-in'
+      fullPath: '/api/whatsapp/opt-in'
+      preLoaderRoute: typeof ApiWhatsappOptInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/whatsapp/send': {
+      id: '/api/whatsapp/send'
+      path: '/api/whatsapp/send'
+      fullPath: '/api/whatsapp/send'
+      preLoaderRoute: typeof ApiWhatsappSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -833,6 +873,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPaynowInitiateRoute: ApiPaynowInitiateRoute,
   ApiPaynowPollRoute: ApiPaynowPollRoute,
   ApiPaynowResultRoute: ApiPaynowResultRoute,
+  ApiWhatsappOptInRoute: ApiWhatsappOptInRoute,
+  ApiWhatsappSendRoute: ApiWhatsappSendRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

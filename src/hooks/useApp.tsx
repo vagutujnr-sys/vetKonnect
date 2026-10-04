@@ -116,9 +116,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshSession]);
 
   const updateUser = useCallback(async (patch: Partial<UserProfile>) => {
-    setUser((prev) => ({ ...prev, ...patch }));
-    const next = await userService.updateUser(patch);
-    setUser(next);
+    let previous: UserProfile | null = null;
+    setUser((prev) => {
+      previous = prev;
+      return { ...prev, ...patch };
+    });
+    try {
+      const next = await userService.updateUser(patch);
+      setUser(next);
+      return next;
+    } catch (error) {
+      if (previous) setUser(previous);
+      throw error;
+    }
   }, []);
 
   const addPet = useCallback(async (input: NewPetInput) => {

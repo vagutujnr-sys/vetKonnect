@@ -119,7 +119,7 @@ function AddPet() {
     (step === 1 && form.name.trim().length > 1) || step === 2 || (step === 3 && form.breed.trim().length > 0);
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div
         className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
       >
@@ -287,12 +287,12 @@ function AddPet() {
       )}
 
       {step === 4 && created && (
-        <div className="mt-8 px-5 text-center">
+        <div className="mt-8 text-center">
           <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Check className="size-8" />
           </span>
-          <h1 className="mt-4 text-2xl font-extrabold">{created.name} is registered</h1>
-          <p className="mt-1 text-sm text-muted-foreground">The digital health passport is now active.</p>
+          <h1 className="mt-4 px-5 text-2xl font-extrabold">{created.name} is registered</h1>
+          <p className="mt-1 px-5 text-sm text-muted-foreground">The digital health passport is now active.</p>
           {created.photoUrl ? (
             <img
               src={created.photoUrl}
@@ -300,7 +300,7 @@ function AddPet() {
               className="mx-auto mt-5 size-28 rounded-full border-2 border-primary object-cover"
             />
           ) : null}
-          <div className="mt-6 card-surface p-6">
+          <div className="mt-6 card-surface p-6 text-center">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">VetKonnect Pet ID</p>
             <p className="mt-1 text-xl font-extrabold text-primary">{created.vetConnectId}</p>
             <div className="mx-auto mt-5 flex size-36 items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-accent/40">

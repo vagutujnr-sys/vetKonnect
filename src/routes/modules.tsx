@@ -67,20 +67,22 @@ function Modules() {
   };
 
   return (
-    <MobileScreen className="px-5">
-      <div className="flex justify-center pt-10">
-        <Logo size="sm" stacked />
-      </div>
-      <div className="mt-6">
-        <StepIndicator step={3} total={3} />
+    <MobileScreen>
+      <div className="px-5">
+        <div className="flex justify-center pt-10">
+          <Logo size="sm" stacked />
+        </div>
+        <div className="mt-6">
+          <StepIndicator step={3} total={3} />
+        </div>
+
+        <h1 className="mt-6 text-center text-[26px] font-extrabold text-primary">Customize your VetKonnect</h1>
+        <p className="mt-2 text-center text-sm text-muted-foreground">
+          Choose what you'd like to use VetKonnect for. You can change these anytime in Settings.
+        </p>
       </div>
 
-      <h1 className="mt-6 text-center text-[26px] font-extrabold text-primary">Customize your VetKonnect</h1>
-      <p className="mt-2 text-center text-sm text-muted-foreground">
-        Choose what you'd like to use VetKonnect for. You can change these anytime in Settings.
-      </p>
-
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 space-y-2">
         {moduleOptions.map(({ id, title, description, icon: Icon }) => {
           const active = selected.includes(id);
           return (
@@ -88,8 +90,8 @@ function Modules() {
               key={id}
               onClick={() => toggle(id)}
               className={cn(
-                "flex w-full cursor-pointer items-center gap-4 rounded-2xl border p-4 text-left transition-all",
-                active ? "border-primary bg-accent/50 shadow-[var(--shadow-card)]" : "border-border bg-card",
+                "flex w-full cursor-pointer items-center gap-4 rounded-md border p-4 text-left transition-all",
+                active ? "border-primary bg-accent/50 shadow-[var(--shadow-card)]" : "border-border bg-card shadow-[var(--shadow-card)]",
               )}
             >
               <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent">
@@ -112,21 +114,23 @@ function Modules() {
         })}
       </div>
 
-      <div className="mt-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <ShieldCheck className="size-4 text-primary" />
-        You can update your selections anytime in Settings.
-      </div>
+      <div className="px-5">
+        <div className="mt-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <ShieldCheck className="size-4 text-primary" />
+          You can update your selections anytime in Settings.
+        </div>
 
-      <Button
-        variant="hero"
-        size="lg"
-        onClick={() => void finish()}
-        disabled={selected.length === 0}
-        className="my-7 w-full justify-between text-[15px] tracking-wide"
-      >
-        FINISH & START USING VETKONNECT
-        <ArrowRight className="size-5" />
-      </Button>
+        <Button
+          variant="hero"
+          size="lg"
+          onClick={() => void finish()}
+          disabled={selected.length === 0}
+          className="my-7 w-full justify-between text-[15px] tracking-wide"
+        >
+          FINISH & START USING VETKONNECT
+          <ArrowRight className="size-5" />
+        </Button>
+      </div>
     </MobileScreen>
   );
 }

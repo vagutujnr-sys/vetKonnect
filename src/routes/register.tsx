@@ -73,7 +73,9 @@ function Register() {
           isNew: result.isNew,
           hasPin: result.hasPin,
           fullName: result.fullName,
-          accountType: registerAsVet ? "vet" : "owner",
+          accountType: registerAsVet ? "vet" : result.profile.accountType,
+          profile: result.profile,
+          pinHash: result.pinHash,
         }),
       );
       toast.success(result.hasPin ? "Enter your PIN" : "Create your PIN", {

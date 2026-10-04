@@ -132,7 +132,7 @@ export function DvsPetLicence({ pet, ownerPhone }: { pet: Pet; ownerPhone?: stri
   const awaitingApproval = licence?.status === "pending" || Boolean(localProof);
 
   return (
-    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+    <div className="mt-2 w-full rounded-md border border-emerald-200 bg-emerald-50/50 p-4">
       <div className="flex items-center gap-2">
         {active ? <BadgeCheck className="size-5 text-emerald-800" /> : awaitingApproval ? <Clock3 className="size-5 text-emerald-800" /> : <Receipt className="size-5 text-emerald-800" />}
         <h3 className="font-semibold text-emerald-950">Council Pet Registration</h3>

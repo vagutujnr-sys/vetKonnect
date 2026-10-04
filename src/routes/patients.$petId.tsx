@@ -41,6 +41,9 @@ function PatientDetail() {
   const [healthStatus, setHealthStatus] = useState<HealthStatus>("Under Care");
   const [nextVaccine, setNextVaccine] = useState("");
   const [weightKg, setWeightKg] = useState("");
+  const [followUpDate, setFollowUpDate] = useState(defaultFollowUpDate);
+  const [followUpTime, setFollowUpTime] = useState("09:00");
+  const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isVetAccount(user) || !user.vetVerified) {
@@ -74,7 +77,7 @@ function PatientDetail() {
     if (!pet) return;
     setSaving(true);
     try {
-      const updated = await prescribeTreatment({
+      const result = await prescribeTreatment({
         petId: pet.id,
         title,
         detail,
@@ -82,13 +85,28 @@ function PatientDetail() {
         healthStatus,
         nextVaccine: nextVaccine.trim() || pet.nextVaccine,
         weightKg: weightKg.trim() ? Number(weightKg) : undefined,
+        followUpDate,
+        followUpTime,
       });
-      setPet(updated);
+      setPet(result.pet);
       setTitle("");
       setDetail("");
+      setWhatsappUrl(result.whatsappUrl ?? null);
+      if (result.whatsappUrl) {
+        window.open(result.whatsappUrl, "_blank", "noopener,noreferrer");
+      }
       await refreshSession();
       toast.success("Treatment saved", {
-        description: `${updated.name}'s health card was updated.`,
+        description:
+          result.whatsapp === "sent"
+            ? `Twilio sent the receipt and follow-up visit to ${result.pet.name}'s owner.`
+            : result.whatsapp === "ready"
+              ? `Twilio is not set up yet. WhatsApp is open so you can send the receipt and follow-up for ${result.pet.name}.`
+              : result.whatsapp === "no_phone"
+                ? `${result.pet.name}'s card was updated. The owner has no registered mobile number.`
+                : result.whatsapp === "opted_out"
+                  ? `${result.pet.name}'s card was updated. The owner has not turned on WhatsApp in Settings.`
+                  : result.whatsappError || `${result.pet.name}'s card was updated. Twilio could not send the WhatsApp message.`,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save treatment.");
@@ -99,7 +117,7 @@ function PatientDetail() {
 
   if (!isVetAccount(user)) {
     return (
-      <AppShell>
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="px-5 pt-16 text-center">
           <p className="font-bold">Vet accounts only</p>
           <Button asChild variant="hero" className="mt-4">
@@ -112,14 +130,14 @@ function PatientDetail() {
 
   if (loading || !pet) {
     return (
-      <AppShell>
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="px-5 pt-16 text-sm text-muted-foreground">Loading patient…</div>
       </AppShell>
     );
   }
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="relative mb-5 overflow-hidden">
         {pet.photoUrl ? (
           <img src={pet.photoUrl} alt={pet.name} className="h-56 w-full object-cover" />
@@ -135,8 +153,8 @@ function PatientDetail() {
         </Link>
       </div>
 
-      <div className="-mt-8 rounded-t-3xl bg-background px-5 pt-6 pb-8">
-        <div className="flex items-start justify-between gap-3">
+      <div className="-mt-8 rounded-t-3xl bg-background pb-8 pt-6">
+        <div className="flex items-start justify-between gap-3 px-5">
           <div>
             <h1 className="text-3xl font-extrabold">{displayValue(pet.name, "Patient")}</h1>
             <p className="text-sm text-muted-foreground">
@@ -158,13 +176,13 @@ function PatientDetail() {
           <Tile label="Next vaccine" value={displayValue(pet.nextVaccine)} />
         </div>
 
-        <section className="mt-6 rounded-2xl border border-border bg-card p-4">
+        <section className="mt-2 rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-center gap-2">
             <Pill className="size-5 text-primary" />
             <h2 className="font-extrabold">Prescribe treatment</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Adds a treatment event and updates this animal’s health card.
+            Updates the health card, then Twilio sends a WhatsApp receipt and the follow-up visit to the owner’s registered number.
           </p>
 
           <label className="mt-4 block text-sm font-medium">
@@ -234,20 +252,51 @@ function PatientDetail() {
             />
           </label>
 
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <label className="block text-sm font-medium">
+              Follow-up date
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
+              />
+            </label>
+            <label className="block text-sm font-medium">
+              Follow-up time
+              <input
+                type="time"
+                value={followUpTime}
+                onChange={(e) => setFollowUpTime(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
+              />
+            </label>
+          </div>
+
           <Button
             variant="hero"
             className="mt-4 w-full"
-            disabled={saving || title.trim().length < 2 || detail.trim().length < 2}
+            disabled={saving || title.trim().length < 2 || detail.trim().length < 2 || !followUpDate}
             onClick={() => void submitTreatment()}
           >
-            {saving ? "Saving…" : "Save treatment & update card"}
+            {saving ? "Saving…" : "Save treatment & notify owner"}
           </Button>
+          {whatsappUrl ? (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 block text-center text-sm font-semibold text-primary"
+            >
+              Send receipt and visit on WhatsApp
+            </a>
+          ) : null}
         </section>
 
         <DvsPetCertificates petId={pet.id} />
 
-        <h2 className="mt-7 text-lg font-bold">Patient history</h2>
-        <ol className="mt-3 space-y-4 border-l border-border pl-5">
+        <h2 className="mt-7 px-5 text-lg font-bold">Patient history</h2>
+        <ol className="mx-5 mt-3 space-y-4 border-l border-border pl-5">
           {(pet.timeline?.length ? pet.timeline : []).map((event) => (
             <li key={event.id} className="relative">
               <span className="absolute -left-[27px] top-1 flex size-4 items-center justify-center rounded-full bg-primary">
@@ -268,9 +317,17 @@ function PatientDetail() {
   );
 }
 
+function defaultFollowUpDate() {
+  const next = new Date();
+  next.setDate(next.getDate() + 7);
+  const month = String(next.getMonth() + 1).padStart(2, "0");
+  const day = String(next.getDate()).padStart(2, "0");
+  return `${next.getFullYear()}-${month}-${day}`;
+}
+
 function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-surface p-3 text-center">
+    <div className="rounded-md bg-card p-3 text-center shadow-[var(--shadow-card)]">
       <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-1 truncate text-sm font-semibold">{value}</p>
     </div>

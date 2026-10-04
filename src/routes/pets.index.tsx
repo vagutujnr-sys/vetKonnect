@@ -25,7 +25,7 @@ function PetsScreen() {
   const [creatingHerd, setCreatingHerd] = useState(false);
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ScreenHeader
         title="My Animals"
         subtitle={
@@ -78,12 +78,12 @@ function PetsScreen() {
       </ScreenHeader>
 
       {tab === "pets" ? (
-        <div className="space-y-4 px-5 pb-8">
+        <div className="space-y-2 pb-8">
           {pets.map((pet) => (
             <div
               key={pet.id}
               className={cn(
-                "card-surface overflow-hidden",
+                "w-full overflow-hidden rounded-md bg-card shadow-[var(--shadow-card)]",
                 pet.id === activePetId && "ring-2 ring-primary/60",
               )}
             >
@@ -131,7 +131,7 @@ function PetsScreen() {
 
           <Link
             to="/pets/new"
-            className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/40 py-6 text-sm font-semibold text-primary"
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-primary/40 py-6 text-sm font-semibold text-primary"
           >
             <PawPrint className="size-5" /> Add a new pet
           </Link>
