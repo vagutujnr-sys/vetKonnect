@@ -200,10 +200,10 @@ function Profile() {
       ];
 
   return (
-    <AppShell>
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ScreenHeader title="Profile" />
 
-      <section className="mx-5 card-surface flex items-center gap-4 p-5">
+      <section className="flex items-center gap-4 rounded-md bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="relative shrink-0">
           {user.avatarUrl ? (
             <img
@@ -272,7 +272,7 @@ function Profile() {
             {user.countryCode} {user.phone || "—"}
           </p>
           <p className="mt-1 flex items-center gap-1 text-xs text-primary">
-            <Lock className="size-3.5" /> Device-bound account
+            <Lock className="size-3.5" /> Signed in with your PIN
           </p>
           <button
             type="button"
@@ -287,7 +287,7 @@ function Profile() {
 
       {!isVetAccount(user) ? (
         <>
-          <section className="mx-5 mt-4 border border-border bg-card p-5">
+          <section className="mt-2 rounded-md border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -357,7 +357,7 @@ function Profile() {
         </>
       ) : (
         <>
-          <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
+          <section className="mt-2 rounded-md border border-border bg-card p-5">
             <div className="flex items-center gap-3">
               <Stethoscope className="size-6 text-primary" />
               <div className="flex-1">
@@ -372,7 +372,7 @@ function Profile() {
             </div>
           </section>
 
-          <section className="mx-5 mt-4 rounded-2xl border border-border bg-card p-5">
+          <section className="mt-2 rounded-md border border-border bg-card p-5">
             <div className="flex items-start gap-3">
               <Building2 className="mt-0.5 size-5 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
@@ -471,7 +471,7 @@ function Profile() {
         </>
       )}
 
-      <div className="mx-5 mt-4 card-surface divide-y divide-border">
+      <div className="mt-2 divide-y divide-border rounded-md bg-card shadow-[var(--shadow-card)]">
         {rows.map(({ icon: Icon, label, value, to }) => (
           <Link key={label} to={to} className="flex items-center gap-3 px-4 py-4">
             <Icon className="size-5 text-primary" />
@@ -493,7 +493,7 @@ function Profile() {
       <Button
         variant="outline"
         size="lg"
-        className="mx-5 my-4 gap-2 text-destructive"
+        className="my-4 w-full rounded-md gap-2 text-destructive"
         onClick={async () => {
           await signOut();
           void navigate({ to: "/register" });

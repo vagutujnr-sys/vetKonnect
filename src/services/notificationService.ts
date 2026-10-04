@@ -51,9 +51,10 @@ function notificationAvatarNode(title: string, imageUrl?: string | null) {
 /** In-app toast + sound + optional OS notification for a newly arrived alert. */
 export function presentIncomingNotification(
   note: Pick<AppNotification, "title" | "body" | "type" | "imageUrl">,
+  options?: { force?: boolean },
 ) {
   if (typeof window === "undefined") return;
-  if (!notificationsAllowedLocally()) return;
+  if (!options?.force && !notificationsAllowedLocally()) return;
 
   playNotificationSound();
   toast(note.title, {
@@ -124,8 +125,10 @@ export async function createNotification(input: {
   imageUrl?: string | null;
   /** Look up avatar_url from this account id when imageUrl is not passed. */
   actorAccountId?: string | null;
-  /** Present toast/sound on this device even if the note is for another account (admin testing). */
+  /** Present toast/sound even if this browser is not signed in as that account. */
   presentLocally?: boolean;
+  /** Show the alert even when in-app notifications are paused. */
+  forcePresent?: boolean;
 }): Promise<AppNotification | null> {
   const accountId = input.accountId ?? getSessionAccountId();
   if (!accountId) {
@@ -166,9 +169,9 @@ export async function createNotification(input: {
 
   const mapped = mapNotification(data as Record<string, unknown>);
   if (!mapped.imageUrl && imageUrl) mapped.imageUrl = imageUrl;
-  const isForThisDevice = accountId === getSessionAccountId();
-  if (isForThisDevice || input.presentLocally) {
-    presentIncomingNotification(mapped);
+  const isForThisAccount = accountId === getSessionAccountId();
+  if (isForThisAccount || input.presentLocally) {
+    presentIncomingNotification(mapped, { force: input.forcePresent });
   }
 
   return mapped;

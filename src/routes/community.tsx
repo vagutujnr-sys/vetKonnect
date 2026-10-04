@@ -1,17 +1,20 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
+  Clapperboard,
   Eye,
+  BadgeCheck,
   Heart,
   ImagePlus,
   MessageCircle,
-  MoreHorizontal,
   Plus,
   Share2,
+  Trash2,
   Video,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CommentThread } from "@/components/community/CommentThread";
 import { ImageLightbox } from "@/components/community/ImageLightbox";
 import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
@@ -19,8 +22,11 @@ import { useApp } from "@/hooks/useApp";
 import {
   addComment,
   createPost,
+  deletePost,
   getComments,
+  getCommentsForPosts,
   getPosts,
+  recordPostView,
   toggleLike,
   uploadCommunityMedia,
 } from "@/services/contentService";
@@ -36,8 +42,14 @@ export const Route = createFileRoute("/community")({
       { property: "og:description", content: "Connect with animal lovers and learn from veterinary professionals." },
     ],
   }),
-  component: Community,
+  component: CommunityPage,
 });
+
+function CommunityPage() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname !== "/community") return <Outlet />;
+  return <Community />;
+}
 
 const filters = ["All", "Story", "Education", "Rescue", "Breeding"] as const;
 const PAGE_SIZE = 6;
@@ -46,6 +58,7 @@ function Community() {
   const { user } = useApp();
   const [filter, setFilter] = useState<(typeof filters)[number]>("All");
   const [postsData, setPostsData] = useState<CommunityPost[]>([]);
+  const [threadComments, setThreadComments] = useState<Record<string, CommunityComment[]>>({});
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -61,9 +74,12 @@ function Community() {
   const [mediaType, setMediaType] = useState<MediaType>("none");
   const [busy, setBusy] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingLock = useRef(false);
+  const countedViews = useRef(new Set<string>());
 
   const loadPage = useCallback(async (nextOffset: number, replace = false) => {
     if (loadingLock.current) return;
@@ -71,7 +87,13 @@ function Community() {
     setLoadingMore(true);
     try {
       const batch = await getPosts({ limit: PAGE_SIZE, offset: nextOffset });
+      const comments = await getCommentsForPosts(batch.map((post) => post.id)).catch(() => [] as CommunityComment[]);
       setPostsData((prev) => (replace ? batch : [...prev, ...batch]));
+      setThreadComments((prev) => {
+        const next = replace ? {} : { ...prev };
+        for (const post of batch) next[post.id] = comments.filter((comment) => comment.postId === post.id);
+        return next;
+      });
       setOffset(nextOffset + batch.length);
       setHasMore(batch.length === PAGE_SIZE);
     } catch (error) {
@@ -109,7 +131,10 @@ function Community() {
       return;
     }
     void getComments(activeCommentsPost)
-      .then(setComments)
+      .then((next) => {
+        setComments(next);
+        setThreadComments((prev) => ({ ...prev, [activeCommentsPost]: next }));
+      })
       .catch((error) => {
         console.error(error);
         toast.error("Could not load comments");
@@ -166,6 +191,35 @@ function Community() {
     }
   };
 
+  const removePost = async (post: CommunityPost) => {
+    if (!user.id || post.authorId !== user.id) return;
+    setDeletingId(post.id);
+    try {
+      await deletePost(post.id);
+      setPostsData((prev) => prev.filter((item) => item.id !== post.id));
+      setConfirmDeleteId(null);
+      if (activeCommentsPost === post.id) setActiveCommentsPost(null);
+      toast.success("Post deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete that post");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const countVideoView = async (post: CommunityPost) => {
+    if (countedViews.current.has(post.id)) return;
+    countedViews.current.add(post.id);
+    try {
+      const viewed = await recordPostView(post.id, user.fullName);
+      if (!viewed) return;
+      setPostsData((prev) => prev.map((item) => (item.id === post.id ? { ...item, views: viewed.views } : item)));
+    } catch (error) {
+      countedViews.current.delete(post.id);
+      console.error(error);
+    }
+  };
+
   const sharePost = async (post: CommunityPost) => {
     const url = `${window.location.origin}/community/${post.id}`;
     try {
@@ -181,56 +235,114 @@ function Community() {
   };
 
   return (
-    <AppShell>
-      <ScreenHeader title="Community" subtitle="Learn, share and support animals near you." />
-
-      <div className="flex gap-2 overflow-x-auto px-5 pb-4">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              "cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors",
-              filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-            )}
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ScreenHeader
+        title="Community"
+        subtitle="Learn, share and support animals near you."
+        action={
+          <Link
+            to="/community/clips"
+            aria-label="Clips"
+            className="flex size-10 items-center justify-center"
           >
-            {f}
-          </button>
-        ))}
-      </div>
+            <Clapperboard className="size-5" />
+          </Link>
+        }
+      >
+        <div className="mt-2 flex gap-1.5 overflow-x-auto">
+          {filters.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "cursor-pointer whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors",
+                filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </ScreenHeader>
 
-      <div className="space-y-4 px-5 pb-28">
-        {initialLoading ? <p className="text-sm text-muted-foreground">Loading posts…</p> : null}
+      <div className="space-y-2 pb-8">
+        {initialLoading ? <p className="px-5 text-sm text-muted-foreground">Loading posts…</p> : null}
         {!initialLoading && posts.length === 0 ? (
-          <div className="card-surface p-8 text-center">
+          <div className="mx-5 rounded-md bg-card p-8 text-center shadow-[var(--shadow-card)]">
             <p className="font-bold">No posts in this category yet</p>
             <p className="mt-1 text-sm text-muted-foreground">Be the first to share something.</p>
           </div>
         ) : null}
 
-        {posts.map((post) => (
-          <article key={post.id} className="card-surface overflow-hidden animate-in fade-in duration-300">
-            <Link to="/community/$postId" params={{ postId: post.id }} className="block">
-              <div className="flex items-center gap-3 p-4">
-                <div className="flex size-10 items-center justify-center rounded-full bg-accent font-bold text-primary">
+        {posts.map((post) => {
+          const ownsPost = Boolean(user.id && post.authorId === user.id);
+          return (
+          <article key={post.id} className="overflow-hidden rounded-md bg-card shadow-[var(--shadow-card)] animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 p-4">
+              <Link to="/community/$postId" params={{ postId: post.id }} className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent font-bold text-primary">
                   {(post.author || "V").charAt(0)}
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold">{post.author}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="flex min-w-0 items-center gap-1 truncate text-sm font-semibold">
+                    {post.authorPremium ? (
+                      <BadgeCheck className="size-3.5 shrink-0 text-primary" aria-label="Premium" />
+                    ) : null}
+                    <span className="truncate">{post.author}</span>
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {post.timeAgo} · {post.location}
                   </p>
                 </div>
-                <span className="rounded-full bg-accent px-3 py-1 text-[11px] font-semibold text-accent-foreground">
-                  {post.tag}
-                </span>
-                <MoreHorizontal className="size-5 text-muted-foreground" />
+              </Link>
+              <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-semibold text-accent-foreground">
+                {post.tag}
+              </span>
+              {ownsPost ? (
+                <button
+                  type="button"
+                  aria-label="Delete post"
+                  onClick={() => setConfirmDeleteId(post.id)}
+                  className="flex size-8 items-center justify-center rounded-full text-muted-foreground"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              ) : null}
+            </div>
+            {confirmDeleteId === post.id ? (
+              <div className="flex items-center justify-between gap-3 px-4 pb-3">
+                <p className="text-sm font-medium">Delete this post?</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="rounded-full bg-muted px-3 py-1 text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deletingId === post.id}
+                    onClick={() => void removePost(post)}
+                    className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+                  >
+                    {deletingId === post.id ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
               </div>
+            ) : null}
+            <Link to="/community/$postId" params={{ postId: post.id }} className="block">
               <p className="px-4 pb-3 text-sm leading-relaxed">{post.body}</p>
             </Link>
 
             {post.mediaType === "video" && post.videoUrl ? (
-              <video src={post.videoUrl} controls className="max-h-80 w-full bg-black object-contain" />
+              <video
+                src={post.videoUrl}
+                controls
+                playsInline
+                onPlay={() => void countVideoView(post)}
+                className="max-h-80 w-full bg-black object-contain"
+              />
             ) : post.imageUrl ? (
               <button type="button" className="block w-full" onClick={() => setLightbox(post.imageUrl)}>
                 <img src={post.imageUrl} alt="" loading="lazy" className="h-56 w-full object-cover" />
@@ -249,7 +361,7 @@ function Community() {
                 }}
                 className="flex cursor-pointer items-center gap-1.5"
               >
-                <Heart className={cn("size-5", post.likedByMe && "fill-primary text-primary")} />
+                <Heart className={cn("size-5", post.likedByMe && "fill-red-500 text-red-500")} />
                 {post.likes}
               </button>
               <button
@@ -265,8 +377,25 @@ function Community() {
                 <Share2 className="size-5" />
               </button>
             </div>
+            <CommentThread
+              postId={post.id}
+              comments={threadComments[post.id] ?? []}
+              authorName={user.fullName || "VetKonnect member"}
+              limit={2}
+              className="px-4 pb-3"
+              onCommented={(created) => {
+                setThreadComments((prev) => ({
+                  ...prev,
+                  [post.id]: [...(prev[post.id] ?? []), created],
+                }));
+                setPostsData((prev) =>
+                  prev.map((item) => (item.id === post.id ? { ...item, comments: item.comments + 1 } : item)),
+                );
+              }}
+            />
           </article>
-        ))}
+          );
+        })}
 
         <div ref={sentinelRef} className="h-8 w-full" />
         {loadingMore ? <p className="pb-4 text-center text-sm text-muted-foreground">Loading more…</p> : null}
@@ -277,7 +406,7 @@ function Community() {
 
       <button
         onClick={() => setComposerOpen(true)}
-        className="fixed bottom-28 right-[max(1.25rem,calc(50%-12.5rem+1.25rem))] z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform hover:scale-105"
+        className="fixed bottom-[calc(7.2rem+env(safe-area-inset-bottom))] right-[max(0.75rem,calc(50%-215px+0.75rem))] z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-float)] transition-transform hover:scale-105"
         aria-label="Create post"
       >
         <Plus className="size-7" />
@@ -363,16 +492,27 @@ function Community() {
                 <X className="size-5" />
               </button>
             </div>
-            <div className="mt-4 flex-1 space-y-3 overflow-y-auto">
+            <div className="mt-4 flex-1 overflow-y-auto">
               {comments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Be the first to comment.</p>
               ) : (
-                comments.map((c) => (
-                  <div key={c.id} className="rounded-2xl bg-accent/40 p-3">
-                    <p className="text-sm font-semibold">{c.authorName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{c.body}</p>
-                  </div>
-                ))
+                <CommentThread
+                  postId={activeCommentsPost}
+                  comments={comments}
+                  authorName={user.fullName || "VetKonnect member"}
+                  onCommented={(created) => {
+                    setComments((prev) => [...prev, created]);
+                    setThreadComments((prev) => ({
+                      ...prev,
+                      [activeCommentsPost]: [...(prev[activeCommentsPost] ?? []), created],
+                    }));
+                    setPostsData((prev) =>
+                      prev.map((item) =>
+                        item.id === activeCommentsPost ? { ...item, comments: item.comments + 1 } : item,
+                      ),
+                    );
+                  }}
+                />
               )}
             </div>
             <div className="mt-4 flex gap-2">
@@ -393,6 +533,10 @@ function Community() {
                       user.fullName || "VetKonnect member",
                     );
                     setComments((prev) => [...prev, created]);
+                    setThreadComments((prev) => ({
+                      ...prev,
+                      [activeCommentsPost]: [...(prev[activeCommentsPost] ?? []), created],
+                    }));
                     setCommentDraft("");
                     setPostsData((prev) =>
                       prev.map((p) => (p.id === activeCommentsPost ? { ...p, comments: p.comments + 1 } : p)),

@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LogoMark } from "@/components/brand/Logo";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
 import { getAppHomePath } from "@/lib/account";
@@ -66,7 +66,9 @@ function NotificationsPage() {
 
   return (
     <AppShell>
-      <header className="flex items-center gap-3 px-5 pb-4 pt-8">
+      <header
+        className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
+      >
         <Link
           to={homePath}
           className="flex size-10 items-center justify-center rounded-full border border-border"

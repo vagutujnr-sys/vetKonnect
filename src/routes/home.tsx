@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import { CalendarPlus, CalendarDays, FilePlus2, HeartPulse, MapPin, MessageCircle, Heart, PawPrint, Phone, QrCode, ShieldPlus, Weight, Pill, ChevronRight } from "lucide-react";
-import { AppShell } from "@/components/layout/AppShell";
+import { BadgeCheck, CalendarPlus, CalendarDays, FilePlus2, HeartPulse, MapPin, MessageCircle, Heart, PawPrint, Phone, QrCode, ShieldPlus, Weight, Pill, ChevronRight } from "lucide-react";
+import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { HeaderAlerts } from "@/components/layout/HeaderAlerts";
 import { Button } from "@/components/ui/button";
 import { getPosts, getServices } from "@/services/contentService";
@@ -47,8 +47,10 @@ function HomeScreen() {
   const firstName = user.fullName?.split(" ")[0] || "there";
 
   return (
-    <AppShell>
-      <header className="flex items-start justify-between px-5 pt-8">
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <header
+        className={`${appHeaderClass} flex items-start justify-between px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
+      >
         <div>
           <h1 className="text-[22px] font-extrabold">
             Hie, <span className="text-primary">{firstName}</span>
@@ -66,7 +68,7 @@ function HomeScreen() {
       </header>
 
       {pet ? (
-        <section className="mx-5 mt-5 card-surface p-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <section className="mt-5 rounded-md bg-card p-4 shadow-[var(--shadow-card)] animate-in fade-in slide-in-from-bottom-2 duration-500">
           <div className="flex gap-4">
             <img
               src={pet.photoUrl || undefined}
@@ -106,7 +108,7 @@ function HomeScreen() {
           </Link>
         </section>
       ) : (
-        <section className="mx-5 mt-5 overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-accent/80 to-card p-6 text-center shadow-[var(--shadow-card)] animate-in fade-in zoom-in-95 duration-500">
+        <section className="mt-5 overflow-hidden rounded-md border border-primary/15 bg-gradient-to-br from-accent/80 to-card p-6 text-center shadow-[var(--shadow-card)] animate-in fade-in zoom-in-95 duration-500">
           <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-brand)]">
             <PawPrint className="size-8" />
           </span>
@@ -122,14 +124,14 @@ function HomeScreen() {
 
       <section className="mt-6">
         <h3 className="px-5 text-lg font-bold">Quick Actions</h3>
-        <div className="mt-3 flex gap-3 overflow-x-auto px-5 pb-2">
+        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
           {quickActions.map(({ label, icon: Icon, to }) => {
             const isQr = label === "Scan QR";
             return (
               <Link
                 key={label}
                 to={to}
-                className="flex w-[124px] shrink-0 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card p-4 text-center shadow-[var(--shadow-card)] transition-transform duration-300 hover:-translate-y-0.5"
+                className="flex w-[124px] shrink-0 flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card p-4 text-center shadow-[var(--shadow-card)] transition-transform duration-300 hover:-translate-y-0.5"
               >
                 <Icon className={cn("text-primary", isQr ? "size-10" : "size-6")} />
                 {!isQr ? <span className="text-sm font-semibold leading-tight">{label}</span> : null}
@@ -139,7 +141,7 @@ function HomeScreen() {
         </div>
       </section>
 
-      <section className="mx-5 mt-4 flex items-center gap-4 rounded-2xl bg-accent/50 p-4">
+      <section className="mt-4 flex items-center gap-4 rounded-md bg-accent/50 p-4">
         <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-card">
           <CalendarDays className="size-5 text-primary" />
         </span>
@@ -162,12 +164,12 @@ function HomeScreen() {
             View All <ChevronRight className="size-4" />
           </Link>
         </div>
-        <div className="mt-3 flex gap-3 overflow-x-auto px-5 pb-2">
+        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
           {services.map((s) => (
             <Link
               key={s.id}
               to="/discover"
-              className="w-[160px] shrink-0 overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]"
+              className="w-[160px] shrink-0 overflow-hidden rounded-md border border-border bg-card shadow-[var(--shadow-card)]"
             >
               {s.imageUrl ? (
                 <img src={s.imageUrl} alt={s.name} loading="lazy" className="h-24 w-full object-cover" />
@@ -194,9 +196,9 @@ function HomeScreen() {
             View All <ChevronRight className="size-4" />
           </Link>
         </div>
-        <div className="mx-5 mt-3 space-y-3">
+        <div className="mt-3 space-y-2">
           {posts.slice(0, 2).map((post) => (
-            <article key={post.id} className="flex gap-3 card-surface p-3">
+            <article key={post.id} className="flex gap-3 rounded-md bg-card p-3 shadow-[var(--shadow-card)]">
               {post.imageUrl ? (
                 <img src={post.imageUrl} alt="" loading="lazy" className="size-20 rounded-xl object-cover" />
               ) : (
@@ -205,8 +207,12 @@ function HomeScreen() {
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">
-                  {post.author} <span className="font-normal text-muted-foreground">· {post.timeAgo}</span>
+                <p className="flex min-w-0 items-center gap-1 text-sm font-semibold">
+                  {post.authorPremium ? (
+                    <BadgeCheck className="size-3.5 shrink-0 text-primary" aria-label="Premium" />
+                  ) : null}
+                  <span className="truncate">{post.author}</span>
+                  <span className="shrink-0 font-normal text-muted-foreground">· {post.timeAgo}</span>
                 </p>
                 <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{post.body}</p>
                 <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
@@ -223,7 +229,7 @@ function HomeScreen() {
         </div>
       </section>
 
-      <section className="mx-5 my-6 flex items-center gap-3 rounded-2xl bg-primary p-4 text-primary-foreground">
+      <section className="my-6 flex items-center gap-3 rounded-md bg-primary p-4 text-primary-foreground">
         <span className="flex size-10 items-center justify-center rounded-full bg-primary-foreground/15">
           <ShieldPlus className="size-5" />
         </span>

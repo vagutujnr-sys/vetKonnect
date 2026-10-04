@@ -136,8 +136,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       }
 
       const user = getCachedUser() ?? (await getUser());
-      if (!isAppReadyUser(user)) {
+      if (!user.id || user.blocked) {
         throw redirect({ to: "/register" });
+      }
+      if (!isAppReadyUser(user)) {
+        throw redirect({ to: "/modules" });
       }
     } catch (error) {
       // Preserve TanStack redirects / notFound throws.

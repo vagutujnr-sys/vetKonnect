@@ -118,7 +118,7 @@ function ImpactScreen() {
           ) : null}
 
           {selected ? (
-            <div className="absolute inset-x-3 bottom-28 z-20 rounded-2xl border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
+            <div className="absolute inset-x-3 bottom-4 z-20 rounded-2xl border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
               <div className="flex items-start gap-3">
                 {selected.avatarUrl ? (
                   <img

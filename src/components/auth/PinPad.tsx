@@ -14,24 +14,29 @@ type Props = {
 
 export function PinPad({ value, onChange, disabled, error }: Props) {
   const latest = useRef(value);
+  const onChangeRef = useRef(onChange);
+  const disabledRef = useRef(disabled);
+  onChangeRef.current = onChange;
+  disabledRef.current = disabled;
+
   useEffect(() => {
     if (value !== "" && latest.current.startsWith(value) && value.length < latest.current.length) return;
     latest.current = value;
   }, [value]);
 
   const press = (key: string) => {
-    if (disabled) return;
+    if (disabledRef.current) return;
     const current = latest.current;
     if (key === "back") {
       const next = current.slice(0, -1);
       latest.current = next;
-      onChange(next);
+      onChangeRef.current(next);
       return;
     }
     if (!key || current.length >= PIN_LENGTH) return;
     const next = `${current}${key}`;
     latest.current = next;
-    onChange(next);
+    onChangeRef.current(next);
   };
 
   useEffect(() => {
@@ -48,7 +53,7 @@ export function PinPad({ value, onChange, disabled, error }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-[22rem] rounded-[28px] bg-gradient-to-b from-accent to-card px-3 pb-3 pt-4 ring-1 ring-border/80">

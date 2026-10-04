@@ -41,15 +41,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePetId, setActivePetId] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
+  const sessionEpoch = useRef(0);
 
   const refreshSession = useCallback(async () => {
     if (refreshInFlight.current) return refreshInFlight.current;
+    const epoch = sessionEpoch.current;
     refreshInFlight.current = (async () => {
       try {
         const u = await userService.getUser();
+        if (epoch !== sessionEpoch.current) return;
         setUser(u);
         if (u.id) {
           const p = await petService.getPets(u.id);
+          if (epoch !== sessionEpoch.current) return;
           setPets(p);
           setActivePetId((prev) =>
             prev && p.some((pet) => pet.id === prev) ? prev : (p[0]?.id ?? null),
@@ -68,6 +72,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const acceptAuthenticatedUser = useCallback((authenticatedUser: UserProfile) => {
+    sessionEpoch.current += 1;
     setUser(authenticatedUser);
     setPets([]);
     setActivePetId(null);

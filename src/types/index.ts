@@ -146,15 +146,18 @@ export interface CommunityPost {
   tag: "Story" | "Education" | "Rescue" | "Breeding";
   likedByMe?: boolean;
   createdAt?: string;
+  authorPremium?: boolean;
 }
 
 export interface CommunityComment {
   id: string;
   postId: string;
+  parentId?: string | null;
   accountId: string;
   authorName: string;
   body: string;
   createdAt: string;
+  authorPremium?: boolean;
 }
 
 export interface AppNotification {
@@ -180,6 +183,43 @@ export interface ServiceListing {
   longitude: number;
   open: boolean;
   imageUrl: string;
+}
+
+export type HerdSpecies = "Cattle" | "Goats" | "Sheep" | "Pigs" | "Poultry" | "Other";
+export type HerdAnimalSex = "Male" | "Female" | "Unknown";
+export type HerdHealthStatus = "Healthy" | "Sick" | "Under Care";
+
+export interface HerdAnimal {
+  id: string;
+  herdId: string;
+  ownerId: string;
+  tagNumber: string;
+  sex: HerdAnimalSex;
+  healthStatus: HerdHealthStatus;
+  notes: string;
+  createdAt: string;
+}
+
+export interface HerdTreatment {
+  id: string;
+  herdId: string;
+  animalId: string | null;
+  title: string;
+  detail: string;
+  createdAt: string;
+}
+
+export interface Herd {
+  id: string;
+  ownerId: string;
+  name: string;
+  species: string;
+  location: string;
+  notes: string;
+  photoUrl: string;
+  createdAt: string;
+  animals: HerdAnimal[];
+  treatments: HerdTreatment[];
 }
 
 export interface HerdTag {

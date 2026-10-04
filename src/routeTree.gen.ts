@@ -38,6 +38,7 @@ import { Route as CallCallIdRouteImport } from './routes/call.$callId'
 import { Route as CertificateCodeRouteImport } from './routes/certificate.$code'
 import { Route as ChatsConversationIdRouteImport } from './routes/chats_.$conversationId'
 import { Route as CommunityPostIdRouteImport } from './routes/community.$postId'
+import { Route as CommunityClipsRouteImport } from './routes/community.clips'
 import { Route as PatientsPetIdRouteImport } from './routes/patients.$petId'
 import { Route as PetsIndexRouteImport } from './routes/pets.index'
 import { Route as PetsPetIdRouteImport } from './routes/pets.$petId'
@@ -191,6 +192,11 @@ const CommunityPostIdRoute = CommunityPostIdRouteImport.update({
   path: '/$postId',
   getParentRoute: () => CommunityRoute,
 } as any)
+const CommunityClipsRoute = CommunityClipsRouteImport.update({
+  id: '/clips',
+  path: '/clips',
+  getParentRoute: () => CommunityRoute,
+} as any)
 const PatientsPetIdRoute = PatientsPetIdRouteImport.update({
   id: '/$petId',
   path: '/$petId',
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/certificate/$code': typeof CertificateCodeRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
+  '/community/clips': typeof CommunityClipsRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
@@ -295,6 +302,7 @@ export interface FileRoutesByTo {
   '/certificate/$code': typeof CertificateCodeRoute
   '/chats/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
+  '/community/clips': typeof CommunityClipsRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   '/certificate/$code': typeof CertificateCodeRoute
   '/chats_/$conversationId': typeof ChatsConversationIdRoute
   '/community/$postId': typeof CommunityPostIdRoute
+  '/community/clips': typeof CommunityClipsRoute
   '/patients/$petId': typeof PatientsPetIdRoute
   '/pets/$petId': typeof PetsPetIdRoute
   '/pets/new': typeof PetsNewRoute
@@ -374,6 +383,7 @@ export interface FileRouteTypes {
     | '/certificate/$code'
     | '/chats/$conversationId'
     | '/community/$postId'
+    | '/community/clips'
     | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
@@ -412,6 +422,7 @@ export interface FileRouteTypes {
     | '/certificate/$code'
     | '/chats/$conversationId'
     | '/community/$postId'
+    | '/community/clips'
     | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
@@ -450,6 +461,7 @@ export interface FileRouteTypes {
     | '/certificate/$code'
     | '/chats_/$conversationId'
     | '/community/$postId'
+    | '/community/clips'
     | '/patients/$petId'
     | '/pets/$petId'
     | '/pets/new'
@@ -701,6 +713,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunityPostIdRouteImport
       parentRoute: typeof CommunityRoute
     }
+    '/community/clips': {
+      id: '/community/clips'
+      path: '/clips'
+      fullPath: '/community/clips'
+      preLoaderRoute: typeof CommunityClipsRouteImport
+      parentRoute: typeof CommunityRoute
+    }
     '/patients/$petId': {
       id: '/patients/$petId'
       path: '/$petId'
@@ -755,10 +774,12 @@ declare module '@tanstack/react-router' {
 
 interface CommunityRouteChildren {
   CommunityPostIdRoute: typeof CommunityPostIdRoute
+  CommunityClipsRoute: typeof CommunityClipsRoute
 }
 
 const CommunityRouteChildren: CommunityRouteChildren = {
   CommunityPostIdRoute: CommunityPostIdRoute,
+  CommunityClipsRoute: CommunityClipsRoute,
 }
 
 const CommunityRouteWithChildren = CommunityRoute._addFileChildren(

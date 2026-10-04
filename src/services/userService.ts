@@ -1,7 +1,7 @@
 import type { AccountType, ModuleId, UserProfile } from "@/types";
 import { isAppReadyUser } from "@/lib/account";
 import { getDeviceId } from "@/lib/device";
-import { createPinHash, isPin, verifyPinHash } from "@/lib/pin";
+import { createPinHash, isLegacyPinHash, isPin, verifyPinHash } from "@/lib/pin";
 import { withTimeout } from "@/lib/timeout";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
@@ -177,14 +177,14 @@ export async function getUser(): Promise<UserProfile> {
   }
 
   if (!data) {
-    setSessionAccountId(null);
+    if (getSessionAccountId() === sessionId) setSessionAccountId(null);
     return defaultUser;
   }
 
   const account = mapAccount(data as Record<string, unknown>);
 
   if (account.blocked) {
-    setSessionAccountId(null);
+    if (getSessionAccountId() === sessionId) setSessionAccountId(null);
     return defaultUser;
   }
 
@@ -354,8 +354,6 @@ export async function requestAccessCode(
       country_code: countryCode,
       otp_code: null,
       otp_expires_at: null,
-      bound_device_id: null,
-      device_bound_at: null,
       updated_at: new Date().toISOString(),
     };
     if (registerAsVet) {
@@ -391,8 +389,6 @@ export async function requestAccessCode(
       vet_verified: false,
       otp_code: null,
       otp_expires_at: null,
-      bound_device_id: null,
-      device_bound_at: null,
     })
     .select("*")
     .single();
@@ -409,6 +405,13 @@ export async function requestAccessCode(
   };
 }
 
+export class IncorrectPinError extends Error {
+  constructor() {
+    super("Incorrect PIN. Try again.");
+    this.name = "IncorrectPinError";
+  }
+}
+
 function pinColumnError(error: { message?: string }): Error {
   const message = String(error.message ?? "");
   if (message.toLowerCase().includes("pin_hash")) {
@@ -417,6 +420,12 @@ function pinColumnError(error: { message?: string }): Error {
     );
   }
   return error instanceof Error ? error : new Error(message || "Could not save the PIN.");
+}
+
+function rememberSession(user: UserProfile) {
+  if (!user.id) throw new Error("Could not start your session. Try again.");
+  setSessionAccountId(user.id);
+  cacheSessionProfile(user);
 }
 
 /** Create the 5-digit PIN for a new account, or an older account that never had one. */
@@ -444,7 +453,12 @@ export async function setAccountPin(input: {
   if (fullName.length < 2) throw new Error("Enter your name.");
   const isVet = String(data.account_type ?? "owner") === "vet";
   const pinHash = await createPinHash(input.pin);
-  const { data: updated, error: updateError } = await withTimeout(
+  const vetModules =
+    Array.isArray(data.modules) && (data.modules as unknown[]).length
+      ? data.modules
+      : ["community", "tips"];
+  const practiceName = String(data.practice_name ?? "").trim() || `${fullName}'s Practice`;
+  const { error: updateError } = await withTimeout(
     supabase
       .from("accounts")
       .update({
@@ -452,31 +466,33 @@ export async function setAccountPin(input: {
         pin_hash: pinHash,
         otp_code: null,
         otp_expires_at: null,
-        bound_device_id: null,
-        device_bound_at: null,
         ...(isVet
           ? {
               onboarded: true,
-              modules:
-                Array.isArray(data.modules) && (data.modules as unknown[]).length
-                  ? data.modules
-                  : ["community", "tips"],
-              practice_name: String(data.practice_name ?? "").trim() || `${fullName}'s Practice`,
+              modules: vetModules,
+              practice_name: practiceName,
             }
           : {}),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", input.accountId)
-      .select("*")
-      .single(),
-    10000,
+      .eq("id", input.accountId),
+    8000,
     "PIN save",
   );
 
   if (updateError) throw pinColumnError(updateError);
-  const user = mapAccount(updated as Record<string, unknown>);
-  setSessionAccountId(String(updated.id));
-  cacheSessionProfile(user);
+  const user = mapAccount({
+    ...(data as Record<string, unknown>),
+    full_name: fullName,
+    ...(isVet
+      ? {
+          onboarded: true,
+          modules: vetModules,
+          practice_name: practiceName,
+        }
+      : {}),
+  });
+  rememberSession(user);
   return user;
 }
 
@@ -502,26 +518,25 @@ export async function verifyAccountPin(input: {
   const stored = String(data.pin_hash ?? "").trim();
   if (!stored) throw new Error("This account does not have a PIN yet.");
   const ok = await verifyPinHash(input.pin, stored);
-  if (!ok) throw new Error("Incorrect PIN. Try again.");
+  if (!ok) throw new IncorrectPinError();
 
   const user = mapAccount(data as Record<string, unknown>);
-  setSessionAccountId(String(data.id));
-  cacheSessionProfile(user);
+  rememberSession(user);
 
-  void withTimeout(
-    supabase
-      .from("accounts")
-      .update({
-        bound_device_id: null,
-        device_bound_at: null,
-        otp_code: null,
-        otp_expires_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.accountId),
-    5000,
-    "Session cleanup",
-  ).catch((error) => console.warn("Could not finish optional sign-in cleanup", error));
+  if (isLegacyPinHash(stored)) {
+    void (async () => {
+      try {
+        const pinHash = await createPinHash(input.pin);
+        const { error: refreshError } = await supabase
+          .from("accounts")
+          .update({ pin_hash: pinHash, updated_at: new Date().toISOString() })
+          .eq("id", input.accountId);
+        if (refreshError) console.warn("Could not refresh stored PIN", refreshError);
+      } catch (refreshError) {
+        console.warn("Could not refresh stored PIN", refreshError);
+      }
+    })();
+  }
 
   return user;
 }

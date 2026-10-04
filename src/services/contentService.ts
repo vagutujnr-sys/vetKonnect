@@ -42,11 +42,48 @@ function mapCommentRow(row: Record<string, unknown>): CommunityComment {
   return {
     id: String(row.id),
     postId: String(row.post_id),
+    parentId: row.parent_id ? String(row.parent_id) : null,
     accountId: String(row.account_id),
     authorName: String(row.author_name ?? ""),
     body: String(row.body ?? ""),
     createdAt: String(row.created_at ?? new Date().toISOString()),
   };
+}
+
+async function premiumAccountIds(accountIds: Array<string | undefined>): Promise<Set<string>> {
+  const ids = [...new Set(accountIds.filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return new Set();
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, breeders_club_member, breeders_club_status")
+    .in("id", ids);
+  if (error || !data) return new Set();
+  return new Set(
+    data
+      .filter((row) => Boolean(row.breeders_club_member) && row.breeders_club_status === "active")
+      .map((row) => String(row.id)),
+  );
+}
+
+async function withAuthorPremium(posts: CommunityPost[]): Promise<CommunityPost[]> {
+  const premium = await premiumAccountIds(posts.map((post) => post.authorId));
+  return posts.map((post) => ({
+    ...post,
+    authorPremium: Boolean(post.authorId && premium.has(post.authorId)),
+  }));
+}
+
+async function premiumPost(post: CommunityPost): Promise<CommunityPost> {
+  const [next] = await withAuthorPremium([post]);
+  return next ?? post;
+}
+
+async function withCommentPremium(comments: CommunityComment[]): Promise<CommunityComment[]> {
+  const premium = await premiumAccountIds(comments.map((comment) => comment.accountId));
+  return comments.map((comment) => ({
+    ...comment,
+    authorPremium: premium.has(comment.accountId),
+  }));
 }
 
 function mapServiceRow(row: Record<string, unknown>): ServiceListing {
@@ -74,7 +111,22 @@ export async function getPosts(options?: { limit?: number; offset?: number }): P
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
   if (error) throw error;
-  return (data ?? []).map((row) => mapPostRow(row as Record<string, unknown>, accountId));
+  return withAuthorPremium((data ?? []).map((row) => mapPostRow(row as Record<string, unknown>, accountId)));
+}
+
+export async function getVideoPosts(): Promise<CommunityPost[]> {
+  const accountId = getSessionAccountId();
+  const { data, error } = await supabase
+    .from("community_posts")
+    .select("*")
+    .eq("media_type", "video")
+    .order("created_at", { ascending: false })
+    .limit(40);
+  if (error) throw error;
+  const clips = (data ?? [])
+    .map((row) => mapPostRow(row as Record<string, unknown>, accountId))
+    .filter((post) => Boolean(post.videoUrl));
+  return withAuthorPremium(clips);
 }
 
 export async function getPostById(id: string): Promise<CommunityPost | null> {
@@ -82,7 +134,7 @@ export async function getPostById(id: string): Promise<CommunityPost | null> {
   const { data, error } = await supabase.from("community_posts").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  return mapPostRow(data as Record<string, unknown>, accountId);
+  return premiumPost(mapPostRow(data as Record<string, unknown>, accountId));
 }
 
 /** Record a unique view for the current account and notify the author when first read. */
@@ -101,7 +153,7 @@ export async function recordPostView(postId: string, viewerName?: string): Promi
       .select("*")
       .single();
     if (updateError) throw updateError;
-    return mapPostRow(data as Record<string, unknown>, null);
+    return premiumPost(mapPostRow(data as Record<string, unknown>, null));
   }
 
   const { data: existingView } = await supabase
@@ -112,7 +164,7 @@ export async function recordPostView(postId: string, viewerName?: string): Promi
     .maybeSingle();
 
   if (existingView) {
-    return mapPostRow(post as Record<string, unknown>, accountId);
+    return premiumPost(mapPostRow(post as Record<string, unknown>, accountId));
   }
 
   const { error: viewError } = await supabase.from("community_views").insert({
@@ -143,7 +195,7 @@ export async function recordPostView(postId: string, viewerName?: string): Promi
     });
   }
 
-  return mapPostRow(data as Record<string, unknown>, accountId);
+  return premiumPost(mapPostRow(data as Record<string, unknown>, accountId));
 }
 
 export async function uploadCommunityMedia(file: File): Promise<{ url: string; mediaType: MediaType }> {
@@ -210,7 +262,7 @@ export async function createPost(input: {
     type: "community",
   });
 
-  return mapPostRow(data as Record<string, unknown>, accountId);
+  return premiumPost(mapPostRow(data as Record<string, unknown>, accountId));
 }
 
 export async function toggleLike(postId: string): Promise<CommunityPost> {
@@ -233,7 +285,7 @@ export async function toggleLike(postId: string): Promise<CommunityPost> {
       .select("*")
       .single();
     if (updateError) throw updateError;
-    return mapPostRow(data as Record<string, unknown>, accountId);
+    return premiumPost(mapPostRow(data as Record<string, unknown>, accountId));
   }
 
   await supabase.from("community_likes").upsert(
@@ -258,7 +310,7 @@ export async function toggleLike(postId: string): Promise<CommunityPost> {
     });
   }
 
-  return mapPostRow(data as Record<string, unknown>, accountId);
+  return premiumPost(mapPostRow(data as Record<string, unknown>, accountId));
 }
 
 export async function getComments(postId: string): Promise<CommunityComment[]> {
@@ -268,16 +320,32 @@ export async function getComments(postId: string): Promise<CommunityComment[]> {
     .eq("post_id", postId)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []).map((row) => mapCommentRow(row as Record<string, unknown>));
+  return withCommentPremium((data ?? []).map((row) => mapCommentRow(row as Record<string, unknown>)));
 }
 
-export async function addComment(postId: string, body: string, authorName: string): Promise<CommunityComment> {
+export async function getCommentsForPosts(postIds: string[]): Promise<CommunityComment[]> {
+  if (!postIds.length) return [];
+  const { data, error } = await supabase
+    .from("community_comments")
+    .select("*")
+    .in("post_id", postIds)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return withCommentPremium((data ?? []).map((row) => mapCommentRow(row as Record<string, unknown>)));
+}
+
+export async function addComment(
+  postId: string,
+  body: string,
+  authorName: string,
+  parentId?: string | null,
+): Promise<CommunityComment> {
   const accountId = getSessionAccountId();
   if (!accountId) throw new Error("Log in to comment.");
   const text = body.trim();
   if (!text) throw new Error("Comment cannot be empty.");
 
-  const row = {
+  const row: Record<string, unknown> = {
     id: crypto.randomUUID(),
     post_id: postId,
     account_id: accountId,
@@ -285,9 +353,16 @@ export async function addComment(postId: string, body: string, authorName: strin
     body: text,
     created_at: new Date().toISOString(),
   };
+  if (parentId) row.parent_id = parentId;
 
   const { data, error } = await supabase.from("community_comments").insert(row).select("*").single();
-  if (error) throw error;
+  if (error) {
+    const message = `${error.message ?? ""}`.toLowerCase();
+    if (message.includes("parent_id")) {
+      throw new Error("Comment replies are not installed yet. Apply migration 029_comment_replies.sql in Supabase.");
+    }
+    throw error;
+  }
 
   const { data: post } = await supabase.from("community_posts").select("comments,author_id").eq("id", postId).maybeSingle();
   if (post) {
@@ -295,18 +370,33 @@ export async function addComment(postId: string, body: string, authorName: strin
       .from("community_posts")
       .update({ comments: Number(post.comments ?? 0) + 1 })
       .eq("id", postId);
+  }
 
-    if (post.author_id && String(post.author_id) !== accountId) {
+  if (parentId) {
+    const { data: parent } = await supabase
+      .from("community_comments")
+      .select("account_id")
+      .eq("id", parentId)
+      .maybeSingle();
+    if (parent?.account_id && String(parent.account_id) !== accountId) {
       await createNotification({
-        accountId: String(post.author_id),
-        title: "New comment",
-        body: `${authorName} commented on your post.`,
+        accountId: String(parent.account_id),
+        title: "New reply",
+        body: `${authorName} replied to your comment.`,
         type: "comment",
       });
     }
+  } else if (post?.author_id && String(post.author_id) !== accountId) {
+    await createNotification({
+      accountId: String(post.author_id),
+      title: "New comment",
+      body: `${authorName} commented on your post.`,
+      type: "comment",
+    });
   }
 
-  return mapCommentRow(data as Record<string, unknown>);
+  const [comment] = await withCommentPremium([mapCommentRow(data as Record<string, unknown>)]);
+  return comment ?? mapCommentRow(data as Record<string, unknown>);
 }
 
 export async function getServices(): Promise<ServiceListing[]> {
@@ -492,7 +582,29 @@ export async function updatePost(id: string, patch: Partial<CommunityPost>): Pro
 }
 
 export async function deletePost(id: string): Promise<void> {
-  const { error } = await supabase.from("community_posts").delete().eq("id", id);
+  const accountId = getSessionAccountId();
+  if (!accountId) throw new Error("Log in to delete a post.");
+
+  const { data: post, error: loadError } = await supabase
+    .from("community_posts")
+    .select("author_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadError) throw loadError;
+  if (!post) return;
+  if (String(post.author_id ?? "") !== accountId) {
+    throw new Error("Only the author can delete this post.");
+  }
+
+  for (const table of ["community_likes", "community_comments", "community_views"]) {
+    const { error } = await supabase.from(table).delete().eq("post_id", id);
+    if (!error) continue;
+    const message = `${error.message ?? ""}`.toLowerCase();
+    if (message.includes(table) || error.code === "PGRST205") continue;
+    throw error;
+  }
+
+  const { error } = await supabase.from("community_posts").delete().eq("id", id).eq("author_id", accountId);
   if (error) throw error;
 }
 

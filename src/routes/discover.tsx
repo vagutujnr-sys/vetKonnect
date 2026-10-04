@@ -216,7 +216,7 @@ function Discover() {
           </div>
 
           {selectedVet ? (
-            <div className="absolute inset-x-3 bottom-28 z-20 rounded-2xl border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
+            <div className="absolute inset-x-3 bottom-4 z-20 rounded-2xl border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-extrabold">{selectedVet.name}</p>
@@ -265,7 +265,7 @@ function Discover() {
               </div>
             </div>
           ) : !mapLoading && nearbyVets.length > 0 ? (
-            <div className="absolute inset-x-3 bottom-28 z-20 max-h-48 overflow-y-auto rounded-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur">
+            <div className="absolute inset-x-3 bottom-4 z-20 max-h-48 overflow-y-auto rounded-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur">
               {nearbyVets.map((vet, index) => (
                 <div
                   key={vet.id}

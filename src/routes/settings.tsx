@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Bell, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/hooks/useApp";
 import { playNotificationSound } from "@/lib/notificationSound";
@@ -23,7 +23,9 @@ function SettingsPage() {
 
   return (
     <AppShell>
-      <header className="flex items-center gap-3 px-5 pb-4 pt-8">
+      <header
+        className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
+      >
         <Link
           to="/profile"
           className="flex size-10 items-center justify-center rounded-full border border-border"
@@ -53,9 +55,7 @@ function SettingsPage() {
                   playNotificationSound({ force: true });
                   const permission = await requestBrowserNotificationPermission();
                   toast.success(
-                    permission === "granted"
-                      ? "Notifications enabled (including device alerts)"
-                      : "Notifications enabled in-app",
+                    permission === "granted" ? "Notifications enabled" : "Notifications enabled in the app",
                   );
                 } else {
                   toast.success("Notifications paused");

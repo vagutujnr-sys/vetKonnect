@@ -8,8 +8,8 @@ import { MobileScreen } from "@/components/layout/MobileScreen";
 import { useApp } from "@/hooks/useApp";
 import { getAppHomePath } from "@/lib/account";
 import { PIN_LENGTH } from "@/lib/pin";
-import { setAccountPin, verifyAccountPin } from "@/services/userService";
-import { createNotification } from "@/services/notificationService";
+import { IncorrectPinError, setAccountPin, verifyAccountPin } from "@/services/userService";
+import { createNotification, presentIncomingNotification } from "@/services/notificationService";
 import type { AccountType } from "@/types";
 
 type PendingAuth = {
@@ -77,6 +77,7 @@ function Verify() {
           });
       sessionStorage.removeItem("vetkonnect:pending_auth");
       acceptAuthenticatedUser(user);
+      const destination = getAppHomePath(user);
       void createNotification({
         accountId: user.id,
         title: returning ? "Signed in" : "PIN saved",
@@ -88,9 +89,9 @@ function Verify() {
         type: "security",
       }).catch(() => undefined);
       toast.success(returning ? "Welcome back" : "PIN created", {
-        description: user.accountType === "vet" ? "Opening your vet workspace." : "You can sign in with this PIN on any device.",
+        description: user.accountType === "vet" ? "Opening your vet workspace." : "Your PIN is ready.",
       });
-      void navigate({ to: getAppHomePath(user) });
+      await navigate({ to: destination, replace: true });
     } catch (err) {
       setError(true);
       setPin("");
@@ -98,7 +99,22 @@ function Verify() {
         setConfirming(false);
         setFirstPin("");
       }
-      toast.error(err instanceof Error ? err.message : "Could not check that PIN.");
+      if (err instanceof IncorrectPinError) {
+        const title = "Incorrect PIN";
+        const body = "A sign-in attempt used the wrong PIN. If this was not you, keep your PIN private.";
+        void createNotification({
+          accountId: pending.accountId,
+          title,
+          body,
+          type: "security",
+          presentLocally: true,
+          forcePresent: true,
+        }).catch(() => {
+          presentIncomingNotification({ title, body, type: "security" }, { force: true });
+        });
+      } else {
+        toast.error(err instanceof Error ? err.message : "Could not check that PIN.");
+      }
     } finally {
       finishInFlight.current = false;
       setLoading(false);

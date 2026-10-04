@@ -151,6 +151,26 @@
   animation: page-enter 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+@keyframes premium-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.premium-float {
+  animation: premium-float 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .premium-float {
+    animation: none;
+  }
+}
+
 .vk-user-marker {
   display: grid;
   place-items: center;

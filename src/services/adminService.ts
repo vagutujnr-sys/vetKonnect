@@ -71,6 +71,7 @@ function mapCommentRow(row: Record<string, unknown>): CommunityComment {
     id: String(row.id),
     postId: String(row.post_id),
     accountId: String(row.account_id),
+    parentId: row.parent_id ? String(row.parent_id) : null,
     authorName: String(row.author_name ?? ""),
     body: String(row.body ?? ""),
     createdAt: String(row.created_at ?? new Date().toISOString()),

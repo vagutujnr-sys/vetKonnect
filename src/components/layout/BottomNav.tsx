@@ -26,28 +26,36 @@ export function BottomNav() {
   const items = isVetAccount(user) ? vetItems : ownerItems;
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 bg-background/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur-sm">
-      <div className="pointer-events-auto grid w-full grid-cols-5 items-stretch">
+    <nav className="z-40 w-full shrink-0 border-t border-border/80 bg-background pb-[max(env(safe-area-inset-bottom),0.2rem)]">
+      <div className="grid grid-cols-5">
         {items.map(({ to, label, icon: Icon }) => {
           const active = pathname === to || pathname.startsWith(`${to}/`);
           return (
             <Link
               key={to}
               to={to}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 text-[10px] font-medium transition-colors",
-                active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                "relative flex min-h-14 flex-col items-center justify-center gap-1 px-1 pb-1.5 pt-2.5",
+                active ? "text-primary" : "text-muted-foreground",
               )}
             >
               <span
                 className={cn(
-                  "flex size-10 items-center justify-center rounded-full transition-colors",
-                  active ? "bg-primary text-primary-foreground" : "bg-transparent",
+                  "absolute inset-x-3.5 top-0 h-0.5 rounded-full",
+                  active ? "bg-primary" : "bg-transparent",
+                )}
+                aria-hidden
+              />
+              <Icon className="size-[22px]" strokeWidth={active ? 2.25 : 1.75} />
+              <span
+                className={cn(
+                  "max-w-full truncate text-[11px] leading-none tracking-tight",
+                  active ? "font-semibold" : "font-medium",
                 )}
               >
-                <Icon className={cn("size-5", active ? "stroke-[2.5]" : "stroke-[1.5]")} />
+                {label}
               </span>
-              <span className={cn(active ? "font-semibold" : "opacity-80")}>{label}</span>
             </Link>
           );
         })}

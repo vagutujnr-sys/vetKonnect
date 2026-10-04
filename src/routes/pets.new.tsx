@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Bird, Camera, Cat, Check, Dog, ImagePlus, PawPrint, QrCode } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
@@ -120,7 +120,9 @@ function AddPet() {
 
   return (
     <AppShell>
-      <div className="flex items-center gap-3 px-5 pt-8">
+      <div
+        className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
+      >
         <button
           type="button"
           onClick={handleBack}

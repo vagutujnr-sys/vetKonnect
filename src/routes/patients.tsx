@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ClipboardList, HeartPulse, LayoutDashboard, PawPrint, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AppShell, ScreenHeader } from "@/components/layout/AppShell";
+import { AppShell, ScreenHeader, appHeaderClass } from "@/components/layout/AppShell";
 import { HeaderAlerts } from "@/components/layout/HeaderAlerts";
 import { TagScanPanel } from "@/components/vet/TagScanPanel";
 import { VetFeatureGate } from "@/components/vet/VetFeatureGate";
@@ -90,7 +90,9 @@ function PatientsScreen() {
 
   return (
     <AppShell>
-      <header className="flex items-start justify-between px-5 pt-8">
+      <header
+        className={`${appHeaderClass} flex items-start justify-between px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
+      >
         <div>
           <p className="text-sm text-muted-foreground">Practice workspace</p>
           <h1 className="text-[22px] font-extrabold">

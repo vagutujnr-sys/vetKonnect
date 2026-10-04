@@ -1,12 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Eye, Heart, MessageCircle, Share2 } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowLeft, BadgeCheck, Eye, Heart, MessageCircle, Share2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { CommentThread } from "@/components/community/CommentThread";
 import { ImageLightbox } from "@/components/community/ImageLightbox";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
-import { addComment, getComments, getPostById, recordPostView, toggleLike } from "@/services/contentService";
+import { addComment, deletePost, getComments, getPostById, recordPostView, toggleLike } from "@/services/contentService";
 import type { CommunityComment, CommunityPost } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/community/$postId")({
 
 function PostDetailPage() {
   const { postId } = Route.useParams();
+  const navigate = useNavigate();
   const { user } = useApp();
   const [post, setPost] = useState<CommunityPost | null>(null);
   const [comments, setComments] = useState<CommunityComment[]>([]);
@@ -29,6 +31,8 @@ function PostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -59,7 +63,7 @@ function PostDetailPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="px-5 pt-16 text-sm text-muted-foreground">Loading post…</div>
       </AppShell>
     );
@@ -67,7 +71,7 @@ function PostDetailPage() {
 
   if (missing || !post) {
     return (
-      <AppShell>
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="px-5 pt-16 text-center">
           <p className="font-bold">Post not found</p>
           <Button asChild variant="hero" className="mt-4">
@@ -79,8 +83,10 @@ function PostDetailPage() {
   }
 
   return (
-    <AppShell>
-      <header className="flex items-center gap-3 px-5 pb-3 pt-8">
+    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <header
+        className={`${appHeaderClass} flex items-center gap-3 px-5 pb-3.5 pt-[max(1.15rem,env(safe-area-inset-top))]`}
+      >
         <Link
           to="/community"
           className="flex size-10 items-center justify-center rounded-full border border-border"
@@ -88,20 +94,68 @@ function PostDetailPage() {
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-xl font-extrabold">Community post</h1>
           <p className="text-sm text-muted-foreground">{post.tag}</p>
         </div>
+        {user.id && post.authorId === user.id ? (
+          <button
+            type="button"
+            aria-label="Delete post"
+            onClick={() => setConfirmDelete(true)}
+            className="flex size-10 items-center justify-center rounded-full border border-border text-muted-foreground"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        ) : null}
       </header>
 
-      <article className="px-5 pb-10">
-        <div className="card-surface overflow-hidden">
+      <article className="pb-10">
+        {confirmDelete ? (
+          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+            <p className="text-sm font-medium">Delete this post?</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="rounded-full bg-muted px-3 py-1 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => {
+                  setDeleting(true);
+                  void deletePost(post.id)
+                    .then(() => {
+                      toast.success("Post deleted");
+                      void navigate({ to: "/community" });
+                    })
+                    .catch((error) => {
+                      toast.error(error instanceof Error ? error.message : "Could not delete that post");
+                      setDeleting(false);
+                    });
+                }}
+                className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <div className="overflow-hidden rounded-md bg-card shadow-[var(--shadow-card)]">
           <div className="flex items-center gap-3 p-4">
             <div className="flex size-11 items-center justify-center rounded-full bg-accent font-bold text-primary">
               {(post.author || "V").charAt(0)}
             </div>
             <div className="flex-1">
-              <p className="font-semibold">{post.author}</p>
+              <p className="flex min-w-0 items-center gap-1 font-semibold">
+                {post.authorPremium ? (
+                  <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="Premium" />
+                ) : null}
+                <span className="truncate">{post.author}</span>
+              </p>
               <p className="text-xs text-muted-foreground">
                 {post.timeAgo} · {post.location}
               </p>
@@ -132,7 +186,7 @@ function PostDetailPage() {
                 }
               }}
             >
-              <Heart className={cn("size-5", post.likedByMe && "fill-primary text-primary")} />
+              <Heart className={cn("size-5", post.likedByMe && "fill-red-500 text-red-500")} />
               {post.likes}
             </button>
             <span className="flex items-center gap-1.5">
@@ -161,16 +215,19 @@ function PostDetailPage() {
           </div>
         </div>
 
-        <section className="mt-5">
+        <section className="mt-5 px-5">
           <h2 className="text-lg font-bold">Comments</h2>
-          <div className="mt-3 space-y-3">
-            {comments.map((c) => (
-              <div key={c.id} className="rounded-2xl bg-accent/40 p-3">
-                <p className="text-sm font-semibold">{c.authorName}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{c.body}</p>
-              </div>
-            ))}
+          <div className="mt-3">
             {comments.length === 0 ? <p className="text-sm text-muted-foreground">Be the first to comment.</p> : null}
+            <CommentThread
+              postId={post.id}
+              comments={comments}
+              authorName={user.fullName || "VetKonnect member"}
+              onCommented={(created) => {
+                setComments((prev) => [...prev, created]);
+                setPost((prev) => (prev ? { ...prev, comments: prev.comments + 1 } : prev));
+              }}
+            />
           </div>
 
           <div className="mt-4 flex gap-2">

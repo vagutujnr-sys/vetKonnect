@@ -33,7 +33,7 @@ export function BreedersClubFab() {
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-[5.2rem] right-4 z-50">
+    <div className="pointer-events-none absolute bottom-full right-3 z-50">
       <div className="pointer-events-auto flex flex-col items-end gap-2">
         {open ? (
           <div className="mb-1 flex w-52 flex-col overflow-hidden border border-border bg-background shadow-[var(--shadow-card)]">
@@ -56,15 +56,15 @@ export function BreedersClubFab() {
 
         <button
           type="button"
+          aria-label="Premium"
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
           className={cn(
-            "flex items-center gap-2 border border-primary bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-float)] transition-all",
-            open && "ring-2 ring-primary/20",
+            "premium-float flex size-12 items-center justify-center rounded-full border border-orange-700/20 bg-[linear-gradient(145deg,#ea580c_0%,#fb923c_42%,#fde047_100%)] text-primary shadow-[0_10px_22px_-8px_oklch(0.72_0.16_55/0.65)]",
+            open && "ring-2 ring-amber-300/70",
           )}
         >
-          <BadgeCheck className="size-4" />
-          Premium
+          <BadgeCheck className="size-7" />
         </button>
       </div>
     </div>
