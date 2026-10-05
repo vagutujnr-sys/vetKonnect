@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { CircleUserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,12 +8,13 @@ import { MobileScreen } from "@/components/layout/MobileScreen";
 import { useApp } from "@/hooks/useApp";
 import { getAppHomePath } from "@/lib/account";
 import { PIN_LENGTH } from "@/lib/pin";
-import { IncorrectPinError, setAccountPin, verifyAccountPin } from "@/services/userService";
-import { createNotification, presentIncomingNotification } from "@/services/notificationService";
+import { warmSignInDestinations } from "@/lib/warmRoutes";
+import { beginAccessLookup, IncorrectPinError, setAccountPin, verifyAccountPin } from "@/services/userService";
+import { createNotification } from "@/services/notificationService";
 import type { AccountType, UserProfile } from "@/types";
 
 type PendingAuth = {
-  accountId: string;
+  accountId?: string;
   phone: string;
   countryCode: string;
   isNew: boolean;
@@ -36,15 +37,28 @@ export const Route = createFileRoute("/verify")({
 
 function Verify() {
   const navigate = useNavigate();
+  const router = useRouter();
   const { acceptAuthenticatedUser } = useApp();
   const [pending, setPending] = useState<PendingAuth | null>(null);
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [firstPin, setFirstPin] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const finishInFlight = useRef(false);
+  const pendingRef = useRef<PendingAuth | null>(null);
+  const pinRef = useRef("");
+
+  const storePending = (next: PendingAuth) => {
+    pendingRef.current = next;
+    setPending(next);
+    if (next.fullName) setName(next.fullName);
+    sessionStorage.setItem("vetkonnect:pending_auth", JSON.stringify(next));
+  };
+
+  useEffect(() => {
+    warmSignInDestinations(router);
+  }, [router]);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("vetkonnect:pending_auth");
@@ -52,90 +66,123 @@ function Verify() {
       void navigate({ to: "/register" });
       return;
     }
+    let parsed: PendingAuth;
     try {
-      const parsed = JSON.parse(raw) as PendingAuth;
-      setPending(parsed);
-      setName(parsed.fullName ?? "");
+      parsed = JSON.parse(raw) as PendingAuth;
     } catch {
       void navigate({ to: "/register" });
+      return;
     }
+    if (!parsed.phone) {
+      void navigate({ to: "/register" });
+      return;
+    }
+    storePending(parsed);
+    if (parsed.accountId && parsed.profile) return;
+    let alive = true;
+    void beginAccessLookup(parsed.phone, parsed.countryCode, { accountType: parsed.accountType })
+      .then((result) => {
+        if (!alive) return;
+        const next: PendingAuth = {
+          accountId: result.accountId,
+          phone: result.phone,
+          countryCode: result.countryCode,
+          isNew: result.isNew,
+          hasPin: result.hasPin,
+          fullName: result.fullName,
+          accountType: parsed.accountType ?? result.profile.accountType,
+          profile: result.profile,
+          pinHash: result.pinHash,
+        };
+        storePending(next);
+        if (!result.isNew && result.hasPin) {
+          setConfirming(false);
+          setFirstPin("");
+          if (pinRef.current.length === PIN_LENGTH) void finish(pinRef.current);
+        } else if (pinRef.current.length > 0) {
+          pinRef.current = "";
+          setPin("");
+          setConfirming(false);
+          setFirstPin("");
+        }
+      })
+      .catch((error) => {
+        if (!alive) return;
+        toast.error(error instanceof Error ? error.message : "Could not open that number. Try again.");
+      });
+    return () => {
+      alive = false;
+    };
   }, [navigate]);
 
   const returning = Boolean(pending && !pending.isNew && pending.hasPin);
   const needsName = Boolean(pending?.isNew || !pending?.fullName);
 
   const finish = async (userPin: string) => {
-    if (!pending || finishInFlight.current) return;
+    const current = pendingRef.current;
+    if (!current || finishInFlight.current) return;
+    if (!current.accountId || !current.profile) return;
     finishInFlight.current = true;
-    setLoading(true);
     setError(false);
-    let opened = false;
+    const signingIn = !current.isNew && current.hasPin;
+    const accountId = current.accountId;
     try {
-      const user = returning
+      const user = signingIn
         ? await verifyAccountPin({
-            accountId: pending.accountId,
+            accountId: current.accountId,
             pin: userPin,
-            pinHash: pending.pinHash,
-            profile: pending.profile,
+            pinHash: current.pinHash,
+            profile: current.profile,
           })
         : await setAccountPin({
-            accountId: pending.accountId,
+            accountId: current.accountId,
             pin: userPin,
-            fullName: name.trim() || pending.fullName,
-            profile: pending.profile,
+            fullName: name.trim() || current.fullName,
+            profile: current.profile,
           });
-      sessionStorage.removeItem("vetkonnect:pending_auth");
       acceptAuthenticatedUser(user);
+      sessionStorage.removeItem("vetkonnect:pending_auth");
       const destination = getAppHomePath(user);
       void createNotification({
         accountId: user.id,
-        title: returning ? "Signed in" : "PIN saved",
-        body: returning
+        title: signingIn ? "Signed in" : "PIN saved",
+        body: signingIn
           ? "Welcome back to VetKonnect."
           : user.accountType === "vet"
             ? "Your practice PIN is ready. Patients and Impact unlock after admin verification."
             : "Your 5-digit PIN is ready. Use it whenever you sign in.",
         type: "security",
       }).catch(() => undefined);
-      toast.success(returning ? "Welcome back" : "PIN created", {
-        description: user.accountType === "vet" ? "Opening your vet workspace." : "Your PIN is ready.",
-      });
-      opened = true;
-      void navigate({ to: destination, replace: true });
+      document.documentElement.style.visibility = "hidden";
+      window.location.replace(destination);
     } catch (err) {
-      setError(true);
-      setPin("");
-      if (!returning) {
-        setConfirming(false);
-        setFirstPin("");
-      }
-      if (err instanceof IncorrectPinError) {
-        const title = "Incorrect PIN";
-        const body = "A sign-in attempt used the wrong PIN. If this was not you, keep your PIN private.";
+      const incorrect = err instanceof IncorrectPinError;
+      const message = incorrect
+        ? "Incorrect PIN. That PIN does not match this number."
+        : err instanceof Error
+          ? err.message
+          : "Could not check that PIN.";
+      sessionStorage.setItem("vetkonnect:auth_notice", message);
+      sessionStorage.removeItem("vetkonnect:pending_auth");
+      if (incorrect && accountId) {
         void createNotification({
-          accountId: pending.accountId,
-          title,
-          body,
+          accountId,
+          title: "Incorrect PIN",
+          body: "A sign-in attempt used the wrong PIN. If this was not you, keep your PIN private.",
           type: "security",
-          presentLocally: true,
-          forcePresent: true,
-        }).catch(() => {
-          presentIncomingNotification({ title, body, type: "security" }, { force: true });
-        });
-      } else {
-        const message = err instanceof Error ? err.message : "Could not check that PIN.";
-        toast.error(message.includes("timed out") ? "That took too long. Check your connection and try the PIN again." : message);
+        }).catch(() => undefined);
       }
-    } finally {
-      finishInFlight.current = false;
-      if (!opened) setLoading(false);
+      document.documentElement.style.visibility = "hidden";
+      window.location.replace("/register");
     }
   };
 
   const onPinChange = (next: string) => {
     setError(false);
+    pinRef.current = next;
     setPin(next);
     if (next.length < PIN_LENGTH) return;
+    if (!pending?.accountId) return;
     if (returning) {
       void finish(next);
       return;
@@ -171,6 +218,7 @@ function Verify() {
   }
 
   const masked = `${pending.countryCode} ${pending.phone}`;
+  const opening = !pending.accountId;
 
   return (
     <MobileScreen className="bg-white px-6 pb-6">
@@ -178,9 +226,9 @@ function Verify() {
         <Logo size="sm" />
       </div>
 
-      {returning ? (
+      {opening || returning ? (
         <>
-          <h1 className="mt-5 text-center text-2xl font-extrabold text-primary">Welcome back</h1>
+          <h1 className="mt-5 text-center text-2xl font-extrabold text-primary">{returning ? "Welcome back" : "Enter your PIN"}</h1>
           <p className="mt-1 text-center text-sm text-muted-foreground">Enter the 5-digit PIN for {masked}.</p>
         </>
       ) : (
@@ -209,7 +257,7 @@ function Verify() {
       )}
 
       <div className="mt-4">
-        <PinPad value={pin} onChange={onPinChange} disabled={loading} error={error} />
+        <PinPad value={pin} onChange={onPinChange} error={error} />
       </div>
 
       <button
@@ -221,7 +269,7 @@ function Verify() {
       </button>
 
       <p className="mt-2 text-center text-sm text-muted-foreground">
-        {loading ? (returning ? "Checking PIN…" : "Saving PIN…") : confirming ? "Enter the same 5 digits again." : returning ? "Your PIN is checked as soon as the fifth digit is entered." : "The PIN is saved after you confirm it."}
+        {opening ? "Opening this number…" : confirming ? "Enter the same 5 digits again." : returning ? "Your PIN is checked as soon as the fifth digit is entered." : "The PIN is saved after you confirm it."}
       </p>
     </MobileScreen>
   );

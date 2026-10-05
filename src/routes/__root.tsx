@@ -18,7 +18,7 @@ import { AppProvider } from "../hooks/useApp";
 import { getAppHomePath, isAppReadyUser } from "@/lib/account";
 import { IncomingCallWatcher } from "@/components/calls/IncomingCallWatcher";
 import { NotificationSoundWatcher } from "@/components/notifications/NotificationSoundWatcher";
-import { getCachedUser, getUser, hasActiveSession } from "../services/userService";
+import { getCachedUser, getSessionAccountId } from "../services/userService";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -110,7 +110,7 @@ const publicRoutes = new Set([
 ]);
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, preload }) => {
     const pathname = location.pathname;
 
     // Session lives in localStorage — never block SSR on a network round-trip.
@@ -121,13 +121,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       return;
     }
 
+    // Let the next screen's code load while the PIN is still being entered.
+    // A real navigation still runs this check and redirects when needed.
+    if (preload) return;
+
     try {
       if (pathname === "/" || pathname === "/welcome") {
-        const session = await hasActiveSession();
-        if (session) {
-          const user = getCachedUser() ?? (await getUser());
-          throw redirect({ to: getAppHomePath(user) });
-        }
+        const cached = getCachedUser();
+        if (cached?.id && !cached.blocked) throw redirect({ to: getAppHomePath(cached) });
+        if (getSessionAccountId()) throw redirect({ to: "/home" });
         throw redirect({ to: "/register" });
       }
 
@@ -135,13 +137,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         return;
       }
 
-      const user = getCachedUser() ?? (await getUser());
-      if (!user.id || user.blocked) {
-        throw redirect({ to: "/register" });
+      const user = getCachedUser();
+      if (user?.blocked) throw redirect({ to: "/register" });
+      if (user?.id) {
+        if (!isAppReadyUser(user)) throw redirect({ to: "/modules" });
+        return;
       }
-      if (!isAppReadyUser(user)) {
-        throw redirect({ to: "/modules" });
-      }
+      if (!getSessionAccountId()) throw redirect({ to: "/register" });
     } catch (error) {
       // Preserve TanStack redirects / notFound throws.
       if (error != null && typeof error === "object" && ("isRedirect" in error || "to" in error || "statusCode" in error)) {

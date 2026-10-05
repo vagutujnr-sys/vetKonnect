@@ -43,6 +43,34 @@ export async function uploadPetPhoto(file: File, petId?: string): Promise<string
   return data.publicUrl;
 }
 
+const PETS_CACHE_KEY = "vetkonnect:pets_cache";
+
+export function readCachedPets(ownerId: string): Pet[] {
+  if (typeof window === "undefined" || !ownerId) return [];
+  try {
+    const raw = window.localStorage.getItem(PETS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { ownerId?: string; pets?: Pet[] };
+    return parsed.ownerId === ownerId && Array.isArray(parsed.pets) ? parsed.pets : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeCachedPets(ownerId: string, pets: Pet[]) {
+  if (typeof window === "undefined" || !ownerId) return;
+  try {
+    window.localStorage.setItem(PETS_CACHE_KEY, JSON.stringify({ ownerId, pets }));
+  } catch {
+    // A full cache must not block the screen.
+  }
+}
+
+export function clearCachedPets() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(PETS_CACHE_KEY);
+}
+
 export async function getPets(ownerId?: string): Promise<Pet[]> {
   const accountId = ownerId ?? getSessionAccountId();
   if (!accountId || !isSupabaseConfigured) return [];
@@ -54,10 +82,12 @@ export async function getPets(ownerId?: string): Promise<Pet[]> {
       "Pets",
     );
     if (error) throw error;
-    return (data ?? []).map(mapPetRow);
+    const pets = (data ?? []).map(mapPetRow);
+    writeCachedPets(accountId, pets);
+    return pets;
   } catch (error) {
     console.error("Failed to load pets", error);
-    return [];
+    return readCachedPets(accountId);
   }
 }
 

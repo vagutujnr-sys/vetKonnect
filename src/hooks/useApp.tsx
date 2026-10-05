@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -35,9 +36,7 @@ const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [user, setUser] = useState<UserProfile>(
-    () => userService.getCachedUser() ?? userService.defaultUser,
-  );
+  const [user, setUser] = useState<UserProfile>(userService.defaultUser);
   const [pets, setPets] = useState<Pet[]>([]);
   const [activePetId, setActivePetId] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
@@ -85,8 +84,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  useLayoutEffect(() => {
+    const cached = userService.getCachedUser();
+    if (cached?.id) {
+      setUser(cached);
+      const cachedPets = petService.readCachedPets(cached.id);
+      if (cachedPets.length) {
+        setPets(cachedPets);
+        setActivePetId(cachedPets[0]?.id ?? null);
+      }
+    }
+    setReady(true);
+  }, []);
+
   useEffect(() => {
     let alive = true;
+    userService.flushPendingPinSave();
     void (async () => {
       try {
         await refreshSession();
@@ -178,6 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await userService.resetUser();
+    petService.clearCachedPets();
     setUser(userService.defaultUser);
     setPets([]);
     setActivePetId(null);

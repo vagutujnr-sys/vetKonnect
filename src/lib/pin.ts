@@ -13,14 +13,6 @@ function bytesToHex(bytes: ArrayBuffer): string {
     .join("");
 }
 
-function hexToBytes(hex: string): Uint8Array | null {
-  const pairs = hex.match(/.{1,2}/g);
-  if (!pairs || pairs.join("") !== hex) return null;
-  const bytes = pairs.map((byte) => Number.parseInt(byte, 16));
-  if (bytes.some((byte) => Number.isNaN(byte))) return null;
-  return new Uint8Array(bytes);
-}
-
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return bytesToHex(digest);
@@ -33,15 +25,7 @@ export function isLegacyPinHash(stored: string): boolean {
 
 async function legacyPbkdf2Hex(pin: string, saltHex: string): Promise<string> {
   if (typeof Worker === "undefined") {
-    const salt = hexToBytes(saltHex);
-    if (!salt) throw new Error("Could not check that PIN.");
-    const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
-    const bits = await crypto.subtle.deriveBits(
-      { name: "PBKDF2", salt, iterations: LEGACY_ITERATIONS, hash: "SHA-256" },
-      keyMaterial,
-      256,
-    );
-    return bytesToHex(bits);
+    throw new Error("Could not check that PIN on this browser. Try again.");
   }
 
   const source = `
@@ -68,7 +52,7 @@ async function legacyPbkdf2Hex(pin: string, saltHex: string): Promise<string> {
     const timer = setTimeout(() => {
       worker.terminate();
       reject(new Error("PIN check took too long. Try again."));
-    }, 12000);
+    }, 4000);
     worker.onmessage = (event: MessageEvent<{ hex?: string; error?: string }>) => {
       clearTimeout(timer);
       worker.terminate();

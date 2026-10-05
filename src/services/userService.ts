@@ -8,6 +8,7 @@ import { isSupabaseConfigured, supabase } from "./supabaseClient";
 const SESSION_KEY = "vetkonnect:session_account_id";
 const SESSION_PROFILE_KEY = "vetkonnect:session_profile";
 const ADMIN_SESSION_KEY = "vetkonnect:admin_session";
+const PENDING_PIN_SAVE_KEY = "vetkonnect:pending_pin_save";
 
 export const ADMIN_PIN = "2026";
 
@@ -341,6 +342,34 @@ export type AccessCodeResult = {
   pinHash: string;
 };
 
+const accessLookups = new Map<string, Promise<AccessCodeResult>>();
+
+function accessLookupKey(phone: string, countryCode: string, accountType?: AccountType) {
+  return `${countryCode}:${normalizePhone(phone)}:${accountType === "vet" ? "vet" : "owner"}`;
+}
+
+/** Start the account lookup immediately so the PIN screen can open while Supabase answers. */
+export function beginAccessLookup(
+  phone: string,
+  countryCode = "+263",
+  options?: { accountType?: AccountType },
+): Promise<AccessCodeResult> {
+  const key = accessLookupKey(phone, countryCode, options?.accountType);
+  const current = accessLookups.get(key);
+  if (current) return current;
+  const started = requestAccessCode(phone, countryCode, options).catch((error) => {
+    accessLookups.delete(key);
+    throw error;
+  });
+  accessLookups.set(key, started);
+  void started.then(() => {
+    setTimeout(() => {
+      if (accessLookups.get(key) === started) accessLookups.delete(key);
+    }, 20000);
+  });
+  return started;
+}
+
 /** Look up a phone and open PIN sign-in, or start a new account that still needs a PIN. */
 export async function requestAccessCode(
   phone: string,
@@ -353,11 +382,11 @@ export async function requestAccessCode(
   }
 
   const registerAsVet = options?.accountType === "vet";
-  const { data: existing, error: lookupError } = await supabase
-    .from("accounts")
-    .select("*")
-    .eq("phone", cleanPhone)
-    .maybeSingle();
+  const { data: existing, error: lookupError } = await withTimeout(
+    supabase.from("accounts").select("*").eq("phone", cleanPhone).maybeSingle(),
+    4000,
+    "Account lookup",
+  );
 
   if (lookupError) throw lookupError;
 
@@ -365,19 +394,21 @@ export async function requestAccessCode(
     assertAccountNotBlocked(mapAccount(existing as Record<string, unknown>));
     const existingPatch: Record<string, unknown> = {
       country_code: countryCode,
-      otp_code: null,
-      otp_expires_at: null,
-      updated_at: new Date().toISOString(),
     };
     if (registerAsVet) {
       existingPatch.account_type = "vet";
       existingPatch.vet_verified = false;
+      existingPatch.updated_at = new Date().toISOString();
       if (!Array.isArray(existing.modules) || (existing.modules as unknown[]).length === 0) {
         existingPatch.modules = ["community", "tips"];
       }
+      const { error } = await withTimeout(
+        supabase.from("accounts").update(existingPatch).eq("id", existing.id),
+        2500,
+        "Account update",
+      );
+      if (error) throw error;
     }
-    const { error } = await supabase.from("accounts").update(existingPatch).eq("id", existing.id);
-    if (error) throw error;
     const pinHash = String(existing.pin_hash ?? "").trim();
     const profile = mapAccount({ ...(existing as Record<string, unknown>), ...existingPatch });
     return {
@@ -393,22 +424,26 @@ export async function requestAccessCode(
   }
 
   const id = crypto.randomUUID();
-  const { data, error } = await supabase
-    .from("accounts")
-    .insert({
-      id,
-      phone: cleanPhone,
-      country_code: countryCode,
-      full_name: "",
-      modules: registerAsVet ? ["community", "tips"] : [],
-      onboarded: false,
-      account_type: registerAsVet ? "vet" : "owner",
-      vet_verified: false,
-      otp_code: null,
-      otp_expires_at: null,
-    })
-    .select("*")
-    .single();
+  const { data, error } = await withTimeout(
+    supabase
+      .from("accounts")
+      .insert({
+        id,
+        phone: cleanPhone,
+        country_code: countryCode,
+        full_name: "",
+        modules: registerAsVet ? ["community", "tips"] : [],
+        onboarded: false,
+        account_type: registerAsVet ? "vet" : "owner",
+        vet_verified: false,
+        otp_code: null,
+        otp_expires_at: null,
+      })
+      .select("*")
+      .single(),
+    4000,
+    "Account create",
+  );
 
   if (error) throw error;
 
@@ -447,6 +482,67 @@ function rememberSession(user: UserProfile) {
   cacheSessionProfile(user);
 }
 
+type PendingPinSave = {
+  accountId: string;
+  pinHash: string;
+  fullName: string;
+  isVet: boolean;
+  modules: UserProfile["modules"];
+  practiceName: string;
+};
+
+function readPendingPinSave(): PendingPinSave | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(PENDING_PIN_SAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingPinSave;
+    if (!parsed.accountId || !parsed.pinHash) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function queuePendingPinSave(row: PendingPinSave) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(PENDING_PIN_SAVE_KEY, JSON.stringify(row));
+}
+
+function clearPendingPinSave() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.removeItem(PENDING_PIN_SAVE_KEY);
+}
+
+async function persistPinSave(row: PendingPinSave): Promise<void> {
+  const payload: Record<string, unknown> = {
+    full_name: row.fullName,
+    pin_hash: row.pinHash,
+    otp_code: null,
+    otp_expires_at: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (row.isVet) {
+    payload.onboarded = true;
+    payload.modules = row.modules;
+    payload.practice_name = row.practiceName;
+  }
+  const { error } = await withTimeout(
+    supabase.from("accounts").update(payload).eq("id", row.accountId),
+    2500,
+    "PIN save",
+  );
+  if (error) throw pinColumnError(error);
+  clearPendingPinSave();
+}
+
+/** Finish a PIN write that was still in flight when the sign-in screen closed. */
+export function flushPendingPinSave(): void {
+  const row = readPendingPinSave();
+  if (!row) return;
+  void persistPinSave(row).catch((error) => console.warn("PIN save retry failed", error));
+}
+
 function refreshStoredPin(accountId: string, pin: string) {
   void (async () => {
     try {
@@ -476,7 +572,7 @@ export async function setAccountPin(input: {
   if (!base) {
     const { data, error } = await withTimeout(
       supabase.from("accounts").select("*").eq("id", input.accountId).maybeSingle(),
-      5000,
+      2000,
       "PIN account lookup",
     );
     if (error) throw error;
@@ -491,29 +587,6 @@ export async function setAccountPin(input: {
   const pinHash = await createPinHash(input.pin);
   const vetModules = base.modules.length ? base.modules : (["community", "tips"] as UserProfile["modules"]);
   const practiceName = base.practiceName?.trim() || `${fullName}'s Practice`;
-  const { error: updateError } = await withTimeout(
-    supabase
-      .from("accounts")
-      .update({
-        full_name: fullName,
-        pin_hash: pinHash,
-        otp_code: null,
-        otp_expires_at: null,
-        ...(isVet
-          ? {
-              onboarded: true,
-              modules: vetModules,
-              practice_name: practiceName,
-            }
-          : {}),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.accountId),
-    5000,
-    "PIN save",
-  );
-
-  if (updateError) throw pinColumnError(updateError);
   const user: UserProfile = {
     ...base,
     fullName,
@@ -526,6 +599,16 @@ export async function setAccountPin(input: {
       : {}),
   };
   rememberSession(user);
+  const pendingSave: PendingPinSave = {
+    accountId: input.accountId,
+    pinHash,
+    fullName,
+    isVet,
+    modules: vetModules,
+    practiceName,
+  };
+  queuePendingPinSave(pendingSave);
+  void persistPinSave(pendingSave).catch((error) => console.warn("PIN save continuing after sign-in", error));
   return user;
 }
 
@@ -551,7 +634,7 @@ export async function verifyAccountPin(input: {
 
   const { data, error } = await withTimeout(
     supabase.from("accounts").select("*").eq("id", input.accountId).maybeSingle(),
-    5000,
+    2000,
     "PIN account lookup",
   );
   if (error) throw error;

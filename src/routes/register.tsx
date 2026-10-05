@@ -1,6 +1,6 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { ArrowRight, Check, ChevronsUpDown, Lock, Phone, ShieldCheck, Stethoscope } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
 import { MobileScreen } from "@/components/layout/MobileScreen";
@@ -23,15 +23,15 @@ import {
   findCountryByIso,
 } from "@/lib/countryDialCodes";
 import { cn } from "@/lib/utils";
-import { getCachedUser, getUser, hasActiveSession, requestAccessCode } from "@/services/userService";
+import { warmSignInDestinations } from "@/lib/warmRoutes";
+import { beginAccessLookup, getCachedUser, getSessionAccountId } from "@/services/userService";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
-    const session = await hasActiveSession();
-    if (!session) return;
-    const user = getCachedUser() ?? (await getUser());
-    throw redirect({ to: getAppHomePath(user) });
+    const user = getCachedUser();
+    if (user?.id && !user.blocked) throw redirect({ to: getAppHomePath(user) });
+    if (getSessionAccountId()) throw redirect({ to: "/home" });
   },
   head: () => ({
     meta: [
@@ -46,47 +46,48 @@ export const Route = createFileRoute("/register")({
 
 function Register() {
   const navigate = useNavigate();
+  const router = useRouter();
   const [phone, setPhone] = useState("");
   const [countryIso, setCountryIso] = useState(DEFAULT_COUNTRY_ISO);
   const [countryOpen, setCountryOpen] = useState(false);
   const [registerAsVet, setRegisterAsVet] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
+  const submitted = useRef(false);
 
   const selectedCountry = useMemo(
     () => findCountryByIso(countryIso) ?? findCountryByIso(DEFAULT_COUNTRY_ISO)!,
     [countryIso],
   );
 
-  const submit = async () => {
-    setLoading(true);
-    try {
-      const result = await requestAccessCode(phone, selectedCountry.dial, {
-        accountType: registerAsVet ? "vet" : "owner",
-      });
+  useEffect(() => {
+    warmSignInDestinations(router);
+  }, [router]);
 
-      sessionStorage.setItem(
-        "vetkonnect:pending_auth",
-        JSON.stringify({
-          accountId: result.accountId,
-          phone: result.phone,
-          countryCode: result.countryCode,
-          isNew: result.isNew,
-          hasPin: result.hasPin,
-          fullName: result.fullName,
-          accountType: registerAsVet ? "vet" : result.profile.accountType,
-          profile: result.profile,
-          pinHash: result.pinHash,
-        }),
-      );
-      toast.success(result.hasPin ? "Enter your PIN" : "Create your PIN", {
-        description: result.hasPin ? "Welcome back. Use your 5-digit PIN." : "Choose a 5-digit PIN for this account.",
-      });
-      void navigate({ to: "/verify" });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not start login.");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    const stored = sessionStorage.getItem("vetkonnect:auth_notice");
+    if (!stored) return;
+    sessionStorage.removeItem("vetkonnect:auth_notice");
+    setNotice(stored);
+    toast.error(stored);
+  }, []);
+
+  const submit = () => {
+    const cleanPhone = phone.replace(/\s+/g, "").trim();
+    if (cleanPhone.length < 6 || submitted.current) return;
+    submitted.current = true;
+    const accountType = registerAsVet ? "vet" : "owner";
+    beginAccessLookup(cleanPhone, selectedCountry.dial, { accountType });
+    sessionStorage.setItem(
+      "vetkonnect:pending_auth",
+      JSON.stringify({
+        phone: cleanPhone,
+        countryCode: selectedCountry.dial,
+        isNew: true,
+        hasPin: false,
+        accountType,
+      }),
+    );
+    void navigate({ to: "/verify" });
   };
 
   return (
@@ -98,6 +99,9 @@ function Register() {
       <p className="mt-8 text-center text-[15px] text-muted-foreground">
         Enter your mobile number to create an account or sign in. A 5-digit PIN opens the account on any device.
       </p>
+      {notice ? (
+        <p className="mt-4 rounded-md bg-destructive/10 px-4 py-3 text-center text-sm font-medium text-destructive">{notice}</p>
+      ) : null}
 
       <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card/80 backdrop-blur">
         <Popover open={countryOpen} onOpenChange={setCountryOpen}>
@@ -187,11 +191,11 @@ function Register() {
       <Button
         variant="hero"
         size="lg"
-        disabled={phone.trim().length < 6 || loading}
-        onClick={() => void submit()}
+        disabled={phone.trim().length < 6}
+        onClick={submit}
         className="mt-8 w-full justify-between text-base tracking-wide"
       >
-        {loading ? "Checking…" : "CONTINUE"}
+        CONTINUE
         <ArrowRight className="size-5" />
       </Button>
 
