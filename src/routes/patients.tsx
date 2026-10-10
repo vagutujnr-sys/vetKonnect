@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ClipboardList, HeartPulse, LayoutDashboard, PawPrint, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +26,9 @@ export const Route = createFileRoute("/patients")({
 
 function PatientsScreen() {
   const navigate = useNavigate();
+  const showingPatient = useRouterState({
+    select: (state) => state.matches.some((match) => match.routeId === "/patients/$petId"),
+  });
   const { user, refreshSession } = useApp();
   const [requesting, setRequesting] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -44,6 +47,8 @@ function PatientsScreen() {
       .then(setRecent)
       .catch((error) => console.error("Failed to load recent patients", error));
   }, [verified]);
+
+  if (showingPatient) return <Outlet />;
 
   const requestDashboard = async () => {
     setRequesting(true);

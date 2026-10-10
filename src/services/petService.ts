@@ -112,6 +112,58 @@ export async function getPetRecordById(id: string): Promise<Pet | undefined> {
 }
 
 /** Normalize scanned QR text or typed tag into candidate codes. */
+function normalizeLookupCode(value: string): string {
+  return value.trim().replace(/\s+/g, "");
+}
+
+function buildLookupVariants(value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  const normalized = normalizeLookupCode(trimmed);
+  const variants = new Set<string>([trimmed, normalized, normalized.toUpperCase()]);
+
+  const compact = normalized.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (compact) {
+    variants.add(compact);
+  }
+
+  const match = normalized.match(/^([A-Z]+)[-_ ]?([A-Z]+)[-_ ]?(\d+)$/i);
+  if (match) {
+    const [prefix, region, digits] = [match[1], match[2], match[3]];
+    const prefixUpper = prefix.toUpperCase();
+    const regionUpper = region.toUpperCase();
+    variants.add(`${prefixUpper}-${regionUpper}-${digits}`);
+    variants.add(`${prefixUpper}${regionUpper}${digits}`);
+    variants.add(`${prefixUpper}${regionUpper}-${digits}`);
+    variants.add(`${prefixUpper}-${regionUpper}${digits}`);
+
+    if (prefixUpper === "VK" || prefixUpper === "VC") {
+      variants.add(`VK-${regionUpper}-${digits}`);
+      variants.add(`VC-${regionUpper}-${digits}`);
+    }
+  }
+
+  if (/^VKZW\d{6,}$/i.test(normalized) || /^VCZW\d{6,}$/i.test(normalized)) {
+    const digits = normalized.replace(/^VK|^VC/gi, "").replace(/[-_\s]/g, "");
+    variants.add(`VK-ZW-${digits.slice(2)}`);
+    variants.add(`VC-ZW-${digits.slice(2)}`);
+  }
+
+  return [...variants].map((candidate) => candidate.trim()).filter(Boolean);
+}
+
+function stripLookupFormatting(value: string | null | undefined): string {
+  return (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}
+
+function matchesLookupValue(target: string | null | undefined, candidate: string): boolean {
+  const targetNormal = stripLookupFormatting(target);
+  const candidateNormal = stripLookupFormatting(candidate);
+  if (!targetNormal || !candidateNormal) return false;
+  return targetNormal === candidateNormal;
+}
+
 export function parseTagScanInput(raw: string): string[] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
@@ -129,29 +181,35 @@ export function parseTagScanInput(raw: string): string[] {
   }
 
   // Pull common ID shapes out of longer pasted text.
-  for (const match of trimmed.matchAll(/\b(?:VK-ZW-\d{6}|VC-\d{8}-\d{3}|[A-Z]{2,4}-\d{6,10}-\d{1,4})\b/gi)) {
+  for (const match of trimmed.matchAll(/\b(?:VK[-_ ]?ZW[-_ ]?\d{6}|VC[-_ ]?\d{8}[-_ ]?\d{3}|[A-Z]{2,4}[-_ ]?\d{6,10}[-_ ]?\d{1,4})\b/gi)) {
     candidates.add(match[0]);
   }
 
-  return [...candidates];
+  return [...candidates].flatMap((candidate) => buildLookupVariants(candidate));
 }
 
 /** Lookup a pet by VetKonnect ID, collar/tag ID, or pet UUID (from QR / typed scan). */
 export async function findPetByTag(raw: string): Promise<Pet | undefined> {
-  const codes = parseTagScanInput(raw);
+  const codes = [...new Set(parseTagScanInput(raw))];
   if (!codes.length) throw new Error("Enter or scan a tag / VetKonnect ID.");
 
+  const { data, error } = await supabase.from("pets").select("*").limit(500);
+  if (error) throw error;
+
   for (const code of codes) {
-    const [byId, byVk, byCollar] = await Promise.all([
-      supabase.from("pets").select("*").eq("id", code).maybeSingle(),
-      supabase.from("pets").select("*").eq("vetconnect_id", code).maybeSingle(),
-      supabase.from("pets").select("*").eq("collar_id", code).maybeSingle(),
-    ]);
-    if (byId.error) throw byId.error;
-    if (byVk.error) throw byVk.error;
-    if (byCollar.error) throw byCollar.error;
-    const row = byId.data ?? byVk.data ?? byCollar.data;
-    if (row) return mapPetRow(row as Record<string, unknown>);
+    const variants = [...new Set(buildLookupVariants(code))];
+    const rows = (data ?? []) as Record<string, unknown>[];
+
+    const match = rows.find((row) => {
+      const pet = mapPetRow(row);
+      return (
+        variants.some((candidate) => matchesLookupValue(pet.id, candidate)) ||
+        variants.some((candidate) => matchesLookupValue(pet.vetConnectId, candidate)) ||
+        variants.some((candidate) => matchesLookupValue(pet.collarId, candidate))
+      );
+    });
+
+    if (match) return mapPetRow(match);
   }
 
   return undefined;

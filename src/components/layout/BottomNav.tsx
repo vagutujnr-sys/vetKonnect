@@ -26,7 +26,7 @@ export function BottomNav() {
   const items = isVetAccount(user) ? vetItems : ownerItems;
 
   return (
-    <nav className="z-40 w-full shrink-0 border-t border-border/80 bg-background pb-[max(env(safe-area-inset-bottom),0.2rem)]">
+    <nav className="z-40 w-full shrink-0 rounded-t-md border-t-[3px] border-primary bg-background pb-[max(env(safe-area-inset-bottom),0.2rem)]">
       <div className="grid grid-cols-5">
         {items.map(({ to, label, icon: Icon }) => {
           const active = pathname === to || pathname.startsWith(`${to}/`);

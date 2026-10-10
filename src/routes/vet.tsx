@@ -39,6 +39,7 @@ import {
   saveVetPracticeNote,
   searchDvsAnimals,
   submitAnimalHealthReport,
+  type DvsAnimalSearchResult,
   type VetDashboardSnapshot,
 } from "@/services/vetPracticeService";
 import type { DvsHealthReportType, DvsRabiesCaseStatus, Pet } from "@/types";
@@ -90,7 +91,8 @@ function VetDashboard() {
   const [searching, setSearching] = useState(false);
 
   const [searchQ, setSearchQ] = useState("");
-  const [searchHits, setSearchHits] = useState<Pet[]>([]);
+  const [searchHits, setSearchHits] = useState<DvsAnimalSearchResult[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [issuePet, setIssuePet] = useState<Pet | null>(null);
   const [vaccineId, setVaccineId] = useState("");
   const [batchNo, setBatchNo] = useState("");
@@ -180,12 +182,17 @@ function VetDashboard() {
   };
 
   const runSearch = async () => {
+    setSearching(true);
+    setHasSearched(true);
+    setSearchHits([]);
     try {
       const hits = await searchDvsAnimals(searchQ);
       setSearchHits(hits);
       if (!hits.length) toast.message("No matching animals");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Search failed");
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -398,23 +405,51 @@ function VetDashboard() {
             <Card className="space-y-4 p-5">
               <h3 className="font-semibold">Patients</h3>
               <TagScanPanel busy={searching} onScan={handleScan} />
-              <div className="flex gap-2">
-                <Input placeholder="Name, microchip, VetKonnect ID" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
-                <Button variant="secondary" onClick={() => void runSearch()}>Search</Button>
-              </div>
+              <form
+                className="flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void runSearch();
+                }}
+              >
+                <Input
+                  placeholder="Pet ID, tag ID, or microchip number"
+                  value={searchQ}
+                  onChange={(event) => {
+                    setSearchQ(event.target.value);
+                    setSearchHits([]);
+                    setHasSearched(false);
+                  }}
+                />
+                <Button type="submit" variant="secondary" disabled={searching}>Search</Button>
+              </form>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Animal</TableHead>
+                    <TableHead>Owner</TableHead>
                     <TableHead>ID</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(searchHits.length ? searchHits : recent).map((pet) => (
+                  {(hasSearched ? searchHits : recent).length === 0 && hasSearched ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        No matching pets found.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {(hasSearched ? searchHits : recent).map((pet) => (
                     <TableRow key={pet.id}>
                       <TableCell className="font-medium">{pet.name}</TableCell>
+                      <TableCell>
+                        <div>{"ownerName" in pet && pet.ownerName ? pet.ownerName : "Owner unavailable"}</div>
+                        {"ownerPhone" in pet && pet.ownerPhone ? (
+                          <div className="text-xs text-muted-foreground">{pet.ownerPhone}</div>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{pet.vetConnectId}</TableCell>
                       <TableCell>{pet.healthStatus}</TableCell>
                       <TableCell className="space-x-1">

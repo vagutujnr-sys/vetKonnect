@@ -364,4 +364,4 @@ export async function getVetDashboardSnapshot(): Promise<VetDashboardSnapshot> {
   };
 }
 
-export { listCertificatesForPet, lookupOwner, searchDvsAnimals };
+export { listCertificatesForPet, lookupOwner, searchDvsAnimals, type DvsAnimalSearchResult };

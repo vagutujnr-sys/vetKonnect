@@ -1,13 +1,15 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Camera, HeartPulse, ImagePlus, QrCode, Syringe } from "lucide-react";
-import { useRef, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowLeft, Camera, HeartPulse, ImagePlus, Syringe } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DvsPetCertificates } from "@/components/dvs/DvsPetCertificates";
 import { DvsPetLicence } from "@/components/dvs/DvsPetLicence";
 import { AppShell } from "@/components/layout/AppShell";
+import { PetIdQrCode } from "@/components/pets/PetIdQrCode";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/hooks/useApp";
-import { uploadPetPhoto } from "@/services/petService";
+import { isVetAccount } from "@/lib/account";
+import { getPetRecordById, uploadPetPhoto } from "@/services/petService";
 
 export const Route = createFileRoute("/pets/$petId")({
   head: () => ({
@@ -22,16 +24,19 @@ export const Route = createFileRoute("/pets/$petId")({
     ],
   }),
   component: PetProfile,
-  notFoundComponent: () => (
-    <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <div className="px-5 pt-16 text-center">
-        <p className="font-bold">Pet not found</p>
-        <Button asChild variant="hero" className="mt-4">
-          <Link to="/pets">Back to my pets</Link>
-        </Button>
-      </div>
-    </AppShell>
-  ),
+  notFoundComponent: () => {
+    const { user } = useApp();
+    return (
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="px-5 pt-16 text-center">
+          <p className="font-bold">Pet not found</p>
+          <Button asChild variant="hero" className="mt-4">
+            <Link to={isVetAccount(user) ? "/patients" : "/pets"}>{isVetAccount(user) ? "Back to patients" : "Back to my pets"}</Link>
+          </Button>
+        </div>
+      </AppShell>
+    );
+  },
 });
 
 function displayValue(value: string | number | null | undefined, fallback = "0.0") {
@@ -42,20 +47,64 @@ function displayValue(value: string | number | null | undefined, fallback = "0.0
 function PetProfile() {
   const { petId } = Route.useParams();
   const { pets, ready, user, updatePet } = useApp();
+  const backToPath = isVetAccount(user) ? "/patients" : "/pets";
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const pet = pets.find((p) => p.id === petId);
+  const [pet, setPet] = useState<Pet | null>(null);
+  const [loadingPet, setLoadingPet] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingPet(true);
+
+    const existing = pets.find((p) => p.id === petId);
+    if (existing) {
+      setPet(existing);
+      setLoadingPet(false);
+      return;
+    }
+
+    void getPetRecordById(petId)
+      .then((record) => {
+        if (!active) return;
+        setPet(record ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPet(null);
+      })
+      .finally(() => {
+        if (active) setLoadingPet(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [petId, pets]);
 
   if (!pet) {
-    if (!ready)
+    if (loadingPet || !ready)
       return (
         <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="px-5 pt-16 text-sm text-muted-foreground">Loading…</div>
         </AppShell>
       );
-    throw notFound();
+
+    return (
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="px-5 pt-16 text-center">
+          <p className="font-bold">Pet not found</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This health passport could not be loaded.
+          </p>
+          <Button asChild variant="hero" className="mt-4">
+            <Link to={backToPath}>{isVetAccount(user) ? "Back to patients" : "Back to my pets"}</Link>
+          </Button>
+        </div>
+      </AppShell>
+    );
   }
 
   const changePhoto = async (file: File | null) => {
@@ -91,7 +140,7 @@ function PetProfile() {
           </div>
         )}
         <Link
-          to="/pets"
+          to={backToPath}
           className="absolute left-5 top-5 z-10 flex size-10 items-center justify-center rounded-full bg-background/90 backdrop-blur"
           aria-label="Back"
         >
@@ -180,7 +229,7 @@ function PetProfile() {
               </p>
             </div>
             <div className="flex size-24 items-center justify-center rounded-2xl border border-dashed border-primary/40 bg-accent/40">
-              <QrCode className="size-14 text-primary" />
+              <PetIdQrCode vetConnectId={pet.vetConnectId} className="size-20" />
             </div>
           </div>
         </div>

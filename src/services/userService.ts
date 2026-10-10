@@ -612,6 +612,42 @@ export async function setAccountPin(input: {
   return user;
 }
 
+/** Read the stored PIN hash once so a change can be checked on the phone. */
+export async function readAccountPinHash(accountId: string): Promise<string> {
+  const { data, error } = await withTimeout(
+    supabase.from("accounts").select("pin_hash").eq("id", accountId).maybeSingle(),
+    2500,
+    "PIN lookup",
+  );
+  if (error) throw error;
+  const stored = String((data as { pin_hash?: string } | null)?.pin_hash ?? "").trim();
+  if (!stored) throw new Error("This account does not have a PIN yet.");
+  return stored;
+}
+
+/** Replace the signed-in account PIN after the current one matches. */
+export async function changeAccountPin(input: {
+  accountId: string;
+  currentPin: string;
+  nextPin: string;
+  pinHash: string;
+}): Promise<void> {
+  if (!isPin(input.currentPin) || !isPin(input.nextPin)) throw new Error("Enter a 5-digit PIN.");
+  if (input.currentPin === input.nextPin) throw new Error("Choose a different PIN from the one you use now.");
+  const ok = await verifyPinHash(input.currentPin, input.pinHash);
+  if (!ok) throw new IncorrectPinError();
+  const pinHash = await createPinHash(input.nextPin);
+  const { error } = await withTimeout(
+    supabase
+      .from("accounts")
+      .update({ pin_hash: pinHash, updated_at: new Date().toISOString() })
+      .eq("id", input.accountId),
+    2500,
+    "PIN save",
+  );
+  if (error) throw pinColumnError(error);
+}
+
 /** Sign a returning account in with its 5-digit PIN. */
 export async function verifyAccountPin(input: {
   accountId: string;

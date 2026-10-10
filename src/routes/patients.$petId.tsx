@@ -4,7 +4,16 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { DvsPetCertificates } from "@/components/dvs/DvsPetCertificates";
+import { PetIdQrCode } from "@/components/pets/PetIdQrCode";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { useApp } from "@/hooks/useApp";
 import { isVetAccount } from "@/lib/account";
 import { getPetRecordById } from "@/services/petService";
@@ -37,12 +46,15 @@ function PatientDetail() {
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
+  const [serviceProvided, setServiceProvided] = useState("Consultation");
+  const [visitNotes, setVisitNotes] = useState("");
   const [medicationToday, setMedicationToday] = useState("");
   const [healthStatus, setHealthStatus] = useState<HealthStatus>("Under Care");
   const [nextVaccine, setNextVaccine] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [followUpDate, setFollowUpDate] = useState(defaultFollowUpDate);
   const [followUpTime, setFollowUpTime] = useState("09:00");
+  const [treatmentDrawerOpen, setTreatmentDrawerOpen] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,6 +93,8 @@ function PatientDetail() {
         petId: pet.id,
         title,
         detail,
+        serviceProvided: serviceProvided.trim() || "Consultation",
+        visitNotes: visitNotes.trim(),
         medicationToday: medicationToday.trim() || "None Today",
         healthStatus,
         nextVaccine: nextVaccine.trim() || pet.nextVaccine,
@@ -91,6 +105,8 @@ function PatientDetail() {
       setPet(result.pet);
       setTitle("");
       setDetail("");
+      setServiceProvided("Consultation");
+      setVisitNotes("");
       setWhatsappUrl(result.whatsappUrl ?? null);
       if (result.whatsappUrl) {
         window.open(result.whatsappUrl, "_blank", "noopener,noreferrer");
@@ -160,15 +176,26 @@ function PatientDetail() {
             <p className="text-sm text-muted-foreground">
               {displayValue(pet.breed)} · {displayValue(pet.sex)} · {displayValue(pet.ageYears)} years
             </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {displayValue(pet.vetConnectId)}
-              {pet.collarId ? ` · Tag ${pet.collarId}` : ""}
+            <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+              Last attended by {displayValue(pet.lastAttendedBy || pet.timeline?.[0]?.attendedBy || "VetKonnect clinic")}
             </p>
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
             <HeartPulse className="size-4" /> {displayValue(pet.healthStatus)}
           </span>
         </div>
+
+        <section className="mx-5 mt-4 flex items-center gap-3 rounded-md bg-card p-3 shadow-[var(--shadow-card)]">
+          <PetIdQrCode
+            vetConnectId={pet.vetConnectId}
+            className="size-20 shrink-0 rounded-sm bg-white p-1"
+          />
+          <div>
+            <p className="text-xs font-semibold uppercase text-muted-foreground">VetKonnect Pet ID</p>
+            <p className="font-mono font-bold">{displayValue(pet.vetConnectId)}</p>
+            {pet.collarId ? <p className="mt-1 text-xs text-muted-foreground">Tag {pet.collarId}</p> : null}
+          </div>
+        </section>
 
         <div className="mt-4 grid grid-cols-3 gap-3">
           <Tile label="Weight" value={`${Number(pet.weightKg || 0).toFixed(1)} kg`} />
@@ -179,118 +206,170 @@ function PatientDetail() {
         <section className="mt-2 rounded-md bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-center gap-2">
             <Pill className="size-5 text-primary" />
-            <h2 className="font-extrabold">Prescribe treatment</h2>
+            <h2 className="font-extrabold">Treatment</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Updates the health card, then Twilio sends a WhatsApp receipt and the follow-up visit to the owner’s registered number.
+            Update the patient record and keep the owner informed after the visit.
           </p>
 
-          <label className="mt-4 block text-sm font-medium">
-            Treatment title
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Antibiotics course"
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-            />
-          </label>
+          <Drawer open={treatmentDrawerOpen} onOpenChange={setTreatmentDrawerOpen} shouldScaleBackground={false}>
+            <DrawerTrigger asChild>
+              <Button variant="hero" className="mt-4 w-full">
+                Treatment Granted
+              </Button>
+            </DrawerTrigger>
 
-          <label className="mt-3 block text-sm font-medium">
-            Details / dosage
-            <textarea
-              value={detail}
-              onChange={(e) => setDetail(e.target.value)}
-              placeholder="Dose, duration, notes for the owner…"
-              rows={3}
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-            />
-          </label>
+            <DrawerContent className="max-h-[88vh] rounded-t-[20px] border-t border-border/70">
+              <DrawerHeader className="pb-2 text-left">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <DrawerTitle className="text-left text-xl font-extrabold">Record Treatment</DrawerTitle>
+                    <DrawerDescription className="mt-1 text-left text-xs text-muted-foreground">
+                      Capture the treatment details for this patient.
+                    </DrawerDescription>
+                  </div>
 
-          <label className="mt-3 block text-sm font-medium">
-            Medication today
-            <input
-              value={medicationToday}
-              onChange={(e) => setMedicationToday(e.target.value)}
-              placeholder="Shown on the owner health card"
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-            />
-          </label>
+                  <Button type="button" variant="secondary" size="sm" className="h-8 px-3 text-[11px]" disabled>
+                    Record Treatment
+                  </Button>
+                </div>
+              </DrawerHeader>
 
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label className="block text-sm font-medium">
-              Health status
-              <select
-                value={healthStatus}
-                onChange={(e) => setHealthStatus(e.target.value as HealthStatus)}
-                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-              >
-                <option value="Healthy">Healthy</option>
-                <option value="Attention">Attention</option>
-                <option value="Under Care">Under Care</option>
-              </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Weight (kg)
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={weightKg}
-                onChange={(e) => setWeightKg(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-              />
-            </label>
-          </div>
+              <div className="scrollbar-none overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div className="mt-0 space-y-3">
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Treatment title
+                    <input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Antibiotics course"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                    />
+                  </label>
 
-          <label className="mt-3 block text-sm font-medium">
-            Next vaccine
-            <input
-              value={nextVaccine}
-              onChange={(e) => setNextVaccine(e.target.value)}
-              placeholder="e.g. 12 Oct 2026"
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-            />
-          </label>
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Details / dosage
+                    <textarea
+                      value={detail}
+                      onChange={(e) => setDetail(e.target.value)}
+                      placeholder="Dose, duration, notes for the owner…"
+                      rows={3}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                    />
+                  </label>
 
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label className="block text-sm font-medium">
-              Follow-up date
-              <input
-                type="date"
-                value={followUpDate}
-                onChange={(e) => setFollowUpDate(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-              />
-            </label>
-            <label className="block text-sm font-medium">
-              Follow-up time
-              <input
-                type="time"
-                value={followUpTime}
-                onChange={(e) => setFollowUpTime(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-base outline-none"
-              />
-            </label>
-          </div>
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Service given
+                    <input
+                      value={serviceProvided}
+                      onChange={(e) => setServiceProvided(e.target.value)}
+                      placeholder="e.g. Vaccination, wound care, exam"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                    />
+                  </label>
 
-          <Button
-            variant="hero"
-            className="mt-4 w-full"
-            disabled={saving || title.trim().length < 2 || detail.trim().length < 2 || !followUpDate}
-            onClick={() => void submitTreatment()}
-          >
-            {saving ? "Saving…" : "Save treatment & notify owner"}
-          </Button>
-          {whatsappUrl ? (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 block text-center text-sm font-semibold text-primary"
-            >
-              Send receipt and visit on WhatsApp
-            </a>
-          ) : null}
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Vet notes
+                    <textarea
+                      value={visitNotes}
+                      onChange={(e) => setVisitNotes(e.target.value)}
+                      placeholder="Add observations, recommendations, or treatment notes…"
+                      rows={3}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                    />
+                  </label>
+
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Medication today
+                    <input
+                      value={medicationToday}
+                      onChange={(e) => setMedicationToday(e.target.value)}
+                      placeholder="Shown on the owner health card"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-[12px] font-medium text-muted-foreground">
+                      Health status
+                      <select
+                        value={healthStatus}
+                        onChange={(e) => setHealthStatus(e.target.value as HealthStatus)}
+                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      >
+                        <option value="Healthy">Healthy</option>
+                        <option value="Attention">Attention</option>
+                        <option value="Under Care">Under Care</option>
+                      </select>
+                    </label>
+                    <label className="block text-[12px] font-medium text-muted-foreground">
+                      Weight (kg)
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={weightKg}
+                        onChange={(e) => setWeightKg(e.target.value)}
+                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Next vaccine
+                    <input
+                      value={nextVaccine}
+                      onChange={(e) => setNextVaccine(e.target.value)}
+                      placeholder="e.g. 12 Oct 2026"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-[12px] font-medium text-muted-foreground">
+                      Follow-up date
+                      <input
+                        type="date"
+                        value={followUpDate}
+                        onChange={(e) => setFollowUpDate(e.target.value)}
+                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      />
+                    </label>
+                    <label className="block text-[12px] font-medium text-muted-foreground">
+                      Follow-up time
+                      <input
+                        type="time"
+                        value={followUpTime}
+                        onChange={(e) => setFollowUpTime(e.target.value)}
+                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-accent/30 px-3 py-2 text-[11px] text-muted-foreground">
+                    <p className="font-semibold text-foreground">Latest recorded overview</p>
+                    <p className="mt-1">
+                      Service: {displayValue(pet.lastService || pet.timeline?.[0]?.service || "Consultation")}
+                    </p>
+                    <p>
+                      Overall health: {displayValue(pet.lastOverallHealth || pet.timeline?.[0]?.overallHealth || pet.healthStatus)}
+                    </p>
+                  </div>
+
+                  {whatsappUrl ? (
+                    <a
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 block text-center text-sm font-semibold text-primary"
+                    >
+                      Send receipt and visit on WhatsApp
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            </DrawerContent>
+          </Drawer>
         </section>
 
         <DvsPetCertificates petId={pet.id} />

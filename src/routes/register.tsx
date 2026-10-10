@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowRight, Check, ChevronsUpDown, Lock, Phone, ShieldCheck, Stethoscope } from "lucide-react";
+import { ArrowRight, Check, ChevronsUpDown, Lock, Phone, Stethoscope } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
@@ -53,6 +53,7 @@ function Register() {
   const [registerAsVet, setRegisterAsVet] = useState(false);
   const [notice, setNotice] = useState("");
   const submitted = useRef(false);
+  const cleanPhone = phone.replace(/\D/g, "");
 
   const selectedCountry = useMemo(
     () => findCountryByIso(countryIso) ?? findCountryByIso(DEFAULT_COUNTRY_ISO)!,
@@ -72,7 +73,6 @@ function Register() {
   }, []);
 
   const submit = () => {
-    const cleanPhone = phone.replace(/\s+/g, "").trim();
     if (cleanPhone.length < 6 || submitted.current) return;
     submitted.current = true;
     const accountType = registerAsVet ? "vet" : "owner";
@@ -173,25 +173,17 @@ function Register() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-bold text-foreground">Register as Vet</span>
-          <span className="mt-0.5 block text-sm text-muted-foreground">
-            Open the practice app by default. Patients & Impact unlock after admin verification.
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+            Patients & Impact unlock after admin verification.
           </span>
         </span>
         <Switch checked={registerAsVet} onCheckedChange={setRegisterAsVet} aria-label="Register as Vet" />
       </label>
 
-      <div className="mt-4 flex items-start gap-3 rounded-2xl bg-accent/60 p-4 text-sm text-secondary-foreground">
-        <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-        <p>
-          New accounts choose a 5-digit PIN. When you come back, sign in with that PIN. The account is not locked to
-          one phone.
-        </p>
-      </div>
-
       <Button
         variant="hero"
         size="lg"
-        disabled={phone.trim().length < 6}
+        disabled={cleanPhone.length < 6}
         onClick={submit}
         className="mt-8 w-full justify-between text-base tracking-wide"
       >

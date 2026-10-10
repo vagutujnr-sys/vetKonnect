@@ -26,6 +26,10 @@ export interface Pet {
   medicationToday: string;
   vetSure: boolean;
   timeline: HealthEvent[];
+  lastAttendedBy?: string;
+  lastService?: string;
+  lastNotes?: string;
+  lastOverallHealth?: HealthStatus;
 }
 
 export interface HealthEvent {
@@ -34,6 +38,10 @@ export interface HealthEvent {
   title: string;
   detail: string;
   type: "vaccine" | "checkup" | "treatment" | "grooming";
+  attendedBy?: string;
+  service?: string;
+  notes?: string;
+  overallHealth?: HealthStatus;
 }
 
 export interface UserProfile {

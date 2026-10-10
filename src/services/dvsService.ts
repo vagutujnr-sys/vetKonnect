@@ -1057,36 +1057,51 @@ export async function logCertificateVerification(input: {
   return { certificate, result };
 }
 
-export async function searchDvsAnimals(query: string): Promise<Pet[]> {
+export type DvsAnimalSearchResult = Pet & { ownerName?: string; ownerPhone?: string };
+
+export async function searchDvsAnimals(query: string): Promise<DvsAnimalSearchResult[]> {
   const q = query.trim().replace(/[,()]/g, " ");
   if (!q) return [];
   const like = `%${q}%`;
   const { data, error } = await supabase
     .from("pets")
     .select("*")
-    .or(`name.ilike.${like},vetconnect_id.ilike.${like},collar_id.ilike.${like},microchip.ilike.${like}`)
+    .or(`id.eq.${q},name.ilike.${like},vetconnect_id.ilike.${like},collar_id.ilike.${like},microchip.ilike.${like}`)
     .limit(25);
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    id: String(row.id),
-    ownerId: row.owner_id ? String(row.owner_id) : undefined,
-    vetConnectId: String(row.vetconnect_id ?? ""),
-    collarId: row.collar_id ? String(row.collar_id) : undefined,
-    name: String(row.name ?? ""),
-    species: row.species as Pet["species"],
-    breed: String(row.breed ?? ""),
-    sex: row.sex as Pet["sex"],
-    ageYears: Number(row.age_years ?? 0),
-    colour: String(row.colour ?? ""),
-    microchip: row.microchip ? String(row.microchip) : undefined,
-    photoUrl: String(row.photo_url ?? ""),
-    healthStatus: (row.health_status as Pet["healthStatus"]) || "Healthy",
-    weightKg: Number(row.weight_kg ?? 0),
-    nextVaccine: String(row.next_vaccine ?? "Not scheduled"),
-    medicationToday: String(row.medication_today ?? "None Today"),
-    vetSure: Boolean(row.vet_sure),
-    timeline: (row.timeline ?? []) as Pet["timeline"],
-  }));
+  const rows = data ?? [];
+  const ownerIds = [...new Set(rows.map((row) => row.owner_id ? String(row.owner_id) : "").filter(Boolean))];
+  const { data: owners, error: ownersError } = ownerIds.length
+    ? await supabase.from("accounts").select("id, full_name, phone").in("id", ownerIds)
+    : { data: [], error: null };
+  if (ownersError) throw ownersError;
+  const ownersById = new Map((owners ?? []).map((owner) => [String(owner.id), owner]));
+
+  return rows.map((row) => {
+    const owner = row.owner_id ? ownersById.get(String(row.owner_id)) : undefined;
+    return {
+      id: String(row.id),
+      ownerId: row.owner_id ? String(row.owner_id) : undefined,
+      ownerName: owner?.full_name ? String(owner.full_name) : undefined,
+      ownerPhone: owner?.phone ? String(owner.phone) : undefined,
+      vetConnectId: String(row.vetconnect_id ?? ""),
+      collarId: row.collar_id ? String(row.collar_id) : undefined,
+      name: String(row.name ?? ""),
+      species: row.species as Pet["species"],
+      breed: String(row.breed ?? ""),
+      sex: row.sex as Pet["sex"],
+      ageYears: Number(row.age_years ?? 0),
+      colour: String(row.colour ?? ""),
+      microchip: row.microchip ? String(row.microchip) : undefined,
+      photoUrl: String(row.photo_url ?? ""),
+      healthStatus: (row.health_status as Pet["healthStatus"]) || "Healthy",
+      weightKg: Number(row.weight_kg ?? 0),
+      nextVaccine: String(row.next_vaccine ?? "Not scheduled"),
+      medicationToday: String(row.medication_today ?? "None Today"),
+      vetSure: Boolean(row.vet_sure),
+      timeline: (row.timeline ?? []) as Pet["timeline"],
+    };
+  });
 }
 
 export async function lookupOwner(accountId: string): Promise<{ fullName: string; phone: string } | null> {

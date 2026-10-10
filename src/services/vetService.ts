@@ -37,6 +37,8 @@ export type PrescribeTreatmentInput = {
   detail: string;
   medicationToday?: string;
   healthStatus?: HealthStatus;
+  serviceProvided?: string;
+  visitNotes?: string;
   nextVaccine?: string;
   weightKg?: number;
   followUpDate: string;
@@ -137,6 +139,8 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
 
   const title = input.title.trim();
   const detail = input.detail.trim();
+  const serviceProvided = input.serviceProvided?.trim() || "Consultation";
+  const visitNotes = input.visitNotes?.trim() || "";
   const followUpDate = input.followUpDate.trim();
   const followUpTime = input.followUpTime.trim() || "09:00";
   if (title.length < 2) throw new Error("Add a treatment title.");
@@ -146,6 +150,8 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
   const pet = await getPetRecordById(input.petId);
   if (!pet) throw new Error("Patient not found.");
 
+  const overallHealth = input.healthStatus ?? pet.healthStatus;
+
   const visitedAt = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const when = formatVisitWhen(followUpDate, followUpTime);
   const vetName = user.fullName?.trim() || "Your vet";
@@ -154,9 +160,19 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
   const event = {
     id: crypto.randomUUID(),
     date: visitedAt,
-    title,
-    detail: `${detail}${user.fullName ? ` · Prescribed by ${user.fullName}` : ""}`,
+    title: serviceProvided || title,
+    detail: [
+      detail,
+      visitNotes ? `Notes: ${visitNotes}` : "",
+      user.fullName ? `Attended by ${user.fullName}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     type: "treatment" as const,
+    service: serviceProvided,
+    notes: visitNotes,
+    attendedBy: user.fullName || "VetKonnect clinic",
+    overallHealth,
   };
   const meeting = {
     id: crypto.randomUUID(),
@@ -172,6 +188,10 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
     healthStatus: input.healthStatus ?? pet.healthStatus,
     nextVaccine: input.nextVaccine?.trim() || pet.nextVaccine,
     weightKg: input.weightKg != null && !Number.isNaN(input.weightKg) ? input.weightKg : pet.weightKg,
+    lastAttendedBy: user.fullName || "VetKonnect clinic",
+    lastService: serviceProvided,
+    lastNotes: visitNotes,
+    lastOverallHealth: overallHealth,
   });
 
   if (!updated) throw new Error("Could not update the health card.");

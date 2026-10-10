@@ -117,36 +117,35 @@ function NotificationsPage() {
                 }
               }}
               className={cn(
-                "w-full rounded-md bg-card p-4 text-left shadow-[var(--shadow-card)] transition-opacity",
+                "w-full rounded-md bg-card p-3 text-left shadow-[var(--shadow-card)] transition-opacity",
                 note.read && "opacity-75",
               )}
-              style={{ borderLeft: `4px solid ${accent}` }}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2">
                 {note.imageUrl ? (
                   <img
                     src={note.imageUrl}
                     alt=""
-                    className="mt-0.5 size-10 shrink-0 rounded-full object-cover ring-2 ring-white"
+                    className="mt-0.5 size-8 shrink-0 rounded-full object-cover ring-2 ring-white"
                     style={{ boxShadow: `0 0 0 1px color-mix(in oklab, ${accent} 25%, transparent)` }}
                   />
                 ) : (
                   <span
-                    className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-accent/70 p-1.5"
+                    className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/70 p-1"
                     style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${accent} 25%, transparent)` }}
                   >
-                    <LogoMark className="h-5 w-5" />
+                    <LogoMark className="h-4 w-4" />
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-semibold text-foreground">{note.title}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">{note.title}</p>
                     {!note.read ? (
-                      <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
+                      <span className="mt-1 size-1.5 shrink-0 rounded-full" style={{ backgroundColor: accent }} />
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>
-                  <p className="mt-2 text-xs text-muted-foreground">{new Date(note.createdAt).toLocaleString()}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{note.body}</p>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">{new Date(note.createdAt).toLocaleString()}</p>
                 </div>
               </div>
             </button>
