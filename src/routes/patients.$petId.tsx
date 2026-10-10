@@ -11,6 +11,7 @@ import {
   Pill,
   Stethoscope,
   Syringe,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -475,18 +476,10 @@ function PatientDetail() {
               <div className="flex shrink-0 items-center gap-3 border-t border-border bg-background pt-3">
                 <Button
                   type="button"
-                  variant="secondary"
-                  className="size-11 shrink-0 rounded-full p-0"
-                  disabled
-                  aria-label="Record treatment with microphone"
-                  title="Voice recording coming soon"
-                >
-                  <Mic className="size-5" aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
                   variant="outline"
-                  className="min-w-28"
+                  className={treatmentStep === 1 ? "size-11 shrink-0 rounded-full p-0" : "min-w-28"}
+                  aria-label={treatmentStep === 1 ? "Cancel treatment" : "Go back"}
+                  title={treatmentStep === 1 ? "Cancel" : undefined}
                   disabled={saving}
                   onClick={() => {
                     if (treatmentStep === 1) {
@@ -496,7 +489,7 @@ function PatientDetail() {
                     }
                   }}
                 >
-                  {treatmentStep === 1 ? "Cancel" : <><ChevronLeft className="size-4" /> Back</>}
+                  {treatmentStep === 1 ? <X className="size-5" aria-hidden="true" /> : <><ChevronLeft className="size-4" /> Back</>}
                 </Button>
                 {treatmentStep < treatmentSteps.length ? (
                   <Button type="button" variant="hero" className="flex-1" onClick={advanceTreatmentStep}>
@@ -513,6 +506,16 @@ function PatientDetail() {
                     {saving ? "Saving visit…" : <><Check className="size-4" /> Save treatment</>}
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="size-11 shrink-0 rounded-full p-0"
+                  disabled
+                  aria-label="Record treatment with microphone"
+                  title="Voice recording coming soon"
+                >
+                  <Mic className="size-5" aria-hidden="true" />
+                </Button>
               </div>
             </DrawerContent>
           </Drawer>
