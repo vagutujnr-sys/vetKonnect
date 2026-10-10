@@ -75,7 +75,7 @@ function PatientDetail() {
         setPet(record);
         setMedicationToday(record.medicationToday === "None Today" ? "" : record.medicationToday);
         setHealthStatus(record.healthStatus === "Healthy" ? "Under Care" : record.healthStatus);
-        setNextVaccine(record.nextVaccine === "Not scheduled" ? "" : record.nextVaccine);
+        setNextVaccine(toDateInputValue(record.nextVaccine));
         setWeightKg(record.weightKg ? String(record.weightKg) : "");
       })
       .catch((error) => {
@@ -243,7 +243,7 @@ function PatientDetail() {
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="e.g. Antibiotics course"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                     />
                   </label>
 
@@ -254,7 +254,7 @@ function PatientDetail() {
                       onChange={(e) => setDetail(e.target.value)}
                       placeholder="Dose, duration, notes for the owner…"
                       rows={3}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                     />
                   </label>
 
@@ -264,7 +264,7 @@ function PatientDetail() {
                       value={serviceProvided}
                       onChange={(e) => setServiceProvided(e.target.value)}
                       placeholder="e.g. Vaccination, wound care, exam"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                     />
                   </label>
 
@@ -275,7 +275,7 @@ function PatientDetail() {
                       onChange={(e) => setVisitNotes(e.target.value)}
                       placeholder="Add observations, recommendations, or treatment notes…"
                       rows={3}
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                     />
                   </label>
 
@@ -285,43 +285,29 @@ function PatientDetail() {
                       value={medicationToday}
                       onChange={(e) => setMedicationToday(e.target.value)}
                       placeholder="Shown on the owner health card"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                     />
                   </label>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block text-[12px] font-medium text-muted-foreground">
-                      Health status
-                      <select
-                        value={healthStatus}
-                        onChange={(e) => setHealthStatus(e.target.value as HealthStatus)}
-                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
-                      >
-                        <option value="Healthy">Healthy</option>
-                        <option value="Attention">Attention</option>
-                        <option value="Under Care">Under Care</option>
-                      </select>
-                    </label>
-                    <label className="block text-[12px] font-medium text-muted-foreground">
-                      Weight (kg)
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={weightKg}
-                        onChange={(e) => setWeightKg(e.target.value)}
-                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
-                      />
-                    </label>
-                  </div>
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Weight (kg)
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(e.target.value)}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
+                    />
+                  </label>
 
                   <label className="block text-[12px] font-medium text-muted-foreground">
                     Next vaccine
                     <input
+                      type="date"
                       value={nextVaccine}
                       onChange={(e) => setNextVaccine(e.target.value)}
-                      placeholder="e.g. 12 Oct 2026"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                     />
                   </label>
 
@@ -332,7 +318,7 @@ function PatientDetail() {
                         type="date"
                         value={followUpDate}
                         onChange={(e) => setFollowUpDate(e.target.value)}
-                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                       />
                     </label>
                     <label className="block text-[12px] font-medium text-muted-foreground">
@@ -341,7 +327,7 @@ function PatientDetail() {
                         type="time"
                         value={followUpTime}
                         onChange={(e) => setFollowUpTime(e.target.value)}
-                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none"
+                        className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
                       />
                     </label>
                   </div>
@@ -355,6 +341,29 @@ function PatientDetail() {
                       Overall health: {displayValue(pet.lastOverallHealth || pet.timeline?.[0]?.overallHealth || pet.healthStatus)}
                     </p>
                   </div>
+
+                  <label className="block text-[12px] font-medium text-muted-foreground">
+                    Health status
+                    <select
+                      value={healthStatus}
+                      onChange={(e) => setHealthStatus(e.target.value as HealthStatus)}
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base outline-none"
+                    >
+                      <option value="Healthy">Healthy</option>
+                      <option value="Attention">Attention</option>
+                      <option value="Under Care">Under Care</option>
+                    </select>
+                  </label>
+
+                  <Button
+                    type="button"
+                    variant="hero"
+                    className="mt-2 w-full"
+                    disabled={saving}
+                    onClick={() => void submitTreatment()}
+                  >
+                    {saving ? "Submitting…" : "Submit Treatment"}
+                  </Button>
 
                   {whatsappUrl ? (
                     <a
@@ -402,6 +411,20 @@ function defaultFollowUpDate() {
   const month = String(next.getMonth() + 1).padStart(2, "0");
   const day = String(next.getDate()).padStart(2, "0");
   return `${next.getFullYear()}-${month}-${day}`;
+}
+
+function toDateInputValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "Not scheduled") return "";
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function Tile({ label, value }: { label: string; value: string }) {
