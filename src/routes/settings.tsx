@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Bell, ChevronRight, MessageCircle, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Bell, Cable, ChevronRight, MessageCircle, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PinPad } from "@/components/auth/PinPad";
 import { AppShell, appHeaderClass } from "@/components/layout/AppShell";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/hooks/useApp";
+import { isVetAccount } from "@/lib/account";
 import { playNotificationSound } from "@/lib/notificationSound";
 import { PIN_LENGTH, verifyPinHash } from "@/lib/pin";
 import { requestBrowserNotificationPermission } from "@/services/notificationService";
@@ -269,6 +270,52 @@ function SettingsPage() {
           />
         </div>
       </section>
+
+      {isVetAccount(user) ? (
+        <section className="card-surface mt-2 p-5">
+          <div className="flex items-start gap-3">
+            <Cable className="mt-0.5 size-5 text-primary" />
+            <div className="min-w-0 flex-1">
+              <h2 className="font-bold">Connect P.O.S</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Enter the integration code provided for your VetKonnect POS.
+              </p>
+            </div>
+          </div>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.currentTarget.reset();
+              toast.info("POS integration is not configured yet", {
+                description: "Your integration code was not sent or saved.",
+              });
+            }}
+          >
+            <label className="block text-sm font-medium" htmlFor="pos-integration-code">
+              Integration code
+              <input
+                id="pos-integration-code"
+                name="posIntegrationCode"
+                type="password"
+                autoComplete="off"
+                placeholder="Enter integration code"
+                required
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+            <button
+              type="submit"
+              className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+            >
+              Connect P.O.S
+            </button>
+            <p className="text-xs text-muted-foreground">
+              Integration code connection will be enabled when the POS service is configured.
+            </p>
+          </form>
+        </section>
+      ) : null}
 
       {user.id ? <ChangePinCard accountId={user.id} /> : null}
     </AppShell>
