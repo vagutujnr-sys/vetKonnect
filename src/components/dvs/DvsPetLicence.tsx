@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, Clock3, Receipt, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { initiateDvsLicencePayment, pollDvsLicencePayment } from "@/lib/dvsLicenceClient";
 import { councilFacingText, dvsLicenceFeeForSpecies, DVS_LICENCE_FEES, formatDvsMoney } from "@/lib/dvsLicenceFees";
@@ -24,6 +31,7 @@ export function DvsPetLicence({ pet, ownerPhone }: { pet: Pet; ownerPhone?: stri
   const [localProof, setLocalProof] = useState<string | null>(null);
   const [phone, setPhone] = useState(ownerPhone ?? "");
   const [busy, setBusy] = useState<DvsPaymentMethod | "poll" | "proof" | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const proofRef = useRef<HTMLInputElement>(null);
 
   const fee = dvsLicenceFeeForSpecies(pet.species);
@@ -72,10 +80,19 @@ export function DvsPetLicence({ pet, ownerPhone }: { pet: Pet; ownerPhone?: stri
         window.location.href = result.redirectUrl;
         return;
       }
-      toast.success(councilFacingText(result.instructions || (result.demo ? "Council pet registration request recorded." : "Complete the prompt on your phone.")));
+      if (result.demo) {
+        toast.message("Verification in Progress");
+      } else {
+        toast.success(councilFacingText(result.instructions || "Complete the prompt on your phone."));
+      }
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not start Paynow.");
+      const message = error instanceof Error ? error.message : "Could not start Paynow.";
+      if (/(?:paynow|merchant).*?(?:not configured|configuration|keys)|PAYNOW_INTEGRATION/i.test(message)) {
+        toast.message("Verification in Progress");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setBusy(null);
     }
@@ -130,73 +147,114 @@ export function DvsPetLicence({ pet, ownerPhone }: { pet: Pet; ownerPhone?: stri
 
   const active = licence?.status === "active" && !localProof;
   const awaitingApproval = licence?.status === "pending" || Boolean(localProof);
+  const paymentPending = Boolean(pending) && !active && !awaitingApproval;
+  const verificationInProgress = paymentPending && pending?.paynowStatus === "demo_pending";
+  const needsRegistration = !active && !awaitingApproval && !paymentPending;
 
   return (
-    <div className="mt-2 w-full rounded-md border border-emerald-200 bg-emerald-50/50 p-4">
-      <div className="flex items-center gap-2">
-        {active ? <BadgeCheck className="size-5 text-emerald-800" /> : awaitingApproval ? <Clock3 className="size-5 text-emerald-800" /> : <Receipt className="size-5 text-emerald-800" />}
-        <h3 className="font-semibold text-emerald-950">Council Pet Registration</h3>
+    <>
+      <div className="mt-2">
+        <Button
+          type="button"
+          variant={active ? "secondary" : awaitingApproval ? "outline" : "hero"}
+          className={`w-full justify-between ${needsRegistration ? "animate-pulse motion-reduce:animate-none" : ""}`}
+          onClick={() => setDetailsOpen(true)}
+          aria-label={active ? "Fully registered with council; view details" : "Open council registration details"}
+        >
+          <span className="flex items-center gap-2">
+            {active ? <BadgeCheck className="size-5" /> : awaitingApproval || paymentPending ? <Clock3 className="size-5" /> : <Receipt className="size-5" />}
+            {active ? "Fully Registered" : awaitingApproval ? "Pending Approval" : verificationInProgress ? "Verification in Progress" : paymentPending ? "Payment Pending" : "Register"}
+          </span>
+          {!active ? <span className="text-xs opacity-80">Council</span> : null}
+        </Button>
       </div>
-      {awaitingApproval ? (
-        <p className="mt-2 text-sm font-semibold text-amber-800">Pending approval</p>
-      ) : active ? (
-        <p className="mt-2 text-sm text-emerald-900">
-          {pet.name} is registered with the city council until <span className="font-semibold">{licence?.expiresAt}</span>. Registration{" "}
-          <span className="font-mono text-xs">{councilFacingText(licence?.licenceNumber ?? "")}</span>.
-        </p>
-      ) : (
-        <>
-          <p className="mt-2 text-sm text-emerald-900/80">
-            City council pet registration for the year. Fee {formatDvsMoney(fee)} ({DVS_LICENCE_FEES.validityDays} days).
-          </p>
-          {licence?.status === "expired" ? (
-            <p className="mt-1 text-xs text-amber-800">Previous registration {councilFacingText(licence.licenceNumber)} expired {licence.expiresAt}.</p>
-          ) : null}
-          <Input
-            className="mt-3 bg-white"
-            placeholder="EcoCash / OneMoney number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" className="bg-[#123524]" disabled={Boolean(busy)} onClick={() => void pay("ecocash")}>
-              {busy === "ecocash" ? "Starting…" : "Pay EcoCash"}
-            </Button>
-            <Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={() => void pay("onemoney")}>
-              {busy === "onemoney" ? "Starting…" : "Pay OneMoney"}
-            </Button>
-            <Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={() => void pay("paynow")}>
-              {busy === "paynow" ? "Starting…" : "Paynow web"}
-            </Button>
+
+      <Drawer open={detailsOpen} onOpenChange={setDetailsOpen} shouldScaleBackground={false}>
+        <DrawerContent
+          overlayClassName="-bottom-4 bg-black/40 backdrop-blur-sm"
+          className="left-1/2 right-auto bottom-4 flex w-[calc(100%-2rem)] max-h-[75vh] max-w-[398px] -translate-x-1/2 flex-col overflow-y-auto scrollbar-none rounded-3xl border-0 bg-background p-5 shadow-[var(--shadow-float)] [&>div:first-child]:hidden animate-in slide-in-from-bottom-4 duration-300"
+        >
+          <DrawerHeader className="p-0 pb-3 text-left">
+            <DrawerTitle className="flex items-center gap-2">
+              {active ? <BadgeCheck className="size-5 text-emerald-800" /> : awaitingApproval || paymentPending ? <Clock3 className="size-5 text-amber-700" /> : <Receipt className="size-5 text-primary" />}
+              Council Pet Registration
+            </DrawerTitle>
+            <DrawerDescription>
+              {active
+                ? "Your pet's current city council registration details."
+                : `Register ${pet.name} with the city council for ${formatDvsMoney(fee)} (${DVS_LICENCE_FEES.validityDays} days).`}
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div className="space-y-3">
+            {awaitingApproval ? (
+              <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">Pending approval</p>
+            ) : active ? (
+              <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-900">
+                {pet.name} is registered with the city council until <span className="font-semibold">{licence?.expiresAt}</span>. Registration{" "}
+                <span className="font-mono text-xs">{councilFacingText(licence?.licenceNumber ?? "")}</span>.
+              </p>
+            ) : (
+              <>
+                {licence?.status === "expired" ? (
+                  <p className="text-xs text-amber-800">Previous registration {councilFacingText(licence.licenceNumber)} expired {licence.expiresAt}.</p>
+                ) : null}
+                <Input
+                  className="bg-white"
+                  placeholder="EcoCash / OneMoney number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" className="bg-[#123524]" disabled={Boolean(busy)} onClick={() => void pay("ecocash")}>
+                    {busy === "ecocash" ? "Starting…" : "Pay EcoCash"}
+                  </Button>
+                  <Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={() => void pay("onemoney")}>
+                    {busy === "onemoney" ? "Starting…" : "Pay OneMoney"}
+                  </Button>
+                  <Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={() => void pay("paynow")}>
+                    {busy === "paynow" ? "Starting…" : "Paynow web"}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {paymentPending ? (
+              <div className="rounded-md bg-card px-3 py-2 text-sm">
+                {verificationInProgress ? (
+                  <p className="font-medium">Verification in Progress</p>
+                ) : (
+                  <>
+                    <p className="font-medium">Pending {pending?.method} · {formatDvsMoney(pending?.amount ?? 0)}</p>
+                    <p className="text-xs text-muted-foreground">Ref {councilFacingText(pending?.reference ?? "")}</p>
+                    {pending?.instructions ? <p className="mt-1 text-xs text-muted-foreground">{councilFacingText(pending.instructions)}</p> : null}
+                    <Button size="sm" variant="ghost" className="mt-1 px-0" disabled={Boolean(busy)} onClick={() => void checkStatus()}>
+                      {busy === "poll" ? "Checking…" : "I've paid — check status"}
+                    </Button>
+                  </>
+                )}
+              </div>
+            ) : null}
+
+            {!awaitingApproval ? (
+              <div className="border-t border-border pt-3">
+                <p className="text-sm text-muted-foreground">Already registered with the council? Upload your certificate.</p>
+                <input
+                  ref={proofRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) => void uploadProof(e.target.files?.[0] ?? null)}
+                />
+                <Button size="sm" variant="secondary" className="mt-2" disabled={Boolean(busy)} onClick={() => proofRef.current?.click()}>
+                  <Upload className="size-4" />
+                  {busy === "proof" ? "Uploading…" : "Upload registration proof"}
+                </Button>
+              </div>
+            ) : null}
           </div>
-        </>
-      )}
-      {pending && !active && !awaitingApproval ? (
-        <div className="mt-3 rounded-xl bg-white px-3 py-2 text-sm">
-          <p className="font-medium text-slate-900">Pending {pending.method} · {formatDvsMoney(pending.amount)}</p>
-          <p className="text-xs text-slate-500">Ref {councilFacingText(pending.reference)}</p>
-          {pending.instructions ? <p className="mt-1 text-xs text-slate-600">{councilFacingText(pending.instructions)}</p> : null}
-          <Button size="sm" variant="ghost" className="mt-1 px-0" disabled={Boolean(busy)} onClick={() => void checkStatus()}>
-            {busy === "poll" ? "Checking…" : "I've paid — check status"}
-          </Button>
-        </div>
-      ) : null}
-      {!awaitingApproval ? (
-        <div className="mt-4 border-t border-emerald-200 pt-3">
-          <p className="text-sm text-emerald-900/80">Already registered with the council? Upload your certificate.</p>
-          <input
-            ref={proofRef}
-            type="file"
-            accept="image/*,application/pdf"
-            className="hidden"
-            onChange={(e) => void uploadProof(e.target.files?.[0] ?? null)}
-          />
-          <Button size="sm" variant="secondary" className="mt-2" disabled={Boolean(busy)} onClick={() => proofRef.current?.click()}>
-            <Upload className="size-4" />
-            {busy === "proof" ? "Uploading…" : "Upload registration proof"}
-          </Button>
-        </div>
-      ) : null}
-    </div>
+        </DrawerContent>
+      </Drawer>
+    </>
   );
 }
