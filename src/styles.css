@@ -166,8 +166,26 @@
   animation: premium-float 3.2s ease-in-out infinite;
 }
 
+@keyframes register-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.register-pulse {
+  animation: register-pulse 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .premium-float {
+    animation: none;
+  }
+
+  .register-pulse {
     animation: none;
   }
 }

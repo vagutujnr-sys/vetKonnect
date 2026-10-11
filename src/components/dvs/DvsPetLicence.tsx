@@ -25,7 +25,15 @@ function readLocalProof(petId: string): string | null {
   }
 }
 
-export function DvsPetLicence({ pet, ownerPhone }: { pet: Pet; ownerPhone?: string }) {
+export function DvsPetLicence({
+  pet,
+  ownerPhone,
+  triggerClassName,
+}: {
+  pet: Pet;
+  ownerPhone?: string;
+  triggerClassName?: string;
+}) {
   const [licence, setLicence] = useState<DvsAnimalLicence | null>(null);
   const [pending, setPending] = useState<DvsLicencePayment | null>(null);
   const [localProof, setLocalProof] = useState<string | null>(null);
@@ -149,23 +157,17 @@ export function DvsPetLicence({ pet, ownerPhone }: { pet: Pet; ownerPhone?: stri
   const awaitingApproval = licence?.status === "pending" || Boolean(localProof);
   const paymentPending = Boolean(pending) && !active && !awaitingApproval;
   const verificationInProgress = paymentPending && pending?.paynowStatus === "demo_pending";
-  const needsRegistration = !active && !awaitingApproval && !paymentPending;
-
   return (
     <>
-      <div className="mt-2">
+      <div className={triggerClassName ?? "mt-2"}>
         <Button
           type="button"
-          variant={active ? "secondary" : awaitingApproval ? "outline" : "hero"}
-          className={`w-full justify-between ${needsRegistration ? "animate-pulse motion-reduce:animate-none" : ""}`}
+          variant={active ? "default" : "destructive"}
+          className={`h-auto w-fit rounded-full px-3 py-1.5 text-xs leading-none shadow-none ${!active ? "register-pulse" : ""}`}
           onClick={() => setDetailsOpen(true)}
-          aria-label={active ? "Fully registered with council; view details" : "Open council registration details"}
+          aria-label={active ? "Registered" : "Register"}
         >
-          <span className="flex items-center gap-2">
-            {active ? <BadgeCheck className="size-5" /> : awaitingApproval || paymentPending ? <Clock3 className="size-5" /> : <Receipt className="size-5" />}
-            {active ? "Fully Registered" : awaitingApproval ? "Pending Approval" : verificationInProgress ? "Verification in Progress" : paymentPending ? "Payment Pending" : "Register"}
-          </span>
-          {!active ? <span className="text-xs opacity-80">Council</span> : null}
+          {active ? "Registered" : "Register"}
         </Button>
       </div>
 

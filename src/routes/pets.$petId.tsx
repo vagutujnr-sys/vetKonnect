@@ -139,6 +139,11 @@ function PetProfile() {
             No photo
           </div>
         )}
+        <DvsPetLicence
+          pet={pet}
+          ownerPhone={user.phone}
+          triggerClassName="absolute right-5 top-5 z-10"
+        />
         <Link
           to={backToPath}
           className="absolute left-5 top-5 z-10 flex size-10 items-center justify-center rounded-full bg-background/90 backdrop-blur"
@@ -240,7 +245,6 @@ function PetProfile() {
           <Tile label="Next vaccine" value={displayValue(pet.nextVaccine)} />
         </div>
 
-        <DvsPetLicence pet={pet} ownerPhone={user.phone} />
         <DvsPetCertificates petId={pet.id} />
 
         <h2 className="mt-7 px-5 text-lg font-bold">Health timeline</h2>
