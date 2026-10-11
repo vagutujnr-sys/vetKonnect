@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Camera, HeartPulse, ImagePlus, Syringe } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -46,8 +46,10 @@ function displayValue(value: string | number | null | undefined, fallback = "0.0
 
 function PetProfile() {
   const { petId } = Route.useParams();
+  const navigate = useNavigate();
   const { pets, ready, user, updatePet } = useApp();
-  const backToPath = isVetAccount(user) ? "/patients" : "/pets";
+  const isVet = isVetAccount(user);
+  const backToPath = "/pets";
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -56,6 +58,11 @@ function PetProfile() {
   const [loadingPet, setLoadingPet] = useState(true);
 
   useEffect(() => {
+    if (isVet) {
+      void navigate({ to: "/patients/$petId", params: { petId } });
+      return;
+    }
+
     let active = true;
     setLoadingPet(true);
 
@@ -82,7 +89,7 @@ function PetProfile() {
     return () => {
       active = false;
     };
-  }, [petId, pets]);
+  }, [isVet, petId, pets]);
 
   if (!pet) {
     if (loadingPet || !ready)
@@ -108,7 +115,7 @@ function PetProfile() {
   }
 
   const changePhoto = async (file: File | null) => {
-    if (!file) return;
+    if (isVet || !file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please choose an image file.");
       return;
@@ -128,6 +135,14 @@ function PetProfile() {
       if (cameraRef.current) cameraRef.current.value = "";
     }
   };
+
+  if (isVet) {
+    return (
+      <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="px-5 pt-16 text-sm text-muted-foreground">Loading patient…</div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

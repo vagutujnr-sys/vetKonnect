@@ -12,40 +12,21 @@ type Props = {
   className?: string;
 };
 
-const PAW_SVG = `<svg class="vk-owner-marker-paw" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 10.5c-1.8 0-3.4 1.2-3.9 2.9-.4 1.3.1 2.7 1.2 3.5.7.5 1.6.8 2.7.8s2-.3 2.7-.8c1.1-.8 1.6-2.2 1.2-3.5-.5-1.7-2.1-2.9-3.9-2.9zm-5.2-1.2c.9 0 1.7-.8 1.7-1.8S7.7 5.7 6.8 5.7 5.1 6.5 5.1 7.5s.8 1.8 1.7 1.8zm10.4 0c.9 0 1.7-.8 1.7-1.8s-.8-1.8-1.7-1.8-1.7.8-1.7 1.8.8 1.8 1.7 1.8zM8.4 4.8c.9 0 1.6-.8 1.6-1.7S9.3 1.4 8.4 1.4 6.8 2.2 6.8 3.1s.7 1.7 1.6 1.7zm7.2 0c.9 0 1.6-.8 1.6-1.7s-.7-1.7-1.6-1.7-1.6.8-1.6 1.7.7 1.7 1.6 1.7z"/></svg>`;
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
 function buildOwnerMarker(owner: PotentialClient, active: boolean): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
-  el.className = active ? "vk-owner-marker vk-owner-marker-active" : "vk-owner-marker";
-  el.setAttribute("aria-label", `${owner.fullName}, ${owner.pets} pets, ${owner.distanceKm.toFixed(1)} km`);
-
-  const face = document.createElement("span");
-  face.className = "vk-owner-marker-face";
-  if (owner.avatarUrl) {
-    const img = document.createElement("img");
-    img.src = owner.avatarUrl;
-    img.alt = "";
-    img.referrerPolicy = "no-referrer";
-    face.appendChild(img);
-  } else {
-    face.innerHTML = PAW_SVG;
-  }
-
-  const count = document.createElement("span");
-  count.className = "vk-owner-marker-count";
-  count.innerHTML = `${PAW_SVG}<span>${owner.pets > 9 ? "9+" : String(owner.pets)}</span>`;
-
-  el.appendChild(face);
-  el.appendChild(count);
+  el.className = [
+    "vk-impact-count-marker",
+    active ? "vk-impact-count-marker-active" : "",
+    owner.animals > 5 ? "vk-impact-count-marker-high-count" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  el.setAttribute(
+    "aria-label",
+    `${owner.herdAnimals} herded and ${owner.pets} pets at this location, ${owner.distanceKm.toFixed(1)} km away`,
+  );
+  el.textContent = owner.animals > 99 ? "99+" : String(owner.animals);
   return el;
 }
 
@@ -111,15 +92,14 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
         });
         ownerElsRef.current.set(owner.id, el);
 
-        const petsLabel = `${owner.pets} pet${owner.pets === 1 ? "" : "s"}`;
-        const petNames = owner.petNames.slice(0, 3).map(escapeHtml).join(", ");
+        const animalLabel = `${owner.herdAnimals} Herded and ${owner.pets} Pets`;
         const approx = owner.approximate ? "<br/><em>Approx. nearby</em>" : "";
         markers.push(
           new mapboxgl.Marker({ element: el, anchor: "bottom" })
             .setLngLat([owner.longitude, owner.latitude])
             .setPopup(
               new mapboxgl.Popup({ offset: 28 }).setHTML(
-                `<strong>${escapeHtml(owner.fullName)}</strong><br/>${petsLabel}${petNames ? ` · ${petNames}` : ""} · ${owner.distanceKm.toFixed(1)} km${approx}`,
+                `<strong>${animalLabel}</strong><br/>${owner.distanceKm.toFixed(1)} km away${approx}`,
               ),
             )
             .addTo(map!),
@@ -128,7 +108,11 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
       });
 
       if (closest.length > 0) {
-        map.fitBounds(bounds, { padding: { top: 96, bottom: 140, left: 48, right: 48 }, maxZoom: 13.8, duration: 700 });
+        map.fitBounds(bounds, {
+          padding: { top: 96, bottom: 140, left: 48, right: 48 },
+          maxZoom: 13.8,
+          duration: 700,
+        });
       }
 
       map.on("click", () => onSelectRef.current?.(null));
@@ -155,7 +139,7 @@ export function ImpactOwnersMap({ vetLocation, owners, selectedId, onSelect, cla
 
   useEffect(() => {
     ownerElsRef.current.forEach((el, id) => {
-      el.classList.toggle("vk-owner-marker-active", id === selectedId);
+      el.classList.toggle("vk-impact-count-marker-active", id === selectedId);
     });
   }, [selectedId]);
 

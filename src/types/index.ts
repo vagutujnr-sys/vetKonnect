@@ -101,14 +101,13 @@ export interface AdminUser {
 
 export interface PotentialClient {
   id: string;
-  fullName: string;
+  animals: number;
+  herdAnimals: number;
   pets: number;
-  petNames: string[];
   memberSince?: string;
   latitude: number;
   longitude: number;
   distanceKm: number;
-  avatarUrl?: string;
   /** True when coordinates are estimated near the vet (no stored owner location yet). */
   approximate?: boolean;
 }

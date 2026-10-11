@@ -250,56 +250,70 @@ export async function prescribeTreatment(input: PrescribeTreatmentInput): Promis
   };
 }
 
-/** Owner accounts with pets — mapped near the logged-in vet for Impact. */
+/** Owner accounts with animals — mapped near the logged-in vet for Impact. */
 export async function getPotentialClients(
   origin: GeoPoint = HARARE,
   limit = 60,
 ): Promise<PotentialClient[]> {
-  const [{ data: accounts, error: accountsError }, { data: pets, error: petsError }] = await Promise.all([
+  const [
+    { data: accounts, error: accountsError },
+    { data: pets, error: petsError },
+    { data: herdAnimals, error: herdAnimalsError },
+  ] = await Promise.all([
     supabase
       .from("accounts")
-      .select("id,full_name,created_at,account_type,latitude,longitude,avatar_url")
+      .select("id,created_at,account_type,latitude,longitude")
       .neq("account_type", "vet")
       .order("created_at", { ascending: false })
       .limit(200),
-    supabase.from("pets").select("id,name,owner_id"),
+    supabase.from("pets").select("owner_id"),
+    supabase.from("herd_animals").select("owner_id"),
   ]);
 
   if (accountsError) {
     // Fallback if lat/lng columns are not migrated yet.
     const { data: basicAccounts, error: basicError } = await supabase
       .from("accounts")
-      .select("id,full_name,created_at,account_type,avatar_url")
+      .select("id,created_at,account_type")
       .neq("account_type", "vet")
       .order("created_at", { ascending: false })
       .limit(200);
     if (basicError) throw basicError;
-    return mapPotentialClients(basicAccounts ?? [], pets ?? [], origin, limit);
+    if (petsError) throw petsError;
+    if (herdAnimalsError) throw herdAnimalsError;
+    return mapPotentialClients(basicAccounts ?? [], pets ?? [], herdAnimals ?? [], origin, limit);
   }
   if (petsError) throw petsError;
+  if (herdAnimalsError) throw herdAnimalsError;
 
-  return mapPotentialClients(accounts ?? [], pets ?? [], origin, limit);
+  return mapPotentialClients(accounts ?? [], pets ?? [], herdAnimals ?? [], origin, limit);
 }
 
 function mapPotentialClients(
   accounts: Array<Record<string, unknown>>,
   pets: Array<Record<string, unknown>>,
+  herdAnimals: Array<Record<string, unknown>>,
   origin: GeoPoint,
   limit: number,
 ): PotentialClient[] {
-  const petsByOwner = new Map<string, string[]>();
+  const petsByOwner = new Map<string, number>();
   for (const pet of pets) {
     const ownerId = pet.owner_id ? String(pet.owner_id) : "";
     if (!ownerId) continue;
-    const list = petsByOwner.get(ownerId) ?? [];
-    list.push(String(pet.name ?? "Pet"));
-    petsByOwner.set(ownerId, list);
+    petsByOwner.set(ownerId, (petsByOwner.get(ownerId) ?? 0) + 1);
+  }
+  const herdAnimalsByOwner = new Map<string, number>();
+  for (const animal of herdAnimals) {
+    const ownerId = animal.owner_id ? String(animal.owner_id) : "";
+    if (!ownerId) continue;
+    herdAnimalsByOwner.set(ownerId, (herdAnimalsByOwner.get(ownerId) ?? 0) + 1);
   }
 
   return accounts
     .map((row) => {
       const id = String(row.id);
-      const petNames = petsByOwner.get(id) ?? [];
+      const petsCount = petsByOwner.get(id) ?? 0;
+      const herdAnimalsCount = herdAnimalsByOwner.get(id) ?? 0;
       const hasStored =
         row.latitude != null &&
         row.longitude != null &&
@@ -311,20 +325,19 @@ function mapPotentialClients(
 
       return {
         id,
-        fullName: String(row.full_name ?? "").trim() || "Pet owner",
-        pets: petNames.length,
-        petNames,
+        animals: petsCount + herdAnimalsCount,
+        herdAnimals: herdAnimalsCount,
+        pets: petsCount,
         memberSince: row.created_at
           ? new Date(String(row.created_at)).toLocaleDateString("en-GB", { month: "short", year: "numeric" })
           : undefined,
         latitude: point.latitude,
         longitude: point.longitude,
         distanceKm: haversineKm(origin, point),
-        avatarUrl: row.avatar_url ? String(row.avatar_url) : undefined,
         approximate: !hasStored,
       } satisfies PotentialClient;
     })
-    .filter((client) => client.pets > 0)
+    .filter((client) => client.animals > 0)
     .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, limit);
 }
