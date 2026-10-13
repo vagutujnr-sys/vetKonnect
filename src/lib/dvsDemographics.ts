@@ -19,6 +19,8 @@ export type ProvinceDemographics = {
   other: number;
   male: number;
   female: number;
+  maleDogs: number;
+  femaleDogs: number;
   young: number;
   adult: number;
   senior: number;
@@ -110,6 +112,8 @@ export function buildProvinceDemographics(input: {
       other: 0,
       male: 0,
       female: 0,
+      maleDogs: 0,
+      femaleDogs: 0,
       young: 0,
       adult: 0,
       senior: 0,
@@ -126,7 +130,10 @@ export function buildProvinceDemographics(input: {
     const bucket = buckets.get(provinceForPet(pet.id, recorded));
     if (!bucket) continue;
     bucket.animals += 1;
-    bucket[speciesBucket(pet.species)] += 1;
+    const species = speciesBucket(pet.species);
+    bucket[species] += 1;
+    if (species === "dogs" && String(pet.sex).toLowerCase() === "male") bucket.maleDogs += 1;
+    if (species === "dogs" && String(pet.sex).toLowerCase() === "female") bucket.femaleDogs += 1;
     if (pet.sex === "Male") bucket.male += 1;
     if (pet.sex === "Female") bucket.female += 1;
     if (pet.ageYears < 2) bucket.young += 1;
